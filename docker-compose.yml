@@ -1,0 +1,18 @@
+services:
+  n8n:
+    build: .                    # ← Build depuis le Dockerfile local
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - NODES_EXCLUDE=[]          # <-- débloque Execute Command
+      - GENERIC_TIMEZONE=Indian/Antananarivo
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # tes scripts et dossiers de travail (voir plus bas)
+      # - ./scripts:/scripts
+      # - /chemin/hote/WORKFLOW_EC_MADA:/opt/studia/WORKFLOW_EC_MADA
+ 
+volumes:
+  n8n_data:
+ 
