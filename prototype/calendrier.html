@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendrier · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Calendrier — maquettes 7a (grille mois) et 8b (pipeline par statut) */
+  .cal { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: stretch; }
+
+  .cal-grid { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
+  .cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
+  .cal-dow span { padding: 8px 10px; font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--muted); }
+  .cal-days { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(96px, 1fr); }
+  .day {
+    min-height: 96px; overflow: hidden; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: 7px 8px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .day:nth-child(7n) { border-right: 0; }
+  .day.is-out { background: var(--ground); }
+  .day.is-out .dnum { color: #bbaf9e; }
+  .dnum { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .day.is-today .dnum { color: var(--accent); font-weight: 500; }
+  .day.is-today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .dnum .tag-today { font-size: 8.5px; letter-spacing: .1em; margin-left: 5px; }
+
+  .ev {
+    display: flex; align-items: center; gap: 5px;
+    border-radius: 5px; padding: 4px 6px; cursor: pointer;
+    font-family: var(--f-mono); font-size: 9.5px; line-height: 1.35;
+    border: 1px solid var(--border-2); color: var(--ink-2); background: var(--surface);
+    text-align: left; width: 100%; overflow: hidden;
+  }
+  .ev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev:hover { border-color: var(--muted); }
+  .ev-web { background: var(--ink); border-color: var(--ink); color: var(--ground); }
+  .ev-wait { border-color: var(--wait); color: var(--wait); background: var(--wait-soft); }
+  .ev-block { border-style: dashed; border-color: var(--err); color: var(--err); background: var(--err-soft); }
+  .ev-sel { border-color: var(--accent); border-width: 1.5px; background: var(--accent-soft); color: var(--accent); }
+  .ev-ghost { border-style: dashed; color: var(--muted); background: transparent; justify-content: center; }
+  .ev .logo-net { width: 11px; height: 11px; }
+
+  /* ---- panneau de droite ---- */
+  .side { display: flex; flex-direction: column; gap: 14px; align-self: start; position: sticky; top: 0; }
+  .sel-head { display: flex; align-items: center; gap: 9px; }
+  .sel-head .who { flex: 1; display: flex; flex-direction: column; }
+  .sel-head .who b { font-size: 13.5px; font-weight: 500; }
+  .sel-title { font-family: var(--f-display); font-weight: 400; font-size: 19px; line-height: 1.25; }
+  .sel-when { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .sel-note { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+  .sel-hint { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+  .load { display: flex; flex-direction: column; gap: 9px; }
+  .load-row { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+  .load-row .who { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .load-row .n { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .load-row .n.warn { color: var(--err); }
+
+  /* ---- pipeline 8b ---- */
+  .pipe { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .col { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; flex-direction: column; }
+  .col-head { padding: 11px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .col-head b { font-size: 13.5px; flex: 1; }
+  .col-head .n { width: 20px; height: 20px; border-radius: 10px; background: var(--surface-2); color: var(--ink-2); display: grid; place-items: center; font-family: var(--f-mono); font-size: 10px; }
+  .col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+  .kcard { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; display: flex; flex-direction: column; gap: 5px; cursor: pointer; background: var(--surface); }
+  .kcard:hover { border-color: var(--border-2); }
+  .kcard b { font-size: 12.8px; font-weight: 500; line-height: 1.35; }
+  .kcard .meta { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .kcard .acts { display: flex; gap: 6px; margin-top: 3px; }
+  .kcard .acts .btn { height: 24px; font-size: 11.5px; padding: 0 8px; }
+  .kadd { border: 1.5px dashed var(--border-2); border-radius: 9px; padding: 8px; color: var(--muted); font-size: 12px; background: transparent; cursor: pointer; }
+  .kadd:hover { border-color: var(--accent); color: var(--accent); }
+  .col-foot { padding: 8px 13px 11px; font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .col-foot.warn { color: var(--err); }
+  .col-foot a { color: var(--accent); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body data-page="calendrier">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Programmer <span>/</span> <b>Calendrier éditorial</b></div>
+      <div class="topbar-actions">
+        <span class="status status-plan">7 en attente de validation</span>
+        <span class="mono" style="font-size:10.5px;color:var(--muted)">dernière synchro 09:12</span>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1 id="cal-title">Calendrier éditorial</h1>
+          <p class="sub" id="cal-sub">Septembre 2026 · glissez une pastille pour déplacer une publication</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="chips" data-chipgroup id="filters">
+            <button class="chip is-on" type="button">Tous</button>
+            <button class="chip" type="button"><i data-net="instagram" class="logo-net" style="width:13px;height:13px"></i> Instagram</button>
+            <button class="chip" type="button"><i data-net="facebook" class="logo-net" style="width:13px;height:13px"></i> Facebook</button>
+            <button class="chip" type="button"><i data-net="linkedin" class="logo-net" style="width:13px;height:13px"></i> LinkedIn</button>
+            <button class="chip" type="button">Webinaire</button>
+          </div>
+          <div class="segmented" role="group" aria-label="Vue">
+            <button type="button" class="is-on" data-view="mois"><i data-ico="calendar" class="ico ico-sm"></i> Mois</button>
+            <button type="button" data-view="pipe"><i data-ico="columns" class="ico ico-sm"></i> Kanban</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ vue Mois (7a) ============ -->
+      <div class="cal" id="view-mois">
+        <section class="cal-grid" aria-label="Grille du mois">
+          <div class="cal-dow">
+            <span>LUN</span><span>MAR</span><span>MER</span><span>JEU</span><span>VEN</span><span>SAM</span><span>DIM</span>
+          </div>
+          <div class="cal-days" id="days"></div>
+        </section>
+
+        <aside class="side">
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
+            <div class="label">Publication sélectionnée</div>
+            <div class="sel-head">
+              <i data-net="instagram" class="logo-net logo-net-lg"></i>
+              <span class="who"><b>Instagram</b></span>
+              <span class="status status-plan">en attente</span>
+            </div>
+            <h2 class="sel-title">Ouverture des candidatures — session janvier 2027</h2>
+            <p class="sel-when">Mercredi 9 septembre · 14:30</p>
+            <p class="sel-note">Créneau recommandé (pic d'audience 12 h – 14 h 30).</p>
+            <p class="sel-hint">Déposez la pastille sur un autre jour pour reprogrammer. La publication reste bloquée tant qu'elle n'est pas approuvée.</p>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <button class="btn btn-primary btn-block" type="button">Ouvrir dans la file de validation</button>
+              <button class="btn btn-block" type="button"><i data-ico="clock" class="ico ico-sm"></i> Décaler de 24 h</button>
+            </div>
+          </div>
+
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
+            <div class="label">Charge de la semaine</div>
+            <div class="load">
+              <div class="load-row"><span class="who"><i data-net="instagram" class="logo-net"></i> Instagram</span><span class="n">5 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="facebook" class="logo-net"></i> Facebook</span><span class="n">4 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span><span class="n">3 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="tiktok" class="logo-net"></i> TikTok</span><span class="n warn">1 bloquée</span></div>
+              <div class="load-row"><span class="who"><i data-ico="video" class="ico ico-sm"></i> Webinaires</span><span class="n">2 rappels</span></div>
+            </div>
+          </div>
+
+          <a class="btn btn-primary btn-block" href="creer-publication.html">
+            <i data-ico="plus" class="ico ico-sm"></i> Planifier une publication
+          </a>
+        </aside>
+      </div>
+
+      <!-- ============ vue Kanban (8b) ============ -->
+      <div class="pipe" id="view-pipe" hidden>
+
+        <section class="col">
+          <div class="col-head"><b>Idées</b><span class="n">5</span></div>
+          <div class="col-body">
+            <article class="kcard"><b>Témoignage alumni promo 2024</b><span class="meta">idée · Sarah L.</span></article>
+            <article class="kcard"><b>Coulisses du labo data</b><span class="meta">idée · Agent IA</span></article>
+            <article class="kcard"><b>Chiffres d'insertion 2026</b><span class="meta">idée</span></article>
+            <button class="kadd" type="button">+ ajouter une idée</button>
+          </div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>Brouillons</b><span class="n">4</span></div>
+          <div class="col-body">
+            <article class="kcard"><b>Reel rentrée septembre</b><span class="meta">Instagram · Reels</span></article>
+            <article class="kcard"><b>Carrousel portes ouvertes</b><span class="meta">Facebook · 5 médias</span></article>
+            <article class="kcard"><b>Post insertion pro</b><span class="meta">LinkedIn · légende IA</span></article>
+          </div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>À valider</b><span class="n">3</span></div>
+          <div class="col-body">
+            <article class="kcard" style="border-color:var(--wait)">
+              <b>Ouverture des candidatures janvier 2027</b>
+              <span class="meta">Instagram · 9 sept. 14:30</span>
+              <div class="acts">
+                <button class="btn btn-sm btn-primary" type="button">Approuver</button>
+                <button class="btn btn-sm" type="button">Voir</button>
+              </div>
+            </article>
+            <article class="kcard"><b>Story série 1/3</b><span class="meta">Facebook · 15 sept. 08:30</span></article>
+            <article class="kcard"><b>Rappel H-2 webinaire</b><span class="meta">LinkedIn · 17 sept. 16:00</span></article>
+          </div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>Programmés</b><span class="n">4</span></div>
+          <div class="col-body">
+            <article class="kcard"><b>WEBINAIRE Data engineering</b><span class="meta">17 sept. 18:00 · 3 rappels</span></article>
+            <article class="kcard"><b>Relance candidats</b><span class="meta">23 sept. 09:00 · LinkedIn</span></article>
+            <article class="kcard"><b>Rentrée septembre</b><span class="meta">25 sept. 11:00 · Instagram</span></article>
+          </div>
+          <div class="col-foot warn">1 en échec — à reprogrammer</div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>Publiés</b><span class="n">21</span></div>
+          <div class="col-body">
+            <article class="kcard"><b>Forum TERANOVA</b><span class="meta">7 sept. · 1 240 vues</span></article>
+            <article class="kcard"><b>Story eBIHAR</b><span class="meta">8 sept. · 860 vues</span></article>
+            <article class="kcard"><b>Newsletter août</b><span class="meta">4 sept. · 2 envois</span></article>
+          </div>
+          <div class="col-foot"><a href="historique.html">voir l'historique complet</a></div>
+        </section>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquettes 7a + 8b</div>
+<script src="js/app.js"></script>
+<script>
+  /* Septembre 2026 — un objet par jour affiché.
+     n : numéro · out : hors mois · today : jour courant
+     ev : pastilles [texte, type, réseau]
+          type : '' (normal) | 'wait' | 'block' | 'web' | 'sel' | 'ghost'   */
+  var DAYS = [
+    { n: 31, out: true },
+    { n: 1,  ev: [['12:30 · Résultats promo', '', 'facebook']] },
+    { n: 2 },
+    { n: 3,  ev: [['18:00 · Reel campus', '', 'instagram']] },
+    { n: 4,  ev: [['09:00 · Newsletter', '']] },
+    { n: 5 },
+    { n: 6 },
+
+    { n: 7,  ev: [['12:30 · Forum', '', 'facebook']] },
+    { n: 8,  ev: [['17:30 · Story', '', 'instagram']] },
+    { n: 9,  today: true, ev: [
+        ['14:30 · Ouverture candidatures', 'sel', 'instagram'],
+        ['08:00 · Rappel J-7 webinaire', 'web']] },
+    { n: 10, ev: [['12:30 · Data Viz', '', 'linkedin'], ['18:00 · Carrousel', '', 'facebook']] },
+    { n: 11, ev: [['19:00 · TikTok bloqué', 'block', 'tiktok']] },
+    { n: 12, ev: [['09:00 · Relance J-7', 'web']] },
+    { n: 13, ev: [['11:00 · Portes ouvertes', '', 'facebook']] },
+
+    { n: 14, ev: [['10:00 · Relance', '', 'linkedin']] },
+    { n: 15, ev: [['08:30 · Story 1/3', 'wait', 'facebook']] },
+    { n: 16, ev: [['10:00 · Alternance', '', 'linkedin']] },
+    { n: 17, ev: [['18:00 · WEBINAIRE Data', 'web'], ['16:00 · Rappel H-2', 'wait', 'linkedin']] },
+    { n: 18, ev: [['12:00 · Replay teaser', '', 'instagram']] },
+    { n: 19 },
+    { n: 20 },
+
+    { n: 21, ev: [['12:30 · Bilan webinaire', '', 'linkedin']] },
+    { n: 22 },
+    { n: 23, ev: [['09:00 · Relance candidats', '', 'linkedin']] },
+    { n: 24 },
+    { n: 25, ev: [['11:00 · Rentrée sept.', '', 'instagram']] },
+    { n: 26 },
+    { n: 27 },
+
+    { n: 28 },
+    { n: 29, ev: [['+ créneau suggéré', 'ghost']] },
+    { n: 30 },
+    { n: 1, out: true }, { n: 2, out: true }, { n: 3, out: true }, { n: 4, out: true }
+  ];
+
+  document.getElementById('days').innerHTML = DAYS.map(function (d) {
+    var cls = 'day' + (d.out ? ' is-out' : '') + (d.today ? ' is-today' : '');
+    var num = '<span class="dnum">' + d.n +
+      (d.today ? '<span class="tag-today">AUJOURD\'HUI</span>' : '') + '</span>';
+    var evs = (d.ev || []).map(function (e) {
+      var logo = e[2] ? IAGORA.netLogo(e[2]) : '';
+      return '<button class="ev' + (e[1] ? ' ev-' + e[1] : '') + '" type="button">' +
+        logo + '<span>' + e[0] + '</span></button>';
+    }).join('');
+    return '<div class="' + cls + '">' + num + evs + '</div>';
+  }).join('');
+
+  // bascule Mois / Kanban
+  document.querySelector('.segmented').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-view]'); if (!b) return;
+    Array.prototype.forEach.call(this.children, function (n) { n.classList.remove('is-on'); });
+    b.classList.add('is-on');
+    var pipe = b.getAttribute('data-view') === 'pipe';
+    document.getElementById('view-mois').hidden = pipe;
+    document.getElementById('view-pipe').hidden = !pipe;
+    document.getElementById('filters').hidden = pipe;
+    document.getElementById('cal-title').textContent = pipe ? 'Pipeline éditorial' : 'Calendrier éditorial';
+    document.getElementById('cal-sub').textContent = pipe
+      ? 'Septembre 2026 · 18 contenus — idée → brouillon → validation → programmé → publié'
+      : 'Septembre 2026 · glissez une pastille pour déplacer une publication';
+  });
+</script>
+</body>
+</html>

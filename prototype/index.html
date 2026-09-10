@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Écran de connexion — maquette 2a : carte centrée sur fond plein */
+  .login {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    background:
+      repeating-linear-gradient(135deg,
+        #f7f2ea 0 11px,
+        var(--ground) 11px 22px);
+  }
+  .login-top {
+    height: 64px; flex: none;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px;
+  }
+  .login-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .login-brand .sb-mark { width: 30px; height: 30px; font-size: 16px; }
+  .login-brand span { font-family: var(--f-display); font-size: 21px; letter-spacing: .01em; }
+
+  .login-mid { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+  .login-card {
+    width: 460px; max-width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    border-radius: 14px;
+    padding: 40px 44px;
+    display: flex; flex-direction: column; gap: 24px;
+  }
+
+  .login-title { display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
+  .login-title h1 { font-family: var(--f-display); font-weight: 400; font-size: 34px; letter-spacing: -.01em; }
+  .login-title p { color: var(--muted); font-size: 15px; }
+
+  .login-social { display: flex; gap: 12px; }
+  .login-social .btn { flex: 1; height: 48px; justify-content: center; border-width: 1.5px; border-color: var(--ink); color: var(--ink); font-size: 14.5px; }
+  .login-social .btn:hover { background: var(--surface-2); }
+
+  .login-sep { display: flex; align-items: center; gap: 12px; }
+  .login-sep::before, .login-sep::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .login-sep span { font-family: var(--f-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+  .login-form { display: flex; flex-direction: column; gap: 15px; }
+  .login-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .login-alt { text-align: center; font-size: 13.5px; color: var(--muted); }
+
+  .login-foot {
+    flex: none; height: 52px;
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+    font-family: var(--f-mono); font-size: 10.5px; color: var(--muted);
+  }
+  .login-foot a { text-decoration: none; }
+  .login-foot a:hover { color: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<div class="login">
+
+  <header class="login-top">
+    <a class="login-brand" href="index.html">
+      <span class="sb-mark">IA</span>
+      <span>IAGORA</span>
+    </a>
+    <a class="link" href="#" style="font-size:14px;color:var(--muted)">Besoin d'aide&nbsp;?</a>
+  </header>
+
+  <main class="login-mid">
+    <form class="login-card" action="publications.html">
+
+      <div class="login-title">
+        <h1>Content de vous revoir</h1>
+        <p>Connectez-vous à votre espace</p>
+      </div>
+
+      <div class="login-social">
+        <a class="btn" href="publications.html">
+          <svg class="logo-net" viewBox="0 0 24 24" role="img" aria-label="Google"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 7.1a4.9 4.9 0 1 0 4.75 6.1h-4.6v-2.1h6.7a6 6 0 0 1 .1 1.1A6.9 6.9 0 1 1 16.6 7l-1.5 1.5A4.8 4.8 0 0 0 12 7.1Z" fill="currentColor" stroke="none"/></svg>
+          Google
+        </a>
+        <a class="btn" href="publications.html">
+          <i data-net="facebook" class="logo-net"></i>
+          Facebook
+        </a>
+      </div>
+
+      <div class="login-sep"><span>ou par e-mail</span></div>
+
+      <div class="login-form">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input class="input" id="email" type="email" value="sarah.lemoine@datum-academy.fr" autocomplete="username">
+        </div>
+        <div class="field">
+          <label for="pwd">Mot de passe</label>
+          <input class="input" id="pwd" type="password" value="prototype" autocomplete="current-password">
+        </div>
+        <div class="login-row">
+          <label class="check"><input type="checkbox" checked> Rester connecté</label>
+          <a class="link" href="#" style="font-size:13px">Mot de passe oublié&nbsp;?</a>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Se connecter</button>
+
+      <p class="login-alt">Nouveau ici&nbsp;? <a class="link" href="#">Créer un compte</a></p>
+
+    </form>
+  </main>
+
+  <footer class="login-foot">
+    <a href="#">CGU</a>
+    <a href="#">Confidentialité</a>
+    <span>© 2026 IAGORA</span>
+  </footer>
+
+</div>
+
+<div class="proto-flag">maquette 2a</div>
+<script src="js/app.js"></script>
+</body>
+</html>

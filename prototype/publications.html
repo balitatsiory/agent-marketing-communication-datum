@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publications · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Publications — maquette 13b : grille de vignettes, filtres en colonne */
+  .pubs { flex: 1; min-height: 0; display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 18px; }
+
+  .filters { display: flex; flex-direction: column; gap: 18px; align-self: start; position: sticky; top: 0; }
+  .fgroup { display: flex; flex-direction: column; gap: 8px; }
+  .fgroup > .label { padding-left: 1px; }
+  .fopt { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .fopt input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; }
+  .fopt .n { margin-left: auto; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .fopt:hover { color: var(--ink); }
+  .fselect {
+    height: 32px; border: 1px solid var(--border-2); border-radius: var(--radius);
+    background: var(--surface); color: var(--ink-2); font-size: 13px;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 10px;
+    cursor: pointer; width: 100%; text-align: left;
+  }
+  .freset { align-self: flex-start; font-size: 12.5px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .freset:hover { color: var(--accent); }
+
+  .results { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; }
+  .searchbox {
+    flex: 1; min-width: 0; height: 38px;
+    border: 1px solid var(--border-2); border-radius: 20px;
+    background: var(--surface);
+    display: flex; align-items: center; gap: 9px; padding: 0 15px;
+  }
+  .searchbox input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--ink); outline: none; }
+  .searchbox input::placeholder { color: #a99b8a; }
+  .searchbox .ico { color: var(--muted); }
+
+  .segmented { display: flex; border: 1px solid var(--border-2); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .segmented button {
+    height: 32px; padding: 0 11px; border: 0; background: transparent; color: var(--muted);
+    font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .segmented button + button { border-left: 1px solid var(--border); }
+  .segmented button.is-on { background: var(--ink); color: var(--ground); }
+
+  .resline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .resline .count { font-size: 13px; color: var(--muted); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 14px; }
+
+  .pcard {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    overflow: hidden; display: flex; flex-direction: column; cursor: pointer;
+    transition: border-color .12s ease;
+  }
+  .pcard:hover { border-color: var(--border-2); }
+  .pcard-media {
+    aspect-ratio: 3 / 4; position: relative;
+    background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, var(--ground) 8px 16px);
+    border-bottom: 1px solid var(--border);
+  }
+  .pcard-tag {
+    position: absolute; left: 8px; top: 8px;
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 22px; padding: 0 8px; border-radius: 11px;
+    background: var(--surface); border: 1px solid var(--border-2);
+    font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .pcard-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+  .pcard-title { font-size: 13.5px; font-weight: 700; line-height: 1.35; }
+  .pcard-metrics { display: flex; align-items: center; gap: 12px; margin-top: auto; }
+  .metric { display: flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .metric .ico { color: var(--muted); }
+  .pcard-foot { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+
+  .more { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }
+  .more span { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body data-page="publications">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Publier <span>/</span> <b>Publications</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button"><i data-ico="download" class="ico ico-sm"></i> Exporter CSV</button>
+        <a class="btn btn-primary" href="creer-publication.html"><i data-ico="plus" class="ico ico-sm"></i> Créer une publication</a>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Publications</h1>
+          <p class="sub">128 publications · 84 200 vues · 1 460 commentaires sur 30 jours</p>
+        </div>
+      </div>
+
+      <div class="pubs">
+
+        <!-- ---------- colonne de filtres ---------- -->
+        <aside class="filters" aria-label="Filtres">
+
+          <div class="fgroup">
+            <div class="label">Réseau</div>
+            <label class="fopt"><input type="checkbox" checked> Instagram <span class="n">56</span></label>
+            <label class="fopt"><input type="checkbox" checked> Facebook <span class="n">42</span></label>
+            <label class="fopt"><input type="checkbox"> LinkedIn <span class="n">18</span></label>
+            <label class="fopt"><input type="checkbox"> TikTok <span class="n">12</span></label>
+          </div>
+
+          <div class="fgroup">
+            <div class="label">Format</div>
+            <label class="fopt"><input type="checkbox" checked> Reels</label>
+            <label class="fopt"><input type="checkbox"> Vidéo</label>
+            <label class="fopt"><input type="checkbox"> Image</label>
+            <label class="fopt"><input type="checkbox"> Carrousel</label>
+            <label class="fopt"><input type="checkbox"> Story</label>
+          </div>
+
+          <div class="fgroup">
+            <div class="label">Statut</div>
+            <label class="fopt"><input type="checkbox"> Publiée</label>
+            <label class="fopt"><input type="checkbox"> Programmée</label>
+            <label class="fopt"><input type="checkbox"> Brouillon</label>
+          </div>
+
+          <div class="fgroup">
+            <div class="label">Période</div>
+            <button class="fselect" type="button">30 derniers jours <i data-ico="chevron" class="ico ico-sm"></i></button>
+          </div>
+
+          <div class="fgroup">
+            <div class="label">Auteur</div>
+            <button class="fselect" type="button">Tous <i data-ico="chevron" class="ico ico-sm"></i></button>
+          </div>
+
+          <button class="freset" type="button">Réinitialiser</button>
+        </aside>
+
+        <!-- ---------- résultats ---------- -->
+        <section class="results">
+
+          <div class="toolbar">
+            <div class="searchbox">
+              <i data-ico="search" class="ico ico-sm"></i>
+              <input type="search" placeholder="Rechercher une publication, un hashtag, un auteur…" aria-label="Rechercher">
+            </div>
+            <button class="btn btn-sm" type="button">Trier : vues <i data-ico="chevron" class="ico ico-sm"></i></button>
+            <div class="segmented" role="group" aria-label="Affichage">
+              <button type="button" class="is-on"><i data-ico="grid" class="ico ico-sm"></i> Grille</button>
+              <button type="button"><i data-ico="files" class="ico ico-sm"></i> Liste</button>
+            </div>
+          </div>
+
+          <div class="resline">
+            <span class="count">42 publications · Instagram + Facebook · Reels</span>
+            <span class="chip-active">Instagram <i data-ico="close" class="ico" style="width:11px;height:11px"></i></span>
+            <span class="chip-active">Facebook <i data-ico="close" class="ico" style="width:11px;height:11px"></i></span>
+            <span class="chip-active">Reels <i data-ico="close" class="ico" style="width:11px;height:11px"></i></span>
+          </div>
+
+          <div class="grid">
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Ouverture des candidatures</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 12 400</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 86</span>
+                </div>
+                <div class="pcard-foot">9 sept. · Sarah L.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="facebook" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Reel campus — rentrée</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 9 180</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 142</span>
+                </div>
+                <div class="pcard-foot">8 sept. · Sarah L.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Une journée en cours de data</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 7 640</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 51</span>
+                </div>
+                <div class="pcard-foot">6 sept. · Amina K.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">3 outils que tout data analyst utilise</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 6 020</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 37</span>
+                </div>
+                <div class="pcard-foot">4 sept. · Amina K.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="facebook" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Témoignage — reconversion réussie</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 5 310</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 29</span>
+                </div>
+                <div class="pcard-foot">3 sept. · Marc D.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Le campus en 30 secondes</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 4 760</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 18</span>
+                </div>
+                <div class="pcard-foot">1 sept. · Amina K.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="facebook" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Portes ouvertes — après-midi</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 4 120</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 44</span>
+                </div>
+                <div class="pcard-foot">30 août · Sarah L.</div>
+              </div>
+            </article>
+
+            <article class="pcard">
+              <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">Questions d'entretien en data</h3>
+                <div class="pcard-metrics">
+                  <span class="metric"><i data-ico="chart" class="ico ico-sm"></i> 3 480</span>
+                  <span class="metric"><i data-ico="chat" class="ico ico-sm"></i> 22</span>
+                </div>
+                <div class="pcard-foot">28 août · Marc D.</div>
+              </div>
+            </article>
+
+          </div>
+
+          <div class="more">
+            <span>8 sur 42</span>
+            <button class="btn btn-sm" type="button">Charger plus</button>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 13b</div>
+<script src="js/app.js"></script>
+</body>
+</html>

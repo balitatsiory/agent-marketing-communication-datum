@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Messages unifiés · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Messagerie unifiée — maquette 10a : liste + conversation + réponse IA à valider */
+  .inbox { flex: 1; min-height: 0; display: grid; grid-template-columns: 194px 328px minmax(0, 1fr); gap: 16px; }
+
+  /* --- filtres --- */
+  .ifilters { display: flex; flex-direction: column; gap: 18px; align-self: start; }
+  .ifgroup { display: flex; flex-direction: column; gap: 4px; }
+  .ifrow {
+    display: flex; align-items: center; gap: 8px; padding: 6px 9px;
+    border-radius: var(--radius); font-size: 13px; color: var(--ink-2);
+    background: transparent; border: 0; cursor: pointer; text-align: left; width: 100%;
+  }
+  .ifrow:hover { background: var(--accent-soft); }
+  .ifrow.is-on { background: var(--ink); color: var(--ground); }
+  .ifrow .who { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .ifrow .n { font-family: var(--f-mono); font-size: 10.5px; opacity: .8; }
+  .late { display: flex; align-items: center; gap: 7px; font-family: var(--f-mono); font-size: 10px; color: var(--err); }
+
+  /* --- liste --- */
+  .conv-list { min-height: 0; }
+  .conv-list .panel-head .sort { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+
+  .conv {
+    width: 100%; text-align: left; background: transparent; border: 0; cursor: pointer;
+    padding: 11px 14px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 10px;
+  }
+  .conv:hover { background: var(--surface-2); }
+  .conv.is-on { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+  .av {
+    width: 30px; height: 30px; flex: none; border-radius: 50%;
+    background: var(--surface-2); color: var(--ink-2);
+    display: grid; place-items: center; font-family: var(--f-mono); font-size: 10px;
+  }
+  .conv-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .conv-top { display: flex; align-items: baseline; gap: 8px; }
+  .conv-top b { font-size: 13px; font-weight: 700; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-top .t { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); flex: none; }
+  .conv-x { font-size: 12.5px; color: var(--muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .conv-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .conv-src { display: flex; align-items: center; gap: 5px; font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .flag {
+    font-family: var(--f-mono); font-size: 9px; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 9px; border: 1px solid var(--border-2); color: var(--muted);
+  }
+  .flag-ai { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .flag-late { border-color: var(--err); color: var(--err); background: var(--err-soft); }
+  .flag-prio { border-color: var(--ink); color: var(--ink); }
+
+  .conv-more { padding: 11px 14px; text-align: center; }
+
+  /* --- conversation --- */
+  .thread { min-height: 0; }
+  .th-head { display: flex; align-items: center; gap: 11px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+  .th-head .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .th-head .who b { font-size: 14.5px; }
+  .th-head .who span { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+
+  .th-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  .bubble { max-width: 78%; display: flex; flex-direction: column; gap: 5px; }
+  .bubble .txt { background: var(--surface-2); border-radius: 12px; border-bottom-left-radius: 4px; padding: 11px 14px; font-size: 13.5px; line-height: 1.55; }
+  .bubble .when { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+
+  .ai {
+    border: 1.5px solid var(--accent); border-radius: 12px; background: var(--accent-soft);
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 11px;
+  }
+  .ai-head { display: flex; align-items: center; gap: 9px; }
+  .ai-head b { font-size: 13px; flex: 1; }
+  .ai-head .cost { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .ai-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+  .ai-text { background: var(--surface); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+  .ai-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ai-warn { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); margin-left: auto; }
+
+  .th-foot { flex: none; border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .th-send { display: flex; gap: 8px; align-items: center; }
+  .th-note { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+</style>
+</head>
+<body data-page="messages">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Interagir <span>/</span> <b>Messages unifiés</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button"><i data-ico="check" class="ico ico-sm"></i> Marquer comme traité</button>
+        <button class="btn" type="button"><i data-ico="users" class="ico ico-sm"></i> Assigner</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Messagerie unifiée</h1>
+          <p class="sub">Messages privés et commentaires des quatre réseaux dans une seule file. L'agent prépare les réponses, un humain les envoie.</p>
+        </div>
+      </div>
+
+      <div class="inbox">
+
+        <!-- ---------- filtres ---------- -->
+        <aside class="ifilters" aria-label="Filtres">
+          <div class="ifgroup">
+            <div class="label" style="padding:0 9px 4px">Canal</div>
+            <button class="ifrow is-on" type="button"><span class="who">Tous</span><span class="n">12</span></button>
+            <button class="ifrow" type="button"><span class="who">Messages privés</span><span class="n">5</span></button>
+            <button class="ifrow" type="button"><span class="who">Commentaires</span><span class="n">6</span></button>
+            <button class="ifrow" type="button"><span class="who">Mentions</span><span class="n">1</span></button>
+          </div>
+
+          <div class="ifgroup">
+            <div class="label" style="padding:0 9px 4px">Plateforme</div>
+            <button class="ifrow" type="button"><span class="who"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span><span class="n">3</span></button>
+            <button class="ifrow" type="button"><span class="who"><i data-net="instagram" class="logo-net"></i> Instagram</span><span class="n">4</span></button>
+            <button class="ifrow" type="button"><span class="who"><i data-net="facebook" class="logo-net"></i> Facebook</span><span class="n">3</span></button>
+            <button class="ifrow" type="button"><span class="who"><i data-net="tiktok" class="logo-net"></i> TikTok</span><span class="n">2</span></button>
+          </div>
+
+          <div class="late"><i data-ico="warn" class="ico ico-sm"></i> 2 hors délai · &gt; 24 h</div>
+        </aside>
+
+        <!-- ---------- liste ---------- -->
+        <section class="panel conv-list" aria-label="Conversations">
+          <div class="panel-head">
+            <h2>Conversations</h2>
+            <span class="sort">non traitées d'abord</span>
+          </div>
+          <div class="panel-body">
+
+            <button class="conv is-on" type="button">
+              <span class="av">MD</span>
+              <span class="conv-main">
+                <span class="conv-top"><b>Mamadou Diallo</b><span class="t">22 min</span></span>
+                <span class="conv-x">Bonjour, le MSc eBIHAR est-il éligible au financement CPF ? Et quel est le rythme hebdo…</span>
+                <span class="conv-meta">
+                  <span class="conv-src"><i data-net="linkedin" class="logo-net" style="width:12px;height:12px"></i> Message privé</span>
+                  <span class="flag flag-ai">Réponse à valider</span>
+                </span>
+              </span>
+            </button>
+
+            <button class="conv" type="button">
+              <span class="av">FS</span>
+              <span class="conv-main">
+                <span class="conv-top"><b>fatou.sarr_</b><span class="t">1 j</span></span>
+                <span class="conv-x">La certification GRADEO Power BI, c'est combien d'heures par semaine ?</span>
+                <span class="conv-meta">
+                  <span class="conv-src"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Commentaire</span>
+                  <span class="flag flag-late">Hors délai</span>
+                </span>
+              </span>
+            </button>
+
+            <button class="conv" type="button">
+              <span class="av">OS</span>
+              <span class="conv-main">
+                <span class="conv-top"><b>Orange Sonatel — RH</b><span class="t">3 h</span></span>
+                <span class="conv-x">Nous cherchons deux alternants data pour janvier. Qui contacter côté partenariats ?</span>
+                <span class="conv-meta">
+                  <span class="conv-src"><i data-net="facebook" class="logo-net" style="width:12px;height:12px"></i> Message privé</span>
+                  <span class="flag flag-prio">Priorité partenaire</span>
+                </span>
+              </span>
+            </button>
+
+            <button class="conv" type="button">
+              <span class="av">AB</span>
+              <span class="conv-main">
+                <span class="conv-top"><b>@aboubakr.tech</b><span class="t">5 h</span></span>
+                <span class="conv-x">C'est ouvert aux profils non informaticiens ?</span>
+                <span class="conv-meta">
+                  <span class="conv-src"><i data-net="tiktok" class="logo-net" style="width:12px;height:12px"></i> Commentaire</span>
+                  <span class="flag">Réponse limitée · audit</span>
+                </span>
+              </span>
+            </button>
+
+            <button class="conv" type="button">
+              <span class="av">NK</span>
+              <span class="conv-main">
+                <span class="conv-top"><b>Ndèye Kane</b><span class="t">6 h</span></span>
+                <span class="conv-x">Le replay du webinaire de juillet est-il disponible quelque part ?</span>
+                <span class="conv-meta">
+                  <span class="conv-src"><i data-net="linkedin" class="logo-net" style="width:12px;height:12px"></i> Commentaire</span>
+                  <span class="flag">Réponse type disponible</span>
+                </span>
+              </span>
+            </button>
+
+            <div class="conv-more"><button class="btn btn-sm" type="button">Voir les 7 conversations restantes</button></div>
+          </div>
+        </section>
+
+        <!-- ---------- conversation ---------- -->
+        <section class="panel thread" aria-label="Conversation">
+
+          <div class="th-head">
+            <span class="av">MD</span>
+            <span class="who">
+              <b>Mamadou Diallo</b>
+              <span>LinkedIn · message privé · Dakar · a assisté au webinaire du 17 juillet</span>
+            </span>
+            <span class="flag flag-ai">Réponse à valider</span>
+            <button class="btn btn-icon btn-ghost" type="button" aria-label="Plus d'actions"><i data-ico="dots" class="ico"></i></button>
+          </div>
+
+          <div class="th-body">
+
+            <div class="bubble">
+              <div class="txt">Bonjour, le MSc eBIHAR est-il éligible au financement CPF ? Et quel est le rythme hebdomadaire pour quelqu'un qui travaille à temps plein ?</div>
+              <div class="when">Aujourd'hui 08 h 51</div>
+            </div>
+
+            <div class="ai">
+              <div class="ai-head">
+                <span class="ai-mark"><i data-ico="sparkle" class="ico ico-sm"></i></span>
+                <b>Réponse proposée par l'agent</b>
+                <span class="cost">confiance 0,79 · 1,8 s · 0,003 €</span>
+              </div>
+
+              <div class="ai-text">
+                <p>Bonjour Mamadou, merci de votre message.</p>
+                <p>Le MSc eBIHAR est éligible au CPF pour les résidents en France ; pour le Sénégal, nous proposons un paiement en 6 mensualités et une bourse partielle au mérite.</p>
+                <p>Côté rythme : comptez 12 à 15 h par semaine, avec des cours en direct le soir (19 h – 21 h GMT) et le samedi matin. Tout est enregistré, donc suivable en différé.</p>
+                <p>Souhaitez-vous que je vous transmette la brochure détaillée de la promotion de janvier 2027 ?</p>
+              </div>
+
+              <div class="ai-acts">
+                <button class="btn btn-primary" type="button"><i data-ico="send" class="ico ico-sm"></i> Approuver et envoyer</button>
+                <button class="btn" type="button">Modifier</button>
+                <button class="btn" type="button">Rejeter</button>
+                <span class="ai-warn">rien n'est envoyé sans cette action</span>
+              </div>
+
+              <div class="chips">
+                <button class="chip" type="button">Variante plus courte</button>
+                <button class="chip" type="button">Ajouter le lien brochure</button>
+                <button class="chip" type="button">Transférer à l'admission</button>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="th-foot">
+            <div class="th-send">
+              <input class="input" type="text" placeholder="Écrire une réponse manuelle…" aria-label="Réponse manuelle">
+              <button class="btn" type="button">Réponses types</button>
+              <button class="btn btn-primary" type="button">Envoyer</button>
+            </div>
+            <p class="th-note">Réponse envoyée depuis la page Datum Academy · signée « équipe communication »</p>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 10a</div>
+<script src="js/app.js"></script>
+<script>
+  document.addEventListener('click', function (e) {
+    var c = e.target.closest('.conv');
+    if (c) {
+      Array.prototype.forEach.call(document.querySelectorAll('.conv'), function (n) { n.classList.remove('is-on'); });
+      c.classList.add('is-on');
+      return;
+    }
+    var f = e.target.closest('.ifgroup .ifrow');
+    if (f) {
+      Array.prototype.forEach.call(f.parentElement.querySelectorAll('.ifrow'), function (n) { n.classList.remove('is-on'); });
+      f.classList.add('is-on');
+    }
+  });
+</script>
+</body>
+</html>

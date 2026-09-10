@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Créer une publication · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Créer une publication — maquette 3a : éditeur à gauche, aperçu live à droite */
+  .editor { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 18px; align-items: start; }
+
+  .steps { display: flex; flex-direction: column; gap: 14px; }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 15px 17px 17px; display: flex; flex-direction: column; gap: 12px; }
+  .step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .step-n { display: flex; align-items: center; gap: 8px; font-family: var(--f-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .step-n b { width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: var(--ground); display: grid; place-items: center; font-size: 9.5px; font-weight: 400; }
+
+  .drop {
+    border: 1.5px dashed var(--border-2); border-radius: 10px;
+    padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+    color: var(--muted); text-align: center; cursor: pointer; background: var(--ground);
+  }
+  .drop:hover { border-color: var(--accent); color: var(--ink-2); }
+  .drop b { font-size: 14px; font-weight: 500; color: var(--ink-2); }
+  .drop span { font-size: 12px; }
+
+  .media-row { display: flex; gap: 9px; }
+  .media-tile { position: relative; width: 62px; height: 78px; border-radius: 8px; border: 1px solid var(--border-2); background: repeating-linear-gradient(135deg, var(--surface-2) 0 7px, var(--ground) 7px 14px); }
+  .media-tile .x {
+    position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--ink); color: var(--ground); border: 0; cursor: pointer;
+    display: grid; place-items: center; padding: 0;
+  }
+  .media-add { width: 62px; height: 78px; border-radius: 8px; border: 1.5px dashed var(--border-2); background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .media-add:hover { border-color: var(--accent); color: var(--accent); }
+
+  .fmt-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .fmt {
+    border: 1px solid var(--border-2); border-radius: 10px; background: var(--surface);
+    padding: 11px 12px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; text-align: left;
+  }
+  .fmt b { font-size: 13.5px; font-weight: 700; }
+  .fmt span { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .fmt:hover { border-color: var(--muted); }
+  .fmt.is-on { border-color: var(--accent); border-width: 1.5px; background: var(--accent-soft); }
+  .fmt.is-on span { color: var(--accent); }
+
+  .counter { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .plat { display: flex; flex-direction: column; gap: 8px; }
+  .plat-row {
+    display: flex; align-items: center; gap: 11px;
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; cursor: pointer;
+  }
+  .plat-row:hover { border-color: var(--border-2); }
+  .plat-row.is-on { border-color: var(--ink); }
+  .plat-row .who { flex: 1; display: flex; flex-direction: column; }
+  .plat-row .who b { font-size: 13.5px; font-weight: 500; }
+  .plat-row .who span { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--border-2); position: relative; flex: none; transition: background .15s ease; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform .15s ease; }
+  .plat-row.is-on .switch { background: var(--accent); }
+  .plat-row.is-on .switch::after { transform: translateX(14px); }
+
+  .when { display: flex; gap: 9px; }
+  .when .btn { flex: 1; justify-content: center; height: 38px; }
+  .when .btn.is-on { border-color: var(--ink); border-width: 1.5px; color: var(--ink); }
+
+  .sched { display: flex; gap: 10px; align-items: flex-end; }
+  .sched .field { flex: 1; }
+  .tz { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .tz a { color: var(--accent); }
+
+  /* ---- aperçu ---- */
+  .preview { position: sticky; top: 0; display: flex; flex-direction: column; gap: 11px; }
+  .pv-tabs { display: flex; gap: 6px; }
+  .pv-tabs .chip { height: 28px; font-size: 12px; }
+  .pv-frame {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px; align-items: center;
+  }
+  .pv-phone {
+    width: 208px; aspect-ratio: 9 / 16; border-radius: 12px;
+    border: 1px solid var(--border-2);
+    background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, var(--ground) 8px 16px);
+    display: grid; place-items: center;
+    font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); text-align: center; padding: 12px;
+  }
+  .pv-note { font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.45; }
+</style>
+</head>
+<body data-page="creer">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Publier <span>/</span> <b>Créer une publication</b></div>
+      <div class="topbar-actions">
+        <span class="mono" style="font-size:10.5px;color:var(--muted)">brouillon enregistré</span>
+        <button class="btn" type="button"><i data-ico="image" class="ico ico-sm"></i> Aperçu</button>
+        <button class="btn btn-primary" type="button"><i data-ico="send" class="ico ico-sm"></i> Publier</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Nouvelle publication</h1>
+          <p class="sub">Cinq étapes, un aperçu qui suit le format et la plateforme choisis.</p>
+        </div>
+      </div>
+
+      <div class="editor">
+
+        <!-- ---------- éditeur ---------- -->
+        <div class="steps">
+
+          <section class="step">
+            <div class="step-head"><span class="step-n"><b>1</b> Média</span></div>
+            <div class="drop">
+              <i data-ico="image" class="ico ico-lg"></i>
+              <b>Glissez vos fichiers ici</b>
+              <span>images ou vidéo · <a class="link" href="#">parcourir</a></span>
+            </div>
+            <div class="media-row">
+              <div class="media-tile"><button class="x" type="button" aria-label="Retirer"><i data-ico="close" class="ico" style="width:10px;height:10px"></i></button></div>
+              <div class="media-tile"><button class="x" type="button" aria-label="Retirer"><i data-ico="close" class="ico" style="width:10px;height:10px"></i></button></div>
+              <button class="media-add" type="button" aria-label="Ajouter un média"><i data-ico="plus" class="ico"></i></button>
+            </div>
+          </section>
+
+          <section class="step">
+            <div class="step-head"><span class="step-n"><b>2</b> Format</span></div>
+            <div class="fmt-row">
+              <button class="fmt is-on" type="button"><b>Reels</b><span>9:16 vidéo</span></button>
+              <button class="fmt" type="button"><b>Carrousel</b><span>2–10 médias</span></button>
+              <button class="fmt" type="button"><b>Image</b><span>1:1 · 4:5</span></button>
+              <button class="fmt" type="button"><b>Story</b><span>24 h</span></button>
+            </div>
+          </section>
+
+          <section class="step">
+            <div class="step-head">
+              <span class="step-n"><b>3</b> Description</span>
+              <span class="counter">0 / 2 200</span>
+            </div>
+            <textarea class="textarea" rows="5" placeholder="Écrivez la légende…  #hashtags  @mentions"></textarea>
+          </section>
+
+          <section class="step">
+            <div class="step-head"><span class="step-n"><b>4</b> Plateformes</span></div>
+            <div class="plat">
+              <label class="plat-row is-on">
+                <i data-net="facebook" class="logo-net logo-net-lg"></i>
+                <span class="who"><b>Page Facebook</b><span>Datum Academy</span></span>
+                <span class="switch"></span>
+              </label>
+              <label class="plat-row is-on">
+                <i data-net="instagram" class="logo-net logo-net-lg"></i>
+                <span class="who"><b>Instagram</b><span>@datum.academy</span></span>
+                <span class="switch"></span>
+              </label>
+            </div>
+          </section>
+
+          <section class="step">
+            <div class="step-head"><span class="step-n"><b>5</b> Publication</span></div>
+            <div class="when">
+              <button class="btn" type="button">Maintenant</button>
+              <button class="btn is-on" type="button"><i data-ico="clock" class="ico ico-sm"></i> Programmer</button>
+            </div>
+            <div class="sched">
+              <div class="field">
+                <label for="d">Date</label>
+                <input class="input" id="d" type="text" value="12 sept. 2026">
+              </div>
+              <div class="field" style="max-width:120px">
+                <label for="h">Heure</label>
+                <input class="input" id="h" type="text" value="18:30">
+              </div>
+            </div>
+            <p class="tz">Fuseau : Europe/Paris · <a class="link" href="#">meilleur créneau suggéré</a></p>
+          </section>
+
+        </div>
+
+        <!-- ---------- aperçu live ---------- -->
+        <aside class="preview" aria-label="Aperçu">
+          <div class="pv-tabs chips" data-chipgroup>
+            <button class="chip is-on" type="button"><i data-net="instagram" class="logo-net" style="width:13px;height:13px"></i> Instagram</button>
+            <button class="chip" type="button"><i data-net="facebook" class="logo-net" style="width:13px;height:13px"></i> Facebook</button>
+            <button class="chip" type="button">Story</button>
+          </div>
+          <div class="pv-frame">
+            <div class="pv-phone">aperçu média<br>9:16</div>
+            <p class="pv-note">L'aperçu s'adapte au format et à la plateforme choisis.</p>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 3a</div>
+<script src="js/app.js"></script>
+<script>
+  // sélection exclusive des formats / bascule des plateformes / mode de publication
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest('.fmt');
+    if (f) {
+      Array.prototype.forEach.call(f.parentElement.children, function (n) { n.classList.remove('is-on'); });
+      f.classList.add('is-on');
+      return;
+    }
+    var p = e.target.closest('.plat-row');
+    if (p) { p.classList.toggle('is-on'); return; }
+    var w = e.target.closest('.when .btn');
+    if (w) {
+      Array.prototype.forEach.call(w.parentElement.children, function (n) { n.classList.remove('is-on'); });
+      w.classList.add('is-on');
+    }
+  });
+  // compteur de caractères
+  var ta = document.querySelector('.textarea'), c = document.querySelector('.counter');
+  ta.addEventListener('input', function () {
+    c.textContent = ta.value.length.toLocaleString('fr-FR') + ' / 2 200';
+  });
+</script>
+</body>
+</html>
