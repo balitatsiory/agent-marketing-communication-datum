@@ -1,18 +1,24 @@
 services:
   n8n:
-    build: .                    # ← Build depuis le Dockerfile local
+    build: .
     restart: unless-stopped
+    # NB: `n8n start --tunnel` n'existe plus depuis n8n 2.x. Pour exposer les webhooks
+    # publiquement, utiliser un tunnel externe (cloudflared / ngrok) — voir .env.example.
     ports:
+      # n8n écoute sur 5678 dans le conteneur (voir Dockerfile: EXPOSE 5678)
       - "5678:5678"
     environment:
-      - NODES_EXCLUDE=[]          # <-- débloque Execute Command
-      - GENERIC_TIMEZONE=Indian/Antananarivo
+      - NODES_EXCLUDE=[]
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Indian/Antananarivo}
+      # Ces trois valeurs viennent du .env local : l'URL du quick tunnel change à
+      # chaque redémarrage de cloudflared, elle n'a donc rien à faire dans git.
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
     volumes:
       - n8n_data:/home/node/.n8n
-      # tes scripts et dossiers de travail (voir plus bas)
       # - ./scripts:/scripts
       # - /chemin/hote/WORKFLOW_EC_MADA:/opt/studia/WORKFLOW_EC_MADA
- 
+
 volumes:
   n8n_data:
- 
