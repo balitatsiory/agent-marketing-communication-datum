@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notifications · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Notifications — maquette 11a : page complète, groupées par jour, filtres par type */
+  .notifs { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 18px; align-items: start; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .searchbox { flex: 1; min-width: 220px; height: 36px; border: 1px solid var(--border-2); border-radius: 18px; background: var(--surface); display: flex; align-items: center; gap: 9px; padding: 0 14px; }
+  .searchbox input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--ink); outline: none; }
+  .searchbox input::placeholder { color: #a99b8a; }
+  .searchbox .ico { color: var(--muted); }
+
+  .nday { padding: 8px 16px; background: var(--ground); border-bottom: 1px solid var(--border); }
+
+  .n-row { display: flex; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border); align-items: flex-start; }
+  .n-row:hover { background: var(--surface-2); }
+  .n-row.is-unread { box-shadow: inset 2px 0 0 var(--accent); }
+
+  .n-mark {
+    width: 32px; height: 32px; flex: none; border-radius: 9px;
+    border: 1px solid var(--border-2); display: grid; place-items: center; color: var(--ink-2);
+    background: var(--surface);
+  }
+  .n-mark.err { border-color: var(--err); color: var(--err); background: var(--err-soft); }
+  .n-mark.ai  { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .n-mark .logo-net { width: 17px; height: 17px; }
+  .n-mark .init { font-family: var(--f-mono); font-size: 10px; }
+
+  .n-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .n-main b { font-size: 13.8px; font-weight: 700; line-height: 1.35; }
+  .n-main p { font-size: 12.8px; color: var(--muted); line-height: 1.45; }
+
+  .n-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; }
+  .n-time { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+
+  .n-foot { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+  .n-foot .n { flex: 1; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+
+  .side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; }
+  .todo { display: flex; flex-direction: column; gap: 9px; }
+  .todo-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+  .todo-row.err { border-color: var(--err); background: var(--err-soft); }
+  .todo-row .t { flex: 1; font-size: 13px; }
+  .todo-row.err .t { color: var(--err); }
+
+  .prefs { display: flex; flex-direction: column; gap: 8px; }
+  .pref { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .pref .t { flex: 1; }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--border-2); position: relative; flex: none; transition: background .15s ease; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform .15s ease; }
+  .pref.is-on .switch { background: var(--accent); }
+  .pref.is-on .switch::after { transform: translateX(14px); }
+
+  .foot-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body data-page="notifications">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Piloter <span>/</span> <b>Notifications</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button"><i data-ico="check" class="ico ico-sm"></i> Tout marquer comme lu</button>
+        <a class="btn" href="parametres.html"><i data-ico="gear" class="ico ico-sm"></i> Préférences</a>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Notifications</h1>
+          <p class="sub">3 non lues · 2 demandent une action</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="searchbox">
+          <i data-ico="search" class="ico ico-sm"></i>
+          <input type="search" placeholder="Rechercher une notification" aria-label="Rechercher une notification">
+        </div>
+        <button class="btn btn-sm" type="button">Réseau : tous <i data-ico="chevron" class="ico ico-sm"></i></button>
+      </div>
+
+      <div class="chips" data-chipgroup>
+        <button class="chip is-on" type="button">Toutes <span class="n">24</span></button>
+        <button class="chip" type="button">Non lues <span class="n">3</span></button>
+        <button class="chip" type="button">À valider <span class="n">2</span></button>
+        <button class="chip" type="button">Publications <span class="n">9</span></button>
+        <button class="chip" type="button">Messages <span class="n">6</span></button>
+        <button class="chip" type="button">Comptes <span class="n">4</span></button>
+        <button class="chip" type="button">Équipe <span class="n">3</span></button>
+      </div>
+
+      <div class="notifs">
+
+        <!-- ---------- liste ---------- -->
+        <section class="panel" aria-label="Notifications">
+
+          <div class="nday label">Aujourd'hui</div>
+
+          <div class="n-row is-unread">
+            <span class="n-mark err"><i data-net="tiktok" class="logo-net"></i></span>
+            <span class="n-main">
+              <b>Échec de publication — jeton TikTok expiré</b>
+              <p>« Teaser vertical — vie étudiante » n'a pas pu être publié. 3 tentatives effectuées.</p>
+            </span>
+            <span class="n-side">
+              <span class="n-time">08:20</span>
+              <a class="btn btn-sm btn-primary" href="reseaux.html">Reconnecter</a>
+            </span>
+          </div>
+
+          <div class="n-row is-unread">
+            <span class="n-mark ai"><i data-ico="sparkle" class="ico ico-sm"></i></span>
+            <span class="n-main">
+              <b>2 réponses attendent votre validation</b>
+              <p>Mamadou Diallo (LinkedIn) et Ndèye Kane (LinkedIn) — préparées par l'agent.</p>
+            </span>
+            <span class="n-side">
+              <span class="n-time">08:47</span>
+              <a class="btn btn-sm btn-primary" href="messages.html">Ouvrir la file</a>
+            </span>
+          </div>
+
+          <div class="n-row is-unread">
+            <span class="n-mark"><i data-net="instagram" class="logo-net"></i></span>
+            <span class="n-main">
+              <b>Publication publiée — « Ouverture des candidatures »</b>
+              <p>Instagram · Reels · 1 240 vues dans la première heure.</p>
+            </span>
+            <span class="n-side">
+              <span class="n-time">09:12</span>
+              <a class="btn btn-sm" href="publications.html">Voir</a>
+            </span>
+          </div>
+
+          <div class="n-row">
+            <span class="n-mark"><i data-ico="video" class="ico ico-sm"></i></span>
+            <span class="n-main">
+              <b>Webinaire Data engineering — J-8</b>
+              <p>42 inscrits · le rappel J-7 part demain à 08:00.</p>
+            </span>
+            <span class="n-side"><span class="n-time">07:30</span></span>
+          </div>
+
+          <div class="nday label">Hier</div>
+
+          <div class="n-row">
+            <span class="n-mark"><span class="init">MD</span></span>
+            <span class="n-main">
+              <b>Marc D. a approuvé votre publication</b>
+              <p>« Portes ouvertes » — programmée sur Facebook le 13/09 à 11:00.</p>
+            </span>
+            <span class="n-side"><span class="n-time">18:04</span></span>
+          </div>
+
+          <div class="n-row">
+            <span class="n-mark"><i data-net="linkedin" class="logo-net"></i></span>
+            <span class="n-main">
+              <b>Compte LinkedIn reconnecté</b>
+              <p>Nouvelle autorisation accordée par Marc D. — valable 60 jours.</p>
+            </span>
+            <span class="n-side"><span class="n-time">11:14</span></span>
+          </div>
+
+          <div class="n-row">
+            <span class="n-mark"><i data-net="facebook" class="logo-net"></i></span>
+            <span class="n-main">
+              <b>Pic de commentaires sur « Portes ouvertes »</b>
+              <p>14 nouveaux commentaires en 2 h — pensez à répondre.</p>
+            </span>
+            <span class="n-side">
+              <span class="n-time">15:48</span>
+              <a class="btn btn-sm" href="messages.html">Répondre</a>
+            </span>
+          </div>
+
+          <div class="n-foot">
+            <span class="n">7 sur 24</span>
+            <button class="btn btn-sm" type="button">Charger les plus anciennes</button>
+          </div>
+        </section>
+
+        <!-- ---------- panneau ---------- -->
+        <aside class="side">
+
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
+            <div class="label">Demandent une action</div>
+            <div class="todo">
+              <div class="todo-row err">
+                <i data-ico="warn" class="ico ico-sm"></i>
+                <span class="t">Jeton TikTok expiré</span>
+                <a class="btn btn-sm" href="reseaux.html">Reconnecter</a>
+              </div>
+              <div class="todo-row">
+                <i data-ico="sparkle" class="ico ico-sm"></i>
+                <span class="t">2 réponses à valider</span>
+                <a class="btn btn-sm" href="messages.html">Ouvrir</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
+            <div class="label">Préférences rapides</div>
+            <div class="prefs">
+              <label class="pref is-on"><span class="t">Échecs de publication</span><span class="switch"></span></label>
+              <label class="pref is-on"><span class="t">Réponses à valider</span><span class="switch"></span></label>
+              <label class="pref is-on"><span class="t">Publications publiées</span><span class="switch"></span></label>
+              <label class="pref"><span class="t">Résumé quotidien par e-mail</span><span class="switch"></span></label>
+            </div>
+          </div>
+
+          <p class="foot-note">Les notifications sont conservées 30 jours. L'historique complet reste dans <a class="link" href="historique.html">Historique des activités</a>.</p>
+
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 11a</div>
+<script src="js/app.js"></script>
+<script>
+  document.addEventListener('click', function (e) {
+    var p = e.target.closest('.pref');
+    if (p) { p.classList.toggle('is-on'); }
+  });
+</script>
+</body>
+</html>

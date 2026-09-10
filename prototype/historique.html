@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historique des activités · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Historique des activités — maquette 7b : journal filtrable + détail */
+  .hist { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 18px; align-items: start; }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .searchbox { flex: 1; min-width: 220px; height: 36px; border: 1px solid var(--border-2); border-radius: 18px; background: var(--surface); display: flex; align-items: center; gap: 9px; padding: 0 14px; }
+  .searchbox input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--ink); outline: none; }
+  .searchbox input::placeholder { color: #a99b8a; }
+  .searchbox .ico { color: var(--muted); }
+
+  .grp td {
+    background: var(--ground); padding: 7px 12px !important;
+    font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .act { display: flex; flex-direction: column; gap: 2px; }
+  .act b { font-size: 13.5px; font-weight: 500; line-height: 1.35; }
+  .act span { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .who-cell { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .net-cell { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-2); }
+  .hour { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+  .pager { display: flex; align-items: center; gap: 10px; padding: 11px 14px; }
+  .pager .n { flex: 1; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+
+  .side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 0; }
+  .det-title { font-family: var(--f-display); font-weight: 400; font-size: 19px; line-height: 1.3; }
+  .det-when { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .det-figs { display: flex; flex-direction: column; gap: 4px; padding: 11px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .det-figs .big { font-family: var(--f-mono); font-size: 21px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .det-figs span { font-size: 12.5px; color: var(--muted); }
+
+  .tl { display: flex; flex-direction: column; gap: 0; }
+  .tl-step { display: flex; gap: 10px; font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-2); }
+  .tl-rail { display: flex; flex-direction: column; align-items: center; flex: none; }
+  .tl-dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--muted); margin-top: 4px; }
+  .tl-step:last-child .tl-dot { background: var(--accent); border-color: var(--accent); }
+  .tl-line { flex: 1; width: 1px; background: var(--border-2); min-height: 12px; }
+  .tl-step:last-child .tl-line { display: none; }
+  .tl-txt { padding-bottom: 10px; }
+
+  .sum { display: flex; flex-direction: column; gap: 8px; }
+  .sum-row { display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+  .sum-row .who { flex: 1; color: var(--ink-2); }
+  .sum-row .v { font-family: var(--f-mono); font-size: 14px; font-variant-numeric: tabular-nums; }
+  .sum-row .v.err { color: var(--err); }
+
+  .foot-note { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body data-page="historique">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Mesurer <span>/</span> <b>Historique des activités</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button"><i data-ico="download" class="ico ico-sm"></i> Exporter CSV</button>
+        <button class="btn" type="button">7 derniers jours <i data-ico="chevron" class="ico ico-sm"></i></button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Historique des activités</h1>
+          <p class="sub">Tout ce qui a été publié, programmé, généré ou modifié — par vous ou par l'IA.</p>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="searchbox">
+          <i data-ico="search" class="ico ico-sm"></i>
+          <input type="search" placeholder="Rechercher dans l'historique" aria-label="Rechercher dans l'historique">
+        </div>
+        <button class="btn btn-sm" type="button">Réseau : tous <i data-ico="chevron" class="ico ico-sm"></i></button>
+        <button class="btn btn-sm" type="button">Auteur : tous <i data-ico="chevron" class="ico ico-sm"></i></button>
+      </div>
+
+      <div class="chips" data-chipgroup>
+        <button class="chip is-on" type="button">Tout <span class="n">248</span></button>
+        <button class="chip" type="button">Publié <span class="n">128</span></button>
+        <button class="chip" type="button">Programmé <span class="n">42</span></button>
+        <button class="chip" type="button">Généré par IA <span class="n">56</span></button>
+        <button class="chip" type="button">Modifié <span class="n">18</span></button>
+        <button class="chip" type="button">Échecs <span class="n">4</span></button>
+      </div>
+
+      <div class="hist">
+
+        <!-- ---------- journal ---------- -->
+        <section class="panel" aria-label="Journal">
+          <div class="tbl-wrap">
+            <table class="tbl" data-selectable>
+              <thead>
+                <tr>
+                  <th style="width:74px">Heure</th>
+                  <th>Activité</th>
+                  <th style="width:132px">Réseau</th>
+                  <th style="width:106px">Auteur</th>
+                  <th style="width:118px">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+
+                <tr class="grp"><td colspan="5">Aujourd'hui — 9 septembre</td></tr>
+
+                <tr class="is-sel">
+                  <td class="hour">09:12</td>
+                  <td><span class="act"><b>Publication publiée — « Ouverture des candidatures »</b><span>Reels · 1 média</span></span></td>
+                  <td><span class="net-cell"><i data-net="instagram" class="logo-net"></i> Instagram</span></td>
+                  <td><span class="who-cell">Sarah L.</span></td>
+                  <td><span class="status status-live">publié</span></td>
+                </tr>
+
+                <tr>
+                  <td class="hour">08:47</td>
+                  <td><span class="act"><b>Légende générée par l'IA (3 propositions)</b><span>brief : « rentrée septembre »</span></span></td>
+                  <td><span class="net-cell"><i data-net="instagram" class="logo-net"></i> Instagram</span></td>
+                  <td><span class="who-cell"><i data-ico="sparkle" class="ico ico-sm"></i> Agent IA</span></td>
+                  <td><span class="status status-draft">généré</span></td>
+                </tr>
+
+                <tr>
+                  <td class="hour">08:20</td>
+                  <td><span class="act"><b>Échec de publication — jeton expiré</b><span>nouvelle tentative dans 30 min</span></span></td>
+                  <td><span class="net-cell"><i data-net="tiktok" class="logo-net"></i> TikTok</span></td>
+                  <td><span class="who-cell">Système</span></td>
+                  <td><span class="status status-fail">échec</span></td>
+                </tr>
+
+                <tr>
+                  <td class="hour">07:55</td>
+                  <td><span class="act"><b>Publication programmée au 17/09 · 18:00</b><span>webinaire Data engineering</span></span></td>
+                  <td><span class="net-cell"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span></td>
+                  <td><span class="who-cell">Marc D.</span></td>
+                  <td><span class="status status-plan">programmé</span></td>
+                </tr>
+
+                <tr class="grp"><td colspan="5">Hier — 8 septembre</td></tr>
+
+                <tr>
+                  <td class="hour">18:02</td>
+                  <td><span class="act"><b>Visuel retouché par conversation (v3)</b><span>palette bleu nuit / orange</span></span></td>
+                  <td><span class="net-cell"><i data-net="instagram" class="logo-net"></i> Instagram</span></td>
+                  <td><span class="who-cell">Sarah L.</span></td>
+                  <td><span class="status status-draft">modifié</span></td>
+                </tr>
+
+                <tr>
+                  <td class="hour">15:31</td>
+                  <td><span class="act"><b>Carrousel publié — 5 médias</b><span>« Portes ouvertes »</span></span></td>
+                  <td><span class="net-cell"><i data-net="facebook" class="logo-net"></i> Facebook</span></td>
+                  <td><span class="who-cell">Sarah L.</span></td>
+                  <td><span class="status status-live">publié</span></td>
+                </tr>
+
+                <tr>
+                  <td class="hour">11:14</td>
+                  <td><span class="act"><b>Compte reconnecté</b><span>nouvelle autorisation accordée</span></span></td>
+                  <td><span class="net-cell"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span></td>
+                  <td><span class="who-cell">Marc D.</span></td>
+                  <td><span class="status status-draft">système</span></td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pager">
+            <span class="n">8 activités sur 248</span>
+            <button class="btn btn-sm" type="button">Précédent</button>
+            <button class="btn btn-sm" type="button">Suivant</button>
+          </div>
+        </section>
+
+        <!-- ---------- détail ---------- -->
+        <aside class="side">
+
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:12px">
+            <div class="label">Détail de l'activité</div>
+            <h2 class="det-title">Publication publiée — « Ouverture des candidatures »</h2>
+            <p class="det-when">9 septembre 2026 · 09:12<br>Instagram · Reels · par Sarah L.</p>
+
+            <div class="det-figs">
+              <span class="big">1 240 vues</span>
+              <span>86 j'aime · 12 commentaires · 4 partages</span>
+            </div>
+
+            <div>
+              <div class="label" style="margin-bottom:9px">Chronologie</div>
+              <div class="tl">
+                <div class="tl-step"><span class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></span><span class="tl-txt">08:47 · légende générée par l'IA</span></div>
+                <div class="tl-step"><span class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></span><span class="tl-txt">08:55 · visuel validé (v3)</span></div>
+                <div class="tl-step"><span class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></span><span class="tl-txt">09:00 · approuvée par Marc D.</span></div>
+                <div class="tl-step"><span class="tl-rail"><span class="tl-dot"></span><span class="tl-line"></span></span><span class="tl-txt">09:12 · publiée sur Instagram</span></div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px">
+              <a class="btn btn-sm" href="#">Voir la publication <i data-ico="external" class="ico ico-sm"></i></a>
+              <button class="btn btn-sm" type="button">Dupliquer</button>
+            </div>
+          </div>
+
+          <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
+            <div class="label">Résumé · 7 jours</div>
+            <div class="sum">
+              <div class="sum-row"><span class="who">Publiées</span><span class="v">21</span></div>
+              <div class="sum-row"><span class="who">Générées par l'IA</span><span class="v">14</span></div>
+              <div class="sum-row"><span class="who">Programmées</span><span class="v">9</span></div>
+              <div class="sum-row"><span class="who">Échecs</span><span class="v err">2</span></div>
+            </div>
+          </div>
+
+          <p class="foot-note">L'historique est conservé 12 mois. Les échecs sont réessayés automatiquement 3 fois.</p>
+
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 7b</div>
+<script src="js/app.js"></script>
+</body>
+</html>

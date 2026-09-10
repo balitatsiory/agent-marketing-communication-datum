@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gestion des réseaux · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Gestion des réseaux — maquette 6b : un réseau = un bloc empilé large */
+  .nets { display: flex; flex-direction: column; gap: 12px; }
+
+  .net { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .net.is-off { border-style: dashed; border-color: var(--border-2); }
+
+  .net-id { display: flex; align-items: center; gap: 12px; width: 208px; flex: none; }
+  .net-mark {
+    width: 42px; height: 42px; flex: none; border-radius: 11px;
+    border: 1px solid var(--border-2); display: grid; place-items: center; color: var(--ink);
+  }
+  .net.is-off .net-mark { color: var(--muted); }
+  .net-mark .logo-net { width: 24px; height: 24px; }
+  .net-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .net-who b { font-size: 16px; }
+  .net-who span { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+
+  .net-stats { flex: 1; min-width: 320px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .net-stat { display: flex; flex-direction: column; gap: 2px; }
+  .net-stat .v { font-family: var(--f-mono); font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .net-stat .v.off { color: var(--muted); }
+
+  .net-acts { display: flex; align-items: center; gap: 8px; flex: none; }
+
+  .net-alert {
+    flex-basis: 100%; display: flex; align-items: center; gap: 9px;
+    border-top: 1px dashed var(--border-2); margin-top: 2px; padding-top: 12px;
+    color: var(--err); font-size: 13px;
+  }
+  .net-alert .btn { margin-left: auto; }
+
+  .net-add {
+    border: 1.5px dashed var(--border-2); border-radius: var(--radius-lg);
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px; color: var(--muted);
+  }
+  .net-add .t { flex: 1; }
+  .net-add .t b { display: block; font-size: 14px; color: var(--ink-2); font-weight: 500; }
+  .net-add .t span { font-size: 12.5px; }
+</style>
+</head>
+<body data-page="reseaux">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Mesurer <span>/</span> <b>Gestion des réseaux</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button">30 derniers jours <i data-ico="chevron" class="ico ico-sm"></i></button>
+        <button class="btn btn-primary" type="button"><i data-ico="plus" class="ico ico-sm"></i> Connecter un réseau</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Réseaux &amp; plateformes</h1>
+          <p class="sub">4 comptes connectés · 30 derniers jours</p>
+        </div>
+        <div class="chips" data-chipgroup>
+          <button class="chip is-on" type="button">Tous <span class="n">4</span></button>
+          <button class="chip" type="button">Connectés <span class="n">3</span></button>
+          <button class="chip" type="button">À reconnecter <span class="n">1</span></button>
+        </div>
+      </div>
+
+      <div class="nets">
+
+        <!-- Instagram -->
+        <article class="net">
+          <div class="net-id">
+            <span class="net-mark"><i data-net="instagram" class="logo-net"></i></span>
+            <span class="net-who"><b>Instagram</b><span>@datum.academy</span></span>
+          </div>
+          <div class="net-stats">
+            <div class="net-stat"><span class="label">Publications</span><span class="v">56</span></div>
+            <div class="net-stat"><span class="label">Abonnés</span><span class="v">14 720</span></div>
+            <div class="net-stat"><span class="label">Vues profil</span><span class="v">7 980</span></div>
+            <div class="net-stat"><span class="label">Engagement</span><span class="v">4,6 %</span></div>
+          </div>
+          <div class="net-acts">
+            <a class="btn" href="#">Voir la page <i data-ico="external" class="ico ico-sm"></i></a>
+            <button class="btn" type="button">Gérer le compte</button>
+          </div>
+        </article>
+
+        <!-- Facebook -->
+        <article class="net">
+          <div class="net-id">
+            <span class="net-mark"><i data-net="facebook" class="logo-net"></i></span>
+            <span class="net-who"><b>Facebook</b><span>Page · Datum Academy</span></span>
+          </div>
+          <div class="net-stats">
+            <div class="net-stat"><span class="label">Publications</span><span class="v">42</span></div>
+            <div class="net-stat"><span class="label">Abonnés</span><span class="v">18 940</span></div>
+            <div class="net-stat"><span class="label">Vues profil</span><span class="v">6 210</span></div>
+            <div class="net-stat"><span class="label">Engagement</span><span class="v">2,9 %</span></div>
+          </div>
+          <div class="net-acts">
+            <a class="btn" href="#">Voir la page <i data-ico="external" class="ico ico-sm"></i></a>
+            <button class="btn" type="button">Gérer le compte</button>
+          </div>
+        </article>
+
+        <!-- LinkedIn -->
+        <article class="net">
+          <div class="net-id">
+            <span class="net-mark"><i data-net="linkedin" class="logo-net"></i></span>
+            <span class="net-who"><b>LinkedIn</b><span>Page entreprise</span></span>
+          </div>
+          <div class="net-stats">
+            <div class="net-stat"><span class="label">Publications</span><span class="v">18</span></div>
+            <div class="net-stat"><span class="label">Abonnés</span><span class="v">5 340</span></div>
+            <div class="net-stat"><span class="label">Vues profil</span><span class="v">2 110</span></div>
+            <div class="net-stat"><span class="label">Engagement</span><span class="v">5,1 %</span></div>
+          </div>
+          <div class="net-acts">
+            <a class="btn" href="#">Voir la page <i data-ico="external" class="ico ico-sm"></i></a>
+            <button class="btn" type="button">Gérer le compte</button>
+          </div>
+        </article>
+
+        <!-- TikTok — jeton expiré -->
+        <article class="net is-off">
+          <div class="net-id">
+            <span class="net-mark"><i data-net="tiktok" class="logo-net"></i></span>
+            <span class="net-who"><b>TikTok</b><span>@datum.academy</span></span>
+          </div>
+          <div class="net-stats">
+            <div class="net-stat"><span class="label">Publications</span><span class="v off">12</span></div>
+            <div class="net-stat"><span class="label">Abonnés</span><span class="v off">2 260</span></div>
+            <div class="net-stat"><span class="label">Vues profil</span><span class="v off">2 130</span></div>
+            <div class="net-stat"><span class="label">Engagement</span><span class="v off">6,4 %</span></div>
+          </div>
+          <div class="net-acts">
+            <a class="btn" href="#">Voir la page <i data-ico="external" class="ico ico-sm"></i></a>
+          </div>
+          <div class="net-alert">
+            <i data-ico="warn" class="ico ico-sm"></i>
+            Jeton expiré — les statistiques datent du 2 septembre. Reconnectez le compte pour reprendre la collecte.
+            <button class="btn btn-primary btn-sm" type="button">Reconnecter</button>
+          </div>
+        </article>
+
+        <div class="net-add">
+          <i data-ico="plus" class="ico ico-lg"></i>
+          <span class="t">
+            <b>Ajouter un réseau</b>
+            <span>Threads, WhatsApp Business, YouTube Shorts…</span>
+          </span>
+          <button class="btn" type="button">Connecter</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquette 6b</div>
+<script src="js/app.js"></script>
+</body>
+</html>

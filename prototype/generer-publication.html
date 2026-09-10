@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Générer une publication · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Générer une publication — maquette 4a : brief à gauche, 3 propositions à droite */
+  .gen { flex: 1; min-height: 0; display: grid; grid-template-columns: 372px minmax(0, 1fr); gap: 18px; align-items: start; }
+
+  .brief { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 15px; }
+  .brief-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+  .toggle-row { display: flex; align-items: center; gap: 11px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+  .toggle-row .who { flex: 1; font-size: 13.5px; }
+  .toggle-row .n { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--border-2); position: relative; flex: none; transition: background .15s ease; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform .15s ease; }
+  .toggle-row.is-on .switch { background: var(--accent); }
+  .toggle-row.is-on .switch::after { transform: translateX(14px); }
+
+  .drop-sm {
+    border: 1.5px dashed var(--border-2); border-radius: 10px; padding: 15px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: var(--muted); font-size: 12.5px; cursor: pointer; background: var(--ground); text-align: center;
+  }
+  .drop-sm:hover { border-color: var(--accent); color: var(--ink-2); }
+
+  .quota { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+
+  /* ---- propositions ---- */
+  .props { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .props-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .prop { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px 15px; display: flex; gap: 15px; }
+  .prop.is-sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+  .prop-visual { flex: none; width: 104px; display: flex; flex-direction: column; gap: 6px; }
+  .prop-thumb {
+    width: 104px; border-radius: 8px; border: 1px solid var(--border-2); position: relative;
+    background: repeating-linear-gradient(135deg, var(--surface-2) 0 7px, var(--ground) 7px 14px);
+  }
+  .prop-thumb.r45 { aspect-ratio: 4 / 5; }
+  .prop-thumb.r11 { aspect-ratio: 1 / 1; }
+  .prop-thumb .redo {
+    position: absolute; right: 6px; bottom: 6px; width: 24px; height: 24px; border-radius: 6px;
+    border: 1px solid var(--border-2); background: var(--surface); color: var(--ink-2);
+    cursor: pointer; display: grid; place-items: center; padding: 0;
+  }
+  .prop-visual .cap { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); text-align: center; line-height: 1.4; }
+
+  .prop-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+  .prop-head { display: flex; align-items: baseline; gap: 10px; }
+  .prop-head b { font-size: 14px; }
+  .prop-head .kind { font-family: var(--f-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .prop-head .len { margin-left: auto; font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .prop-text { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+  .prop-text p + p { margin-top: 7px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 4px; padding: 3px 6px; }
+  .tag.more { background: transparent; color: var(--muted); text-decoration: underline; cursor: pointer; }
+
+  .prop-acts { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+
+  .genbar {
+    position: sticky; bottom: 0; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 11px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .genbar .sel { flex: 1; font-size: 13px; color: var(--muted); }
+  .genbar .sel b { color: var(--ink); font-weight: 500; }
+
+  /* ---- pop-up 4a1 ---- */
+  #retouche .modal { max-width: 1120px; }
+  .rt { display: grid; grid-template-columns: 272px 268px minmax(0, 1fr); min-height: 0; }
+  .rt > * { padding: 16px; display: flex; flex-direction: column; gap: 13px; min-width: 0; }
+  .rt > * + * { border-left: 1px solid var(--border); }
+
+  .rt-visual { align-items: stretch; }
+  .rt-canvas {
+    border-radius: 10px; border: 1px solid var(--border-2); aspect-ratio: 9 / 16;
+    background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, var(--ground) 8px 16px);
+    display: grid; place-items: center; text-align: center; padding: 14px;
+    font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); line-height: 1.6;
+  }
+  .versions { display: flex; align-items: center; gap: 6px; }
+  .versions .chip { height: 26px; padding: 0 10px; font-family: var(--f-mono); font-size: 10.5px; }
+  .versions .btn-icon { margin-left: auto; height: 26px; width: 26px; }
+
+  .rt-meta .block { display: flex; flex-direction: column; gap: 7px; }
+  .rt-caption { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+  .swatches { display: flex; gap: 7px; }
+  .swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border-2); }
+  .hist { display: flex; flex-direction: column; gap: 5px; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+
+  /* conversation de retouche */
+  .rt-chat { background: var(--ground); }
+  .chat-log { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 11px; padding-right: 4px; }
+  .msg { max-width: 88%; font-size: 13px; line-height: 1.55; border-radius: 12px; padding: 9px 12px; }
+  .msg-sys { align-self: center; max-width: none; background: transparent; color: var(--muted); font-family: var(--f-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 2px; }
+  .msg-me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+  .msg-ia { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg-acts { display: flex; gap: 7px; margin-top: 8px; }
+  .msg-acts .btn { height: 26px; font-size: 12px; }
+
+  .working { align-self: flex-start; display: flex; align-items: center; gap: 8px; font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .working .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+
+  .chat-send { display: flex; gap: 8px; align-items: flex-end; }
+  .chat-send .input { height: 40px; }
+  .chat-hint { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+</style>
+</head>
+<body data-page="generer">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Publier <span>/</span> <b>Générer une publication</b></div>
+      <div class="topbar-actions">
+        <span class="quota">12 générations restantes</span>
+        <button class="btn" type="button"><i data-ico="history" class="ico ico-sm"></i> Historique</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Générer une publication</h1>
+          <p class="sub">Décrivez le sujet, l'IA propose trois angles. Vous gardez la main sur le texte et le visuel.</p>
+        </div>
+      </div>
+
+      <div class="gen">
+
+        <!-- ---------- brief ---------- -->
+        <section class="brief" aria-label="Votre brief">
+          <div class="label">Votre brief</div>
+
+          <div class="field">
+            <label for="sujet">Titre / sujet</label>
+            <input class="input" id="sujet" type="text" value="Les avantages du cours cloud AWS">
+          </div>
+
+          <div class="field">
+            <label for="ctx">Décrivez l'image ou le contexte</label>
+            <textarea class="textarea" id="ctx" rows="4">Formation cloud AWS en ligne : bénéfices concrets (coûts à l'usage, scalabilité, certification). Public : devs juniors et reconversion.</textarea>
+          </div>
+
+          <div class="field">
+            <label>Média (optionnel)</label>
+            <div class="drop-sm"><i data-ico="image" class="ico ico-sm"></i> Déposer une image — l'IA la décrit</div>
+          </div>
+
+          <div class="field">
+            <label>Ton</label>
+            <div class="chips" data-chipgroup>
+              <button class="chip is-on" type="button">Inspirant</button>
+              <button class="chip" type="button">Direct</button>
+              <button class="chip" type="button">Drôle</button>
+              <button class="chip" type="button">Pro</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Format visé</label>
+            <div class="chips" data-chipgroup>
+              <button class="chip is-on" type="button">Reels</button>
+              <button class="chip" type="button">Vidéo</button>
+              <button class="chip" type="button">Image</button>
+              <button class="chip" type="button">Carrousel</button>
+              <button class="chip" type="button">Story</button>
+            </div>
+            <p class="brief-note">La longueur de la légende s'adapte au format.</p>
+          </div>
+
+          <div class="field">
+            <label for="res">Réseau visé</label>
+            <button class="fselect input" id="res" type="button" style="display:flex;align-items:center;justify-content:space-between;height:42px">
+              <span style="display:flex;align-items:center;gap:8px"><i data-net="instagram" class="logo-net"></i> Instagram</span>
+              <i data-ico="chevron" class="ico ico-sm"></i>
+            </button>
+          </div>
+
+          <div class="field">
+            <label for="lang">Langue</label>
+            <button class="fselect input" id="lang" type="button" style="display:flex;align-items:center;justify-content:space-between;height:42px">
+              Français <i data-ico="chevron" class="ico ico-sm"></i>
+            </button>
+          </div>
+
+          <label class="toggle-row is-on">
+            <span class="who">Inclure des hashtags</span>
+            <span class="n">8–12</span>
+            <span class="switch"></span>
+          </label>
+
+          <button class="btn btn-primary btn-lg btn-block" type="button">
+            <i data-ico="sparkle" class="ico ico-sm"></i> Générer 3 propositions
+          </button>
+          <p class="brief-note" style="text-align:center">Vous pourrez modifier le texte avant publication.</p>
+        </section>
+
+        <!-- ---------- propositions ---------- -->
+        <section class="props" aria-label="Propositions">
+
+          <div class="props-head">
+            <div class="label">Propositions</div>
+            <button class="btn btn-sm" type="button"><i data-ico="history" class="ico ico-sm"></i> Régénérer</button>
+          </div>
+
+          <article class="prop is-sel">
+            <div class="prop-visual">
+              <div class="prop-thumb r45">
+                <button class="redo" type="button" aria-label="Régénérer le visuel"><i data-ico="history" class="ico" style="width:13px;height:13px"></i></button>
+              </div>
+              <span class="cap">visuel généré<br>4:5 · 1080×1350</span>
+            </div>
+            <div class="prop-main">
+              <div class="prop-head">
+                <b>Proposition 1</b><span class="kind">inspirant</span><span class="len">312 caractères</span>
+              </div>
+              <div class="prop-text">
+                <p>Le cloud AWS, ce n'est plus une option — c'est un accélérateur. ☁️</p>
+                <p>Notre formation vous fait passer de « j'en ai entendu parler » à « je déploie en production » : facturation à l'usage, mise à l'échelle automatique, haute disponibilité multi-régions, et une préparation directe à la certification Solutions Architect.</p>
+                <p>Prochaine session le 21 septembre · 12 places · lien en bio 👇</p>
+              </div>
+              <div class="tags">
+                <span class="tag">#AWS</span><span class="tag">#cloudcomputing</span><span class="tag">#formationcloud</span>
+                <span class="tag">#devops</span><span class="tag">#certificationAWS</span><span class="tag">#reconversionIT</span>
+                <span class="tag more">+ 6 suggérés</span>
+              </div>
+              <div class="prop-acts">
+                <button class="btn btn-sm btn-primary" type="button" data-modal-open="retouche">
+                  Voir aperçu &amp; éditer <i data-ico="arrowRight" class="ico ico-sm"></i>
+                </button>
+                <button class="btn btn-sm" type="button">Modifier</button>
+                <button class="btn btn-sm" type="button">Raccourcir</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="prop">
+            <div class="prop-visual">
+              <div class="prop-thumb r11"></div>
+              <span class="cap">visuel<br>1:1</span>
+            </div>
+            <div class="prop-main">
+              <div class="prop-head">
+                <b>Proposition 2</b><span class="kind">court &amp; direct</span><span class="len">96 caractères</span>
+              </div>
+              <div class="prop-text">
+                <p>3 raisons de passer au cloud AWS : payer à l'usage, scaler en un clic, dormir tranquille.</p>
+                <p>Formation complète → lien en bio.</p>
+              </div>
+              <div class="tags"><span class="tag">#AWS</span><span class="tag">#cloud</span><span class="tag">#formation</span></div>
+              <div class="prop-acts">
+                <button class="btn btn-sm" type="button" data-modal-open="retouche">Voir aperçu &amp; éditer</button>
+                <button class="btn btn-sm" type="button">Modifier</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="prop">
+            <div class="prop-visual">
+              <div class="prop-thumb r11"></div>
+              <span class="cap">visuel<br>1:1</span>
+            </div>
+            <div class="prop-main">
+              <div class="prop-head">
+                <b>Proposition 3</b><span class="kind">question / engagement</span><span class="len">134 caractères</span>
+              </div>
+              <div class="prop-text">
+                <p>Serveur qui tombe un vendredi soir : déjà vécu ? 😅 Sur AWS, la mise à l'échelle automatique s'en occupe.</p>
+                <p>Racontez-nous votre pire panne en commentaire.</p>
+              </div>
+              <div class="tags"><span class="tag">#AWS</span><span class="tag">#devops</span><span class="tag">#communauté</span></div>
+              <div class="prop-acts">
+                <button class="btn btn-sm" type="button" data-modal-open="retouche">Voir aperçu &amp; éditer</button>
+                <button class="btn btn-sm" type="button">Modifier</button>
+              </div>
+            </div>
+          </article>
+
+          <div class="genbar">
+            <span class="sel"><b>Proposition 1</b> sélectionnée</span>
+            <button class="btn" type="button">Enregistrer en brouillon</button>
+            <a class="btn btn-primary" href="creer-publication.html">Continuer vers la publication <i data-ico="arrowRight" class="ico ico-sm"></i></a>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ pop-up 4a1 — retouche d'image par conversation ============ -->
+<div class="modal-back" id="retouche" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rt-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="rt-title">Aperçu &amp; édition</h2>
+        <p class="mono" style="font-size:10.5px;color:var(--muted);margin-top:3px">
+          Proposition 1 · Instagram · Reels &nbsp;·&nbsp; version 3 sur 3
+        </p>
+      </div>
+      <button class="btn btn-icon btn-ghost" type="button" data-modal-close aria-label="Fermer">
+        <i data-ico="close" class="ico"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="rt">
+
+        <!-- visuel -->
+        <div class="rt-visual">
+          <div class="chips" data-chipgroup>
+            <button class="chip is-on" type="button">Instagram Reels</button>
+            <button class="chip" type="button">Feed 4:5</button>
+          </div>
+          <div class="chips" data-chipgroup>
+            <button class="chip" type="button">Story</button>
+            <button class="chip" type="button">Facebook</button>
+          </div>
+          <div class="rt-canvas">
+            visuel généré v3<br>1080 × 1920 · 9:16<br><br>
+            palette appliquée :<br>bleu nuit / orange AWS
+          </div>
+          <div class="versions">
+            <button class="chip is-on" type="button">v3</button>
+            <button class="chip" type="button">v2</button>
+            <button class="chip" type="button">v1</button>
+            <button class="btn btn-icon" type="button" aria-label="Régénérer"><i data-ico="history" class="ico ico-sm"></i></button>
+          </div>
+        </div>
+
+        <!-- légende / palette / historique -->
+        <div class="rt-meta">
+          <div class="block">
+            <div class="label">Légende <span style="text-transform:none;letter-spacing:0">· 312 car.</span></div>
+            <div class="rt-caption">
+              Le cloud AWS, ce n'est plus une option — c'est un accélérateur. ☁️
+              Coûts à l'usage, mise à l'échelle automatique, haute disponibilité multi-régions,
+              et une préparation directe à la certification Solutions Architect.
+              Prochaine session le 21 septembre · 12 places · lien en bio 👇
+            </div>
+            <div class="tags">
+              <span class="tag">#AWS</span><span class="tag">#cloudcomputing</span>
+              <span class="tag">#formationcloud</span><span class="tag more">+9</span>
+            </div>
+            <button class="btn btn-sm" type="button" style="align-self:flex-start"><i data-ico="pencil" class="ico ico-sm"></i> Éditer la légende</button>
+          </div>
+
+          <hr class="divider">
+
+          <div class="block">
+            <div class="label">Palette utilisée</div>
+            <div class="swatches">
+              <span class="swatch" style="background:#232F3E" title="#232F3E"></span>
+              <span class="swatch" style="background:#FF9900" title="#FF9900"></span>
+              <span class="swatch" style="background:#ffffff" title="#FFFFFF"></span>
+            </div>
+            <p class="mono" style="font-size:10px;color:var(--muted)">palette de marque · <a class="link" href="#">enregistrer</a></p>
+          </div>
+
+          <hr class="divider">
+
+          <div class="block">
+            <div class="label">Historique des retouches</div>
+            <div class="hist">
+              <span>v2 → contraste du texte renforcé</span>
+              <span>v3 → palette bleu nuit / orange AWS</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- conversation -->
+        <div class="rt-chat">
+          <div class="label">Retoucher par conversation</div>
+
+          <div class="chat-log">
+            <div class="msg msg-sys">image générée à partir du brief</div>
+
+            <div class="msg msg-me">Utilise la palette de couleurs de notre marque : bleu nuit #232F3E et orange #FF9900.</div>
+
+            <div class="msg msg-ia">
+              J'ai régénéré le visuel avec cette palette (v3) : fond bleu nuit, accents orange.
+              <div class="msg-acts">
+                <button class="btn btn-sm" type="button"><i data-ico="check" class="ico ico-sm"></i> Garder v3</button>
+                <button class="btn btn-sm" type="button">Revenir à v2</button>
+              </div>
+            </div>
+
+            <div class="msg msg-me">Ajoute notre logo en bas à droite.</div>
+
+            <div class="working"><span class="dot"></span> Génération en cours…</div>
+          </div>
+
+          <div>
+            <div class="label" style="margin-bottom:7px">Suggestions</div>
+            <div class="chips">
+              <button class="chip" type="button">Autre palette</button>
+              <button class="chip" type="button">Plus lumineux</button>
+              <button class="chip" type="button">Recadrer 9:16</button>
+            </div>
+          </div>
+
+          <div class="chat-send">
+            <input class="input" type="text" placeholder="Décrivez la modification…" aria-label="Décrivez la modification">
+            <button class="btn btn-primary btn-icon" type="button" style="height:40px;width:40px" aria-label="Envoyer">
+              <i data-ico="sparkle" class="ico ico-sm"></i>
+            </button>
+          </div>
+          <p class="chat-hint">joindre une image de référence ou coller des codes couleur</p>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <span class="mono" style="font-size:10.5px;color:var(--muted);margin-right:auto">
+        Visuel v3 · légende éditée · prêt pour Instagram Reels
+      </span>
+      <button class="btn" type="button" data-modal-close>Annuler</button>
+      <button class="btn" type="button"><i data-ico="download" class="ico ico-sm"></i> Télécharger le visuel</button>
+      <button class="btn btn-primary" type="button" data-modal-close>Valider &amp; continuer</button>
+    </div>
+  </div>
+</div>
+
+<div class="proto-flag">maquettes 4a + 4a1</div>
+<script src="js/app.js"></script>
+<script>
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('.toggle-row');
+    if (t) { t.classList.toggle('is-on'); return; }
+    var p = e.target.closest('.prop');
+    if (p && !e.target.closest('button')) {
+      Array.prototype.forEach.call(document.querySelectorAll('.prop'), function (n) { n.classList.remove('is-sel'); });
+      p.classList.add('is-sel');
+      document.querySelector('.genbar .sel').innerHTML =
+        '<b>' + p.querySelector('.prop-head b').textContent + '</b> sélectionnée';
+    }
+  });
+</script>
+</body>
+</html>

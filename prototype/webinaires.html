@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webinaires · IAGORA</title>
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  /* Webinaires — maquettes 12a (liste en blocs) et 12b (pop-up détail) */
+  .wsection { display: flex; flex-direction: column; gap: 10px; }
+  .wsection + .wsection { margin-top: 8px; }
+
+  .web {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 15px 18px; display: flex; align-items: center; gap: 20px; cursor: pointer;
+    transition: border-color .12s ease;
+  }
+  .web:hover { border-color: var(--border-2); }
+  .web.is-draft { border-style: dashed; }
+  .web.is-past { background: transparent; }
+
+  .wdate {
+    width: 62px; flex: none; border-right: 1px solid var(--border); padding-right: 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+  }
+  .wdate .m { font-family: var(--f-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--muted); }
+  .wdate .d { font-family: var(--f-display); font-size: 30px; line-height: 1; }
+  .wdate .w { font-family: var(--f-mono); font-size: 9px; color: var(--muted); }
+  .wdate .d.none { color: var(--border-2); }
+
+  .wmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .wmain h3 { font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .wmain .by { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .wflags { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+
+  .wstats { flex: none; display: flex; gap: 26px; }
+  .wstat { display: flex; flex-direction: column; gap: 2px; min-width: 74px; }
+  .wstat .v { font-family: var(--f-mono); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .wstat .v.none { color: var(--border-2); }
+
+  .wmore { display: flex; justify-content: center; padding-top: 4px; }
+
+  /* ---- pop-up 12b ---- */
+  #detail .modal { max-width: 1060px; }
+  .wd-head-t { display: flex; flex-direction: column; gap: 5px; }
+  .wd-kicker { display: flex; align-items: center; gap: 9px; }
+  .wd-kicker .label { letter-spacing: .14em; }
+  .wd-sub { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+
+  .wd-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+  .wd-stat { background: var(--surface); padding: 13px 18px; display: flex; flex-direction: column; gap: 2px; }
+  .wd-stat .v { font-family: var(--f-mono); font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .wd-stat .d { font-size: 11.5px; color: var(--muted); }
+
+  .wd-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+  .wd-body > * { padding: 18px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .wd-body > * + * { border-left: 1px solid var(--border); }
+
+  .wd-visual {
+    border-radius: 10px; border: 1px solid var(--border-2); aspect-ratio: 16 / 7;
+    background: repeating-linear-gradient(135deg, var(--surface-2) 0 9px, var(--ground) 9px 18px);
+    display: grid; place-items: center; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted);
+  }
+  .wd-desc { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+
+  .chart { display: flex; flex-direction: column; gap: 7px; }
+  .chart svg { width: 100%; height: 96px; display: block; }
+  .chart .cap { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .chart .axis { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: 9px; color: var(--muted); }
+
+  .block { display: flex; flex-direction: column; gap: 9px; }
+  .block-head { display: flex; align-items: baseline; gap: 10px; }
+  .block-head .label { flex: 1; }
+
+  .person { display: flex; align-items: center; gap: 9px; }
+  .person .av { width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); display: grid; place-items: center; font-family: var(--f-mono); font-size: 9.5px; }
+  .person .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .person .who b { font-size: 13px; font-weight: 500; }
+  .person .who span { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+  .person .role { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+
+  .remind { display: flex; align-items: center; gap: 9px; font-size: 12.8px; color: var(--ink-2); }
+  .remind .when { margin-left: auto; font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+
+  .linkrow { display: flex; align-items: center; gap: 8px; }
+  .linkrow code {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: var(--surface-2); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; color: var(--ink-2);
+  }
+</style>
+</head>
+<body data-page="webinaires">
+
+<div class="app">
+  <nav class="sidebar" aria-label="Navigation principale"></nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="crumb">Événements <span>/</span> <b>Webinaires</b></div>
+      <div class="topbar-actions">
+        <button class="btn" type="button"><i data-ico="download" class="ico ico-sm"></i> Exporter les inscrits</button>
+        <button class="btn btn-primary" type="button"><i data-ico="plus" class="ico ico-sm"></i> Nouveau webinaire</button>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <div class="page-head">
+        <div>
+          <h1>Webinaires</h1>
+          <p class="sub">2 à venir · 6 passés · 418 inscrits cumulés</p>
+        </div>
+        <div class="chips" data-chipgroup>
+          <button class="chip is-on" type="button">Tous <span class="n">8</span></button>
+          <button class="chip" type="button">À venir <span class="n">2</span></button>
+          <button class="chip" type="button">Brouillon <span class="n">1</span></button>
+          <button class="chip" type="button">Passés <span class="n">6</span></button>
+        </div>
+      </div>
+
+      <!-- ---------- à venir ---------- -->
+      <section class="wsection">
+        <div class="label">À venir</div>
+
+        <article class="web" data-modal-open="detail">
+          <div class="wdate"><span class="m">SEPT.</span><span class="d">17</span><span class="w">jeudi</span></div>
+          <div class="wmain">
+            <h3>Devenir Data Engineer en 2027 — parcours &amp; débouchés</h3>
+            <span class="by">Animé par Marc Dubois · LinkedIn Live + Zoom</span>
+            <div class="wflags">
+              <span class="status status-live">Inscriptions ouvertes</span>
+              <span class="status status-plan">3 rappels programmés</span>
+            </div>
+          </div>
+          <div class="wstats">
+            <div class="wstat"><span class="label">Horaire</span><span class="v">18:00</span></div>
+            <div class="wstat"><span class="label">Durée</span><span class="v">1 h 30</span></div>
+            <div class="wstat"><span class="label">Participants</span><span class="v">42 inscrits</span></div>
+          </div>
+          <button class="btn" type="button" data-modal-open="detail">Voir le détail</button>
+        </article>
+
+        <article class="web">
+          <div class="wdate"><span class="m">OCT.</span><span class="d">02</span><span class="w">jeudi</span></div>
+          <div class="wmain">
+            <h3>Power BI : de la donnée brute au tableau de bord</h3>
+            <span class="by">Animé par Amina Kaci · Zoom</span>
+            <div class="wflags">
+              <span class="status status-live">Inscriptions ouvertes</span>
+              <span class="status status-fail">Visuel de promo manquant</span>
+            </div>
+          </div>
+          <div class="wstats">
+            <div class="wstat"><span class="label">Horaire</span><span class="v">18:30</span></div>
+            <div class="wstat"><span class="label">Durée</span><span class="v">1 h</span></div>
+            <div class="wstat"><span class="label">Participants</span><span class="v">18 inscrits</span></div>
+          </div>
+          <button class="btn" type="button">Voir le détail</button>
+        </article>
+
+        <article class="web is-draft">
+          <div class="wdate"><span class="m">DATE</span><span class="d none">—</span></div>
+          <div class="wmain">
+            <h3>Alternance data : mode d'emploi pour les entreprises</h3>
+            <span class="by">Brouillon · date et animateur à définir</span>
+            <div class="wflags"><span class="status status-draft">Brouillon</span></div>
+          </div>
+          <div class="wstats">
+            <div class="wstat"><span class="label">Horaire</span><span class="v none">—</span></div>
+            <div class="wstat"><span class="label">Durée</span><span class="v none">—</span></div>
+            <div class="wstat"><span class="label">Participants</span><span class="v none">—</span></div>
+          </div>
+          <button class="btn" type="button">Reprendre</button>
+        </article>
+      </section>
+
+      <!-- ---------- passés ---------- -->
+      <section class="wsection">
+        <div class="label">Passés</div>
+
+        <article class="web is-past">
+          <div class="wdate"><span class="m">JUIL.</span><span class="d">17</span><span class="w">jeudi</span></div>
+          <div class="wmain">
+            <h3>Reconversion vers la data : par où commencer ?</h3>
+            <span class="by">Replay disponible · 214 vues · 12 questions posées</span>
+          </div>
+          <div class="wstats">
+            <div class="wstat"><span class="label">Présents</span><span class="v">96</span></div>
+            <div class="wstat"><span class="label">Durée</span><span class="v">1 h 12</span></div>
+            <div class="wstat"><span class="label">Participants</span><span class="v">168 inscrits</span></div>
+          </div>
+          <button class="btn" type="button">Voir le détail</button>
+        </article>
+
+        <article class="web is-past">
+          <div class="wdate"><span class="m">JUIN</span><span class="d">12</span><span class="w">jeudi</span></div>
+          <div class="wmain">
+            <h3>Portes ouvertes — promotion janvier 2026</h3>
+            <span class="by">Replay disponible · 88 vues</span>
+          </div>
+          <div class="wstats">
+            <div class="wstat"><span class="label">Présents</span><span class="v">61</span></div>
+            <div class="wstat"><span class="label">Durée</span><span class="v">45 min</span></div>
+            <div class="wstat"><span class="label">Participants</span><span class="v">104 inscrits</span></div>
+          </div>
+          <button class="btn" type="button">Voir le détail</button>
+        </article>
+
+        <div class="wmore"><button class="btn btn-sm" type="button">Voir les 4 webinaires passés restants</button></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ pop-up 12b — détail du webinaire ============ -->
+<div class="modal-back" id="detail" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="wd-title">
+
+    <div class="modal-head">
+      <div class="wd-head-t">
+        <div class="wd-kicker">
+          <span class="label">Webinaire</span>
+          <span class="status status-live">Inscriptions ouvertes</span>
+        </div>
+        <h2 id="wd-title">Devenir Data Engineer en 2027 — parcours &amp; débouchés</h2>
+        <p class="wd-sub">Jeudi 17 septembre 2026 · 18:00 – 19:30 (GMT) · LinkedIn Live + Zoom</p>
+      </div>
+      <button class="btn btn-icon btn-ghost" type="button" data-modal-close aria-label="Fermer">
+        <i data-ico="close" class="ico"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <div class="wd-stats">
+        <div class="wd-stat"><span class="label">Date</span><span class="v">17 sept.</span><span class="d">dans 8 jours</span></div>
+        <div class="wd-stat"><span class="label">Durée</span><span class="v">1 h 30</span><span class="d">dont 20 min de Q&amp;R</span></div>
+        <div class="wd-stat"><span class="label">Inscrits</span><span class="v">42</span><span class="d">objectif 80</span></div>
+        <div class="wd-stat"><span class="label">Présence est.</span><span class="v">55 %</span><span class="d">moyenne passée</span></div>
+      </div>
+
+      <div class="wd-body">
+
+        <!-- colonne gauche -->
+        <div>
+          <div class="wd-visual">visuel de promo · 16:7</div>
+
+          <div class="block">
+            <div class="label">Description</div>
+            <p class="wd-desc">Panorama du métier, compétences attendues, salaires observés et parcours de formation. Retour d'expérience de deux anciens élèves, puis session de questions.</p>
+            <div class="chips">
+              <span class="chip" style="cursor:default">Data engineering</span>
+              <span class="chip" style="cursor:default">Recrutement</span>
+              <span class="chip" style="cursor:default">Français</span>
+            </div>
+          </div>
+
+          <div class="block chart">
+            <div class="label">Inscriptions · 30 derniers jours</div>
+            <svg id="spark" viewBox="0 0 320 96" preserveAspectRatio="none" role="img"
+                 aria-label="Inscriptions quotidiennes sur 30 jours, deux pics après les publications de promotion"></svg>
+            <div class="axis"><span>10 août</span><span>25 août</span><span>9 sept.</span></div>
+            <p class="cap">pics après chaque publication de promotion</p>
+          </div>
+        </div>
+
+        <!-- colonne droite -->
+        <div>
+          <div class="block">
+            <div class="block-head">
+              <span class="label">Derniers inscrits</span>
+              <button class="btn btn-sm btn-ghost" type="button">Voir les 42</button>
+            </div>
+            <div class="person"><span class="av">MD</span><span class="who"><b>Mamadou Diallo · Dakar</b><span>LinkedIn · il y a 22 min</span></span></div>
+            <div class="person"><span class="av">NK</span><span class="who"><b>Ndèye Kane · Thiès</b><span>Formulaire · il y a 3 h</span></span></div>
+            <div class="person"><span class="av">FS</span><span class="who"><b>Fatou Sarr · Paris</b><span>Instagram · hier</span></span></div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="block">
+            <div class="label">Animation</div>
+            <div class="person"><span class="av">MD</span><span class="who"><b>Marc Dubois</b></span><span class="role">hôte</span></div>
+            <div class="person"><span class="av">AK</span><span class="who"><b>Amina Kaci</b></span><span class="role">modération Q&amp;R</span></div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="block">
+            <div class="label">Rappels &amp; promotion</div>
+            <div class="remind"><i data-ico="send" class="ico ico-sm"></i> J-7 · e-mail + LinkedIn <span class="when">10 sept.</span></div>
+            <div class="remind"><i data-ico="send" class="ico ico-sm"></i> J-1 · e-mail <span class="when">16 sept.</span></div>
+            <div class="remind"><i data-ico="send" class="ico ico-sm"></i> H-2 · Story Instagram <span class="when">17 sept.</span></div>
+            <button class="btn btn-sm" type="button" style="align-self:flex-start">+ ajouter un rappel</button>
+          </div>
+
+          <hr class="divider">
+
+          <div class="block">
+            <div class="label">Lien d'inscription</div>
+            <div class="linkrow">
+              <code class="mono">datum.ac/webinaire/data-eng-2027</code>
+              <button class="btn btn-sm" type="button">Copier</button>
+              <button class="btn btn-sm" type="button">QR code</button>
+            </div>
+            <p class="cap" style="font-family:var(--f-mono);font-size:9.5px;color:var(--muted)">
+              Le replay sera publié automatiquement 24 h après la fin.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <span class="mono" style="font-size:10.5px;color:var(--muted);margin-right:auto">
+        Dernière modification par Marc D. · hier 09:40
+      </span>
+      <button class="btn" type="button" data-modal-close>Annuler l'événement</button>
+      <button class="btn" type="button">Modifier</button>
+      <a class="btn btn-primary" href="creer-publication.html">Promouvoir ce webinaire</a>
+    </div>
+
+  </div>
+</div>
+
+<div class="proto-flag">maquettes 12a + 12b</div>
+<script src="js/app.js"></script>
+<script>
+  /* Inscriptions quotidiennes — 30 jours. Deux pics : publications de promo. */
+  var DATA = [0,1,0,2,1,0,0,3,7,5,2,1,0,1,2,1,0,0,1,4,9,6,3,2,1,0,2,3,5,4];
+  (function () {
+    var svg = document.getElementById('spark');
+    var W = 320, H = 96, PAD = 6, max = 10;               // échelle fixe : 0 → 10 inscriptions
+    var bw = (W - PAD * 2) / DATA.length;
+    var bars = DATA.map(function (v, i) {
+      var h = Math.max(1, (v / max) * (H - 20));
+      var x = PAD + i * bw, y = H - 12 - h;
+      var last = i >= DATA.length - 1;
+      return '<rect x="' + (x + 1).toFixed(1) + '" y="' + y.toFixed(1) +
+        '" width="' + (bw - 2).toFixed(1) + '" height="' + h.toFixed(1) +
+        '" rx="1.5" fill="' + (v >= 7 ? 'var(--accent)' : last ? 'var(--ink-2)' : 'var(--border-2)') + '"/>';
+    }).join('');
+    // repère à 5 inscriptions + ligne de base
+    var y5 = H - 12 - (5 / max) * (H - 20);
+    svg.innerHTML =
+      '<line x1="' + PAD + '" y1="' + y5.toFixed(1) + '" x2="' + (W - PAD) + '" y2="' + y5.toFixed(1) +
+      '" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>' +
+      '<text x="' + (W - PAD) + '" y="' + (y5 - 4).toFixed(1) + '" text-anchor="end" ' +
+      'font-family="IBM Plex Mono, monospace" font-size="8" fill="var(--muted)">5</text>' +
+      bars +
+      '<line x1="' + PAD + '" y1="' + (H - 12) + '" x2="' + (W - PAD) + '" y2="' + (H - 12) +
+      '" stroke="var(--border-2)" stroke-width="1"/>';
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# --- secrets & configuration locale ---
+# .env contient l'URL du tunnel cloudflared, qui change à chaque redémarrage.
+# Le modèle à jour est .env.example, lui suivi par git.
+.env
+.env.local
+*.local
+
+# --- outils & préférences personnelles ---
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# --- systèmes de fichiers ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- dépendances & artefacts ---
+node_modules/
+dist/
+build/
+*.log
+npm-debug.log*
+
+# --- exports n8n temporaires ---
+# Les workflows versionnés vivent dans workflows/ sous un nom explicite.
+# Ceci attrape les exports bruts déposés à la racine par le navigateur.
+/*.json
+!package.json
