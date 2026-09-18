@@ -40,6 +40,11 @@
   .ev-sel { border-color: var(--accent); border-width: 1.5px; background: var(--accent-soft); color: var(--accent); }
   .ev-ghost { border-style: dashed; color: var(--muted); background: transparent; justify-content: center; }
   .ev .logo-net { width: 11px; height: 11px; }
+  a.ev, a.kcard { text-decoration: none; color: inherit; }
+  a.ev-web { color: var(--ground); }
+  a.ev-wait { color: var(--wait); }
+  a.ev-block { color: var(--err); }
+  a.ev-sel { color: var(--accent); }
 
   /* ---- panneau de droite ---- */
   .side { display: flex; flex-direction: column; gap: 14px; align-self: start; position: sticky; top: 0; }
@@ -58,7 +63,7 @@
   .load-row .n.warn { color: var(--err); }
 
   /* ---- pipeline 8b ---- */
-  .pipe { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .pipe { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: start; }
   .col { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; flex-direction: column; }
   .col-head { padding: 11px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
   .col-head b { font-size: 13.5px; flex: 1; }
@@ -88,7 +93,7 @@
     <header class="topbar">
       <div class="crumb">Programmer <span>/</span> <b>Calendrier éditorial</b></div>
       <div class="topbar-actions">
-        <span class="status status-plan">7 en attente de validation</span>
+        <span class="status status-plan">3 en attente de validation</span>
         <span class="mono" style="font-size:10.5px;color:var(--muted)">dernière synchro 09:12</span>
       </div>
     </header>
@@ -132,24 +137,25 @@
               <span class="who"><b>Instagram</b></span>
               <span class="status status-plan">en attente</span>
             </div>
-            <h2 class="sel-title">Ouverture des candidatures — session janvier 2027</h2>
+            <h2 class="sel-title">Annonce — webinaire Power BI : de la donnée brute au tableau de bord</h2>
             <p class="sel-when">Mercredi 9 septembre · 14:30</p>
-            <p class="sel-note">Créneau recommandé (pic d'audience 12 h – 14 h 30).</p>
+            <p class="sel-note">Rattachée au webinaire du 2 octobre · 18:30 · Zoom. <a class="link" href="webinaires.html">Voir le webinaire</a></p>
             <p class="sel-hint">Déposez la pastille sur un autre jour pour reprogrammer. La publication reste bloquée tant qu'elle n'est pas approuvée.</p>
             <div style="display:flex;flex-direction:column;gap:7px">
               <button class="btn btn-primary btn-block" type="button">Ouvrir dans la file de validation</button>
               <button class="btn btn-block" type="button"><i data-ico="clock" class="ico ico-sm"></i> Décaler de 24 h</button>
+              <a class="btn btn-block" href="publications.html"><i data-ico="external" class="ico ico-sm"></i> Voir la publication</a>
             </div>
           </div>
 
           <div class="card card-pad" style="display:flex;flex-direction:column;gap:11px">
             <div class="label">Charge de la semaine</div>
             <div class="load">
-              <div class="load-row"><span class="who"><i data-net="instagram" class="logo-net"></i> Instagram</span><span class="n">5 publications</span></div>
-              <div class="load-row"><span class="who"><i data-net="facebook" class="logo-net"></i> Facebook</span><span class="n">4 publications</span></div>
-              <div class="load-row"><span class="who"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span><span class="n">3 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="instagram" class="logo-net"></i> Instagram</span><span class="n">3 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="facebook" class="logo-net"></i> Facebook</span><span class="n">2 publications</span></div>
+              <div class="load-row"><span class="who"><i data-net="linkedin" class="logo-net"></i> LinkedIn</span><span class="n">1 publication</span></div>
               <div class="load-row"><span class="who"><i data-net="tiktok" class="logo-net"></i> TikTok</span><span class="n warn">1 bloquée</span></div>
-              <div class="load-row"><span class="who"><i data-ico="video" class="ico ico-sm"></i> Webinaires</span><span class="n">2 rappels</span></div>
+              <div class="load-row"><span class="who"><i data-ico="video" class="ico ico-sm"></i> Rappels e-mail</span><span class="n">2 envois</span></div>
             </div>
           </div>
 
@@ -163,11 +169,10 @@
       <div class="pipe" id="view-pipe" hidden>
 
         <section class="col">
-          <div class="col-head"><b>Brouillons</b><span class="n">4</span></div>
+          <div class="col-head"><b>Brouillons</b><span class="n">2</span></div>
           <div class="col-body">
-            <article class="kcard"><b>Reel rentrée septembre</b><span class="meta">Instagram · Reels</span></article>
-            <article class="kcard"><b>Carrousel portes ouvertes</b><span class="meta">Facebook · 5 médias</span></article>
-            <article class="kcard"><b>Post insertion pro</b><span class="meta">LinkedIn · légende IA</span></article>
+            <a class="kcard" href="publications.html"><b>Story Promotion -  WEBINAIRE IA</b><span class="meta">LinkedIn · date du webinaire à fixer</span></a>
+            <a class="kcard" href="publications.html"><b>Vidéo Promotion - WEBINAIRE POWER BI</b><span class="meta">Instagram · Reels · montage en cours</span></a>
           </div>
         </section>
 
@@ -175,36 +180,64 @@
           <div class="col-head"><b>À valider</b><span class="n">3</span></div>
           <div class="col-body">
             <article class="kcard" style="border-color:var(--wait)">
-              <b>Ouverture des candidatures janvier 2027</b>
+              <b>Annonce — webinaire Power BI</b>
               <span class="meta">Instagram · 9 sept. 14:30</span>
               <div class="acts">
                 <button class="btn btn-sm btn-primary" type="button">Approuver</button>
-                <button class="btn btn-sm" type="button">Voir</button>
+                <a class="btn btn-sm" href="publications.html">Voir</a>
               </div>
             </article>
-            <article class="kcard"><b>Story série 1/3</b><span class="meta">Facebook · 15 sept. 08:30</span></article>
-            <article class="kcard"><b>Rappel H-2 webinaire</b><span class="meta">LinkedIn · 17 sept. 16:00</span></article>
+            <a class="kcard" href="publications.html"><b>Story Power BI 1/3</b><span class="meta">Facebook · 15 sept. 08:30</span></a>
+            <a class="kcard" href="publications.html"><b>Rappel H-2 — Data Engineering</b><span class="meta">Instagram · Story · 17 sept. 16:00</span></a>
           </div>
         </section>
 
         <section class="col">
-          <div class="col-head"><b>Programmés</b><span class="n">4</span></div>
+          <div class="col-head"><b>Approuvées</b><span class="n">2</span></div>
           <div class="col-body">
-            <article class="kcard"><b>WEBINAIRE Data engineering</b><span class="meta">17 sept. 18:00 · 3 rappels</span></article>
-            <article class="kcard"><b>Relance candidats</b><span class="meta">23 sept. 09:00 · LinkedIn</span></article>
-            <article class="kcard"><b>Rentrée septembre</b><span class="meta">25 sept. 11:00 · Instagram</span></article>
+            <article class="kcard">
+              <b>WEBINAIRE IA</b>
+              <span class="meta">Instagram · Story · date à fixer</span>
+              <div class="acts">
+                <button class="btn btn-sm" type="button">Programmer</button>
+              </div>
+            </article>
+            <a class="kcard" href="publications.html"><b>FAQ — webinaire Power BI</b><span class="meta">Facebook · date à fixer</span></a>
           </div>
-          <div class="col-foot warn">1 en échec — à reprogrammer</div>
         </section>
 
         <section class="col">
-          <div class="col-head"><b>Publiés</b><span class="n">21</span></div>
+          <div class="col-head"><b>Programmés</b><span class="n">9</span></div>
           <div class="col-body">
-            <article class="kcard"><b>Forum TERANOVA</b><span class="meta">7 sept. · 1 240 vues</span></article>
-            <article class="kcard"><b>Story eBIHAR</b><span class="meta">8 sept. · 860 vues</span></article>
-            <article class="kcard"><b>Newsletter août</b><span class="meta">4 sept. · 2 envois</span></article>
+            <a class="kcard" href="webinaires.html"><b>WEBINAIRE Data Engineering</b><span class="meta">17 sept. 18:00 · Zoom · 3 rappels</span></a>
+            <a class="kcard" href="webinaires.html"><b>WEBINAIRE Cloud</b><span class="meta">17 sept. 18:00 · Zoom · 3 rappels</span></a>
+            <a class="kcard" href="publications.html"><b>Relance inscriptions — Data Engineering</b><span class="meta">14 sept. 10:00 · Facebook</span></a>
+            <a class="kcard" href="publications.html"><b>Teaser replay — Data Engineering</b><span class="meta">18 sept. 12:00 · Instagram</span></a>
+            <a class="kcard" href="publications.html"><b>Relance inscriptions — Power BI</b><span class="meta">25 sept. 11:00 · Instagram</span></a>
+          </div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>Publiés</b><span class="n">5</span></div>
+          <div class="col-body">
+            <a class="kcard" href="publications.html"><b>Annonce — webinaire Data Engineering</b><span class="meta">1 sept. · Facebook · 2 140 vues</span></a>
+            <a class="kcard" href="publications.html"><b>Replay — Reconversion vers la data</b><span class="meta">4 sept. · Facebook · 214 vues</span></a>
+            <a class="kcard" href="publications.html"><b>Story inscriptions — Data Engineering</b><span class="meta">8 sept. · Instagram · 860 vues</span></a>
           </div>
           <div class="col-foot"><a href="historique.html">voir l'historique complet</a></div>
+        </section>
+
+        <section class="col">
+          <div class="col-head"><b>Échecs</b><span class="n">1</span></div>
+          <div class="col-body">
+            <article class="kcard" style="border-color:var(--err)">
+              <b>Teaser — webinaire Power BI</b>
+              <span class="meta">TikTok · 11 sept. 19:00 · bloquée, jeton expiré</span>
+              <div class="acts">
+                <a class="btn btn-sm btn-primary" href="reseaux.html">Reconnecter</a>
+              </div>
+            </article>
+          </div>
         </section>
 
       </div>
@@ -216,49 +249,53 @@
 <div class="proto-flag">maquettes 7a + 8b</div>
 <script src="js/app.js"></script>
 <script>
-  /* Septembre 2026 — un objet par jour affiché.
+  /* Septembre 2026 — un objet par jour affiché, centré sur les webinaires :
+     Data Engineering (17 sept.), Power BI (2 oct.), replay Reconversion, Alternance (brouillon).
      n : numéro · out : hors mois · today : jour courant
      ev : pastilles [texte, type, réseau]
-          type : '' (normal) | 'wait' | 'block' | 'web' | 'sel' | 'ghost'   */
+          type : '' (publication) | 'wait' | 'block' | 'web' (webinaire ou e-mail) | 'sel' | 'ghost'
+     Une pastille de publication mène à publications.html, une pastille webinaire à webinaires.html. */
   var DAYS = [
     { n: 31, out: true },
-    { n: 1,  ev: [['12:30 · Résultats promo', '', 'facebook']] },
+    { n: 1,  ev: [['12:30 · Annonce Data Eng', '', 'facebook']] },
     { n: 2 },
-    { n: 3,  ev: [['18:00 · Reel campus', '', 'instagram']] },
-    { n: 4,  ev: [['09:00 · Newsletter', '']] },
+    { n: 3,  ev: [['18:00 · Teaser Data Eng', '', 'instagram']] },
+    { n: 4,  ev: [['09:00 · Replay Reconversion', '', 'facebook']] },
     { n: 5 },
     { n: 6 },
 
-    { n: 7,  ev: [['12:30 · Forum', '', 'facebook']] },
-    { n: 8,  ev: [['17:30 · Story', '', 'instagram']] },
+    { n: 7,  ev: [['12:30 · Extrait replay Reconversion', '', 'instagram']] },
+    { n: 8,  ev: [['17:30 · Story inscriptions Data Eng', '', 'instagram']] },
     { n: 9,  today: true, ev: [
-        ['14:30 · Ouverture candidatures', 'sel', 'instagram'],
-        ['08:00 · Rappel J-7 webinaire', 'web']] },
-    { n: 10, ev: [['12:30 · Data Viz', '', 'linkedin'], ['18:00 · Carrousel', '', 'facebook']] },
-    { n: 11, ev: [['19:00 · TikTok bloqué', 'block', 'tiktok']] },
-    { n: 12, ev: [['09:00 · Relance J-7', 'web']] },
-    { n: 13, ev: [['11:00 · Portes ouvertes', '', 'facebook']] },
+        ['14:30 · Annonce Power BI', 'sel', 'instagram'],
+        ['18:00 · Intervenants Data Eng', '', 'facebook']] },
+    { n: 10, ev: [['08:00 · J-7 e-mail Data Eng', 'web'], ['12:30 · Rappel J-7 Data Eng', '', 'linkedin']] },
+    { n: 11, ev: [['19:00 · Teaser Power BI', 'block', 'tiktok']] },
+    { n: 12, ev: [['10:00 · Relance e-mail Data Eng', 'web']] },
+    { n: 13, ev: [['11:00 · Témoignage Data Eng', '', 'facebook']] },
 
-    { n: 14, ev: [['10:00 · Relance', '', 'linkedin']] },
-    { n: 15, ev: [['08:30 · Story 1/3', 'wait', 'facebook']] },
-    { n: 16, ev: [['10:00 · Alternance', '', 'linkedin']] },
-    { n: 17, ev: [['18:00 · WEBINAIRE Data', 'web'], ['16:00 · Rappel H-2', 'wait', 'linkedin']] },
-    { n: 18, ev: [['12:00 · Replay teaser', '', 'instagram']] },
+    { n: 14, ev: [['10:00 · Relance inscriptions Data Eng', '', 'facebook']] },
+    { n: 15, ev: [['08:30 · Story Power BI 1/3', 'wait', 'facebook']] },
+    { n: 16, ev: [['09:00 · J-1 e-mail Data Eng', 'web']] },
+    { n: 17, ev: [['16:00 · Rappel H-2 Data Eng', 'wait', 'instagram'], ['18:00 · WEBINAIRE Data Eng', 'web']] },
+    { n: 18, ev: [['12:00 · Teaser replay Data Eng', '', 'instagram']] },
     { n: 19 },
     { n: 20 },
 
-    { n: 21, ev: [['12:30 · Bilan webinaire', '', 'linkedin']] },
-    { n: 22 },
-    { n: 23, ev: [['09:00 · Relance candidats', '', 'linkedin']] },
+    { n: 21, ev: [['12:30 · Bilan Data Eng', '', 'linkedin']] },
+    { n: 22, ev: [['12:30 · Carrousel Power BI', '', 'facebook']] },
+    { n: 23 },
     { n: 24 },
-    { n: 25, ev: [['11:00 · Rentrée sept.', '', 'instagram']] },
+    { n: 25, ev: [['08:00 · J-7 e-mail Power BI', 'web'], ['11:00 · Relance Power BI', '', 'instagram']] },
     { n: 26 },
     { n: 27 },
 
     { n: 28 },
-    { n: 29, ev: [['+ créneau suggéré', 'ghost']] },
-    { n: 30 },
-    { n: 1, out: true }, { n: 2, out: true }, { n: 3, out: true }, { n: 4, out: true }
+    { n: 29, ev: [['+ rappel J-3 Power BI', 'ghost']] },
+    { n: 30, ev: [['09:00 · Story Power BI 2/3', '', 'facebook']] },
+    { n: 1, out: true, ev: [['09:00 · J-1 e-mail Power BI', 'web']] },
+    { n: 2, out: true, ev: [['18:30 · WEBINAIRE Power BI', 'web']] },
+    { n: 3, out: true }, { n: 4, out: true }
   ];
 
   document.getElementById('days').innerHTML = DAYS.map(function (d) {
@@ -267,8 +304,12 @@
       (d.today ? '<span class="tag-today">AUJOURD\'HUI</span>' : '') + '</span>';
     var evs = (d.ev || []).map(function (e) {
       var logo = e[2] ? IAGORA.netLogo(e[2]) : '';
-      return '<button class="ev' + (e[1] ? ' ev-' + e[1] : '') + '" type="button">' +
-        logo + '<span>' + e[0] + '</span></button>';
+      var c = 'ev' + (e[1] ? ' ev-' + e[1] : '');
+      var inner = logo + '<span>' + e[0] + '</span>';
+      // suggestion : pas encore de contenu, donc pas de lien
+      if (e[1] === 'ghost') return '<button class="' + c + '" type="button">' + inner + '</button>';
+      var href = e[1] === 'web' ? 'webinaires.html' : 'publications.html';
+      return '<a class="' + c + '" href="' + href + '">' + inner + '</a>';
     }).join('');
     return '<div class="' + cls + '">' + num + evs + '</div>';
   }).join('');
@@ -284,7 +325,7 @@
     document.getElementById('filters').hidden = pipe;
     document.getElementById('cal-title').textContent = pipe ? 'Pipeline éditorial' : 'Calendrier éditorial';
     document.getElementById('cal-sub').textContent = pipe
-      ? 'Septembre 2026 · 13 contenus — brouillon → validation → programmé → publié'
+      ? 'Septembre 2026 · brouillon → validation → approuvée → programmée → publiée'
       : 'Septembre 2026 · glissez une pastille pour déplacer une publication';
   });
 </script>

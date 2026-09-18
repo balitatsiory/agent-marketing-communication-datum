@@ -16,6 +16,7 @@
   .fopt input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); flex: none; }
   .fopt .n { margin-left: auto; font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
   .fopt:hover { color: var(--ink); }
+  .fopt-sep { border-top: 1px dashed var(--border-2); padding-top: 8px; margin-top: 2px; }
   .fselect {
     height: 32px; border: 1px solid var(--border-2); border-radius: var(--radius);
     background: var(--surface); color: var(--ink-2); font-size: 13px;
@@ -79,6 +80,31 @@
 
   .more { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }
   .more span { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+
+  /* ---- pop-up détail d'une publication ---- */
+  #pub-detail .modal { max-width: 720px; }
+  .pd-head-t { display: flex; flex-direction: column; gap: 5px; }
+  .pd-kicker { display: flex; align-items: center; gap: 9px; }
+  .pd-sub { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .pd-section { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .pd-section + .pd-section { border-top: 1px solid var(--border); }
+  .pd-net {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+  }
+  .pd-net .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .pd-net .who b { font-size: 13.5px; font-weight: 500; }
+  .pd-net .who span { font-family: var(--f-mono); font-size: 10px; color: var(--muted); }
+  .pd-net .nums { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-2); white-space: nowrap; }
+  .pd-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .pd-timeline li {
+    display: grid; grid-template-columns: 96px 110px minmax(0, 1fr); gap: 10px;
+    padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 13px; color: var(--ink-2);
+  }
+  .pd-timeline li:last-child { border-bottom: 0; }
+  .pd-timeline .t { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); padding-top: 2px; }
+  .pd-timeline .by { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink); padding-top: 2px; }
+  .pd-timeline .by.sys { color: var(--muted); }
 </style>
 </head>
 <body data-page="publications">
@@ -101,7 +127,7 @@
       <div class="page-head">
         <div>
           <h1>Publications</h1>
-          <p class="sub">128 publications · 84 200 vues · 1 460 commentaires sur 30 jours</p>
+          <p class="sub">128 publications · 166 envois sur les réseaux · 84 200 vues · 1 460 commentaires sur 30 jours</p>
         </div>
       </div>
 
@@ -111,9 +137,9 @@
         <aside class="filters" aria-label="Filtres">
 
           <div class="fgroup">
-            <div class="label">Réseau</div>
-            <label class="fopt"><input type="checkbox" checked> Instagram <span class="n">56</span></label>
-            <label class="fopt"><input type="checkbox" checked> Facebook <span class="n">42</span></label>
+            <div class="label">Réseau · envois</div>
+            <label class="fopt"><input type="checkbox" checked> Instagram <span class="n">72</span></label>
+            <label class="fopt"><input type="checkbox" checked> Facebook <span class="n">64</span></label>
             <label class="fopt"><input type="checkbox"> LinkedIn <span class="n">18</span></label>
             <label class="fopt"><input type="checkbox"> TikTok <span class="n">12</span></label>
           </div>
@@ -129,9 +155,15 @@
 
           <div class="fgroup">
             <div class="label">Statut</div>
-            <label class="fopt"><input type="checkbox"> Publiée</label>
-            <label class="fopt"><input type="checkbox"> Programmée</label>
             <label class="fopt"><input type="checkbox"> Brouillon</label>
+            <label class="fopt"><input type="checkbox"> À valider</label>
+            <label class="fopt"><input type="checkbox"> Approuvée</label>
+            <label class="fopt"><input type="checkbox"> Programmée</label>
+            <label class="fopt"><input type="checkbox"> Publiée</label>
+            <label class="fopt"><input type="checkbox"> Publiée en partie</label>
+            <label class="fopt"><input type="checkbox"> Échec</label>
+            <label class="fopt"><input type="checkbox"> Retirée</label>
+            <label class="fopt fopt-sep"><input type="checkbox"> Afficher les archivées</label>
           </div>
 
           <div class="fgroup">
@@ -171,7 +203,7 @@
 
           <div class="grid">
 
-            <article class="pcard">
+            <article class="pcard" data-modal-open="pub-detail">
               <div class="pcard-media"><span class="pcard-tag"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Reels</span></div>
               <div class="pcard-body">
                 <h3 class="pcard-title">Ouverture des candidatures</h3>
@@ -277,6 +309,66 @@
         </section>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ============ pop-up : détail d'une publication ============ -->
+<div class="modal-back" id="pub-detail" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pd-title">
+
+    <div class="modal-head">
+      <div class="pd-head-t">
+        <div class="pd-kicker">
+          <span class="label">Publication · Reels</span>
+          <span class="status status-live">Publiée</span>
+        </div>
+        <h2 id="pd-title">Ouverture des candidatures</h2>
+        <p class="pd-sub">Créée par Sarah L. · approuvée par Marc D. · publiée le 9 septembre 2026 à 09:12</p>
+      </div>
+      <button class="btn btn-icon btn-ghost" type="button" data-modal-close aria-label="Fermer">
+        <i data-ico="close" class="ico"></i>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <section class="pd-section">
+        <div class="label">Réseaux</div>
+        <div class="pd-net">
+          <i data-net="instagram" class="logo-net logo-net-lg"></i>
+          <span class="who"><b>Instagram · @datum.academy</b><span>publiée le 9 sept. à 09:12</span></span>
+          <span class="nums">8 900 vues · 61 comm.</span>
+          <a class="btn btn-sm" href="#" target="_blank" rel="noopener">Voir sur Instagram <i data-ico="external" class="ico ico-sm"></i></a>
+        </div>
+        <div class="pd-net">
+          <i data-net="facebook" class="logo-net logo-net-lg"></i>
+          <span class="who"><b>Facebook · Datum Academy</b><span>publiée le 9 sept. à 09:12</span></span>
+          <span class="nums">3 500 vues · 25 comm.</span>
+          <a class="btn btn-sm" href="#" target="_blank" rel="noopener">Voir sur Facebook <i data-ico="external" class="ico ico-sm"></i></a>
+        </div>
+      </section>
+
+      <section class="pd-section">
+        <div class="label">Historique</div>
+        <ol class="pd-timeline">
+          <li><span class="t">9 sept. 08:40</span><span class="by">Sarah L.</span><span>Création — brouillon</span></li>
+          <li><span class="t">9 sept. 08:47</span><span class="by">Agent IA</span><span>Légende générée (3 propositions)</span></li>
+          <li><span class="t">9 sept. 08:55</span><span class="by">Sarah L.</span><span>Visuel validé (v3)</span></li>
+          <li><span class="t">9 sept. 08:56</span><span class="by">Sarah L.</span><span>Envoyée à valider — publication demandée à 09:12</span></li>
+          <li><span class="t">9 sept. 09:00</span><span class="by">Marc D.</span><span>Approuvée</span></li>
+          <li><span class="t">9 sept. 09:00</span><span class="by sys">Système</span><span>Programmée pour 09:12</span></li>
+          <li><span class="t">9 sept. 09:12</span><span class="by sys">Système</span><span>Publiée sur Instagram</span></li>
+          <li><span class="t">9 sept. 09:12</span><span class="by sys">Système</span><span>Publiée sur Facebook</span></li>
+        </ol>
+      </section>
+
+    </div>
+
+    <div class="modal-foot">
+      <a class="btn" href="historique.html" style="margin-right:auto">Historique des activités</a>
+      <button class="btn btn-primary" type="button" data-modal-close>Fermer</button>
+    </div>
+
   </div>
 </div>
 

@@ -34,7 +34,7 @@
   .media-add { width: 62px; height: 78px; border-radius: 8px; border: 1.5px dashed var(--border-2); background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
   .media-add:hover { border-color: var(--accent); color: var(--accent); }
 
-  .fmt-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+  .fmt-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 9px; }
   .fmt {
     border: 1px solid var(--border-2); border-radius: 10px; background: var(--surface);
     padding: 11px 12px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; text-align: left;
@@ -101,7 +101,7 @@
       <div class="topbar-actions">
         <span class="mono" style="font-size:10.5px;color:var(--muted)">brouillon enregistré</span>
         <button class="btn" type="button"><i data-ico="image" class="ico ico-sm"></i> Aperçu</button>
-        <button class="btn btn-primary" type="button"><i data-ico="send" class="ico ico-sm"></i> Publier</button>
+        <button class="btn btn-primary" type="button"><i data-ico="send" class="ico ico-sm"></i> Envoyer à valider</button>
       </div>
     </header>
 
@@ -140,6 +140,7 @@
               <button class="fmt" type="button"><b>Carrousel</b><span>2–10 médias</span></button>
               <button class="fmt" type="button"><b>Image</b><span>1:1 · 4:5</span></button>
               <button class="fmt" type="button"><b>Story</b><span>24 h</span></button>
+              <button class="fmt" type="button"><b>Vidéo</b><span>Facebook uniquement</span></button>
             </div>
           </section>
 
@@ -183,7 +184,7 @@
                 <input class="input" id="h" type="text" value="18:30">
               </div>
             </div>
-            <p class="tz">Fuseau : Europe/Paris · <a class="link" href="#">meilleur créneau suggéré</a></p>
+            <p class="tz">Fuseau : Antananarivo (UTC+3) — défini dans votre profil ·<a class="link" href="#">meilleur créneau suggéré</a></p>
           </section>
 
         </div>
