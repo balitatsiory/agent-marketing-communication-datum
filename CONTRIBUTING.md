@@ -110,7 +110,7 @@ autres fichiers sont créés quand ils servent.
   |---|---|---|
   | `_at` | date + heure (UTC) | `published_at` |
   | `_on` | date seule | `planned_on` |
-  | `_id` | identifiant | `author_id` |
+  | préfixe `id_` | identifiant (voir §4) | `id_publications`, `id_users_author` |
   | `_count` | nombre | `registration_count` |
   | `_minutes`, `_seconds` | durée (unité explicite) | `duration_minutes` |
   | `_url` | lien | `replay_url` |
@@ -150,16 +150,23 @@ PostgreSQL, SQLAlchemy 2, migrations Alembic.
 | Règle | Exemple |
 |---|---|
 | `snake_case`, singulier | `title`, `caption` |
-| Clé primaire : toujours `id`, type **UUID** | `id` |
-| Clé étrangère : `<table_au_singulier>_id` | `publication_id`, `social_account_id` |
-| Clé étrangère avec un rôle : `<rôle>_id` | `author_id`, `approver_id` (→ `users`) |
+| Clé primaire : `id_<table>`, déclarée `BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | `id_users`, `id_publications` |
+| Clé étrangère : `id_<table_cible>` | `id_social_accounts`, `id_publications` |
+| Clé étrangère avec un rôle, ou plusieurs vers la même table : `id_<table_cible>_<rôle>` | `id_users_author`, `id_users_approver` |
 | Horodatage : suffixe `_at`, **toujours en UTC** avec fuseau (`timestamptz`) | `scheduled_at` |
 | Booléen : préfixe `is_` / `has_` | `is_generated_by_ai` |
 | Statut : colonne `status`, `VARCHAR` + contrainte `CHECK` (pas d'enum PostgreSQL) | `status = 'pending_review'` |
 | Valeurs de statut : anglais, `snake_case` | `draft`, `pending_review`, `published` |
 | Données souples : `JSONB`, nommée `metadata` ou `payload` | `activity_logs.metadata` |
 
-**Colonnes présentes dans toutes les tables :** `id`, `created_at`, `updated_at`.
+**Colonnes présentes dans toutes les tables :** `id_<table>`, `created_at`, `updated_at`.
+
+> `GENERATED ALWAYS` interdit d'insérer une valeur d'identifiant à la main. Lors d'un
+> import ou d'une reprise de données, il faut écrire explicitement
+> `OVERRIDING SYSTEM VALUE`, puis remettre la séquence à niveau.
+> Les identifiants venant de l'extérieur (Meta, site Datum) ne sont **jamais** des clés
+> primaires : ils vont dans une colonne `external_<source>_id` avec une contrainte
+> d'unicité, par exemple `external_meta_id`.
 **Tables archivables** (publications, webinaires, comptes…) : `deleted_at` en plus.
 Une ligne archivée a `deleted_at` renseigné ; les requêtes standard l'excluent.
 
@@ -175,7 +182,7 @@ pour que les migrations Alembic soient stables et lisibles :
 | Type | Format | Exemple |
 |---|---|---|
 | Clé primaire | `pk_<table>` | `pk_publications` |
-| Clé étrangère | `fk_<table>_<colonne>_<table_cible>` | `fk_publications_author_id_users` |
+| Clé étrangère | `fk_<table>_<colonne>_<table_cible>` | `fk_publications_id_users_author_users` |
 | Unicité | `uq_<table>_<colonne>` | `uq_users_email` |
 | Index | `ix_<table>_<colonne>` | `ix_publications_scheduled_at` |
 | Check | `ck_<table>_<nom>` | `ck_publications_status` |
@@ -201,8 +208,8 @@ pour que les migrations Alembic soient stables et lisibles :
 | Préfixe versionné | `/api/v1/...` |
 | Noms au **pluriel**, en `kebab-case` | `/api/v1/social-accounts` |
 | Pas de verbe pour le CRUD | `GET /publications`, `POST /publications` |
-| Actions métier : sous-ressource en `POST` | `POST /publications/{publication_id}/approve` |
-| Imbrication limitée à un niveau | `/webinars/{webinar_id}/registrations` |
+| Actions métier : sous-ressource en `POST` | `POST /publications/{id_publications}/approve` |
+| Imbrication limitée à un niveau | `/webinars/{id_webinars}/registrations` |
 | Endpoints publics / webhooks séparés | `/api/v1/webhooks/meta`, `/api/v1/webhooks/n8n/...` |
 
 ### Méthodes et codes de retour
@@ -225,14 +232,14 @@ pour que les migrations Alembic soient stables et lisibles :
 
 ### Format JSON
 
-- Clés en **`snake_case`** : `scheduled_at`, `social_account_id`.
+- Clés en **`snake_case`**, identiques aux colonnes : `scheduled_at`, `id_social_accounts`.
 - Dates en **ISO 8601 UTC** : `"2026-09-17T15:00:00Z"`. Le front convertit
   en heure locale.
 - Listes paginées, toujours la même enveloppe :
   `{ "items": [...], "total": 42, "page": 1, "page_size": 20 }`
   avec les paramètres `?page=1&page_size=20` (maximum 100).
 - Filtres en paramètres de requête, mêmes noms que les champs :
-  `?status=published&social_account_id=...`
+  `?status=published&id_social_accounts=...`
 - Erreurs, toujours le même format :
   `{ "error": { "code": "publication_not_found", "message": "Publication introuvable." } }`
   — `code` est stable (le front s'en sert), `message` est en français.
@@ -299,7 +306,8 @@ l'outil a raison** — et le guide doit être corrigé.
   publication envoyée), `warning` (anomalie récupérée : nouvelle tentative Meta),
   `error` (échec à traiter).
 - **Jamais dans les logs** : mots de passe, jetons, secrets, emails ou noms
-  d'inscrits, contenu des messages privés. Logger les **identifiants** (`registration_id`)
+  d'inscrits, contenu des messages privés. Logger les **identifiants**
+  (`id_webinar_registrations`)
   plutôt que les données.
 
 ---
