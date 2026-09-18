@@ -58,7 +58,7 @@
   .load-row .n.warn { color: var(--err); }
 
   /* ---- pipeline 8b ---- */
-  .pipe { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .pipe { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: start; }
   .col { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; flex-direction: column; }
   .col-head { padding: 11px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
   .col-head b { font-size: 13.5px; flex: 1; }
@@ -71,8 +71,6 @@
   .kcard .meta { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
   .kcard .acts { display: flex; gap: 6px; margin-top: 3px; }
   .kcard .acts .btn { height: 24px; font-size: 11.5px; padding: 0 8px; }
-  .kadd { border: 1.5px dashed var(--border-2); border-radius: 9px; padding: 8px; color: var(--muted); font-size: 12px; background: transparent; cursor: pointer; }
-  .kadd:hover { border-color: var(--accent); color: var(--accent); }
   .col-foot { padding: 8px 13px 11px; font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
   .col-foot.warn { color: var(--err); }
   .col-foot a { color: var(--accent); }
@@ -163,16 +161,6 @@
 
       <!-- ============ vue Kanban (8b) ============ -->
       <div class="pipe" id="view-pipe" hidden>
-
-        <section class="col">
-          <div class="col-head"><b>Idées</b><span class="n">5</span></div>
-          <div class="col-body">
-            <article class="kcard"><b>Témoignage alumni promo 2024</b><span class="meta">idée · Sarah L.</span></article>
-            <article class="kcard"><b>Coulisses du labo data</b><span class="meta">idée · Agent IA</span></article>
-            <article class="kcard"><b>Chiffres d'insertion 2026</b><span class="meta">idée</span></article>
-            <button class="kadd" type="button">+ ajouter une idée</button>
-          </div>
-        </section>
 
         <section class="col">
           <div class="col-head"><b>Brouillons</b><span class="n">4</span></div>
@@ -296,7 +284,7 @@
     document.getElementById('filters').hidden = pipe;
     document.getElementById('cal-title').textContent = pipe ? 'Pipeline éditorial' : 'Calendrier éditorial';
     document.getElementById('cal-sub').textContent = pipe
-      ? 'Septembre 2026 · 18 contenus — idée → brouillon → validation → programmé → publié'
+      ? 'Septembre 2026 · 13 contenus — brouillon → validation → programmé → publié'
       : 'Septembre 2026 · glissez une pastille pour déplacer une publication';
   });
 </script>

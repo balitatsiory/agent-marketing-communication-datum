@@ -75,7 +75,6 @@
   }
   .ai-head { display: flex; align-items: center; gap: 9px; }
   .ai-head b { font-size: 13px; flex: 1; }
-  .ai-head .cost { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
   .ai-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
   .ai-text { background: var(--surface); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
   .ai-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -84,6 +83,14 @@
   .th-foot { flex: none; border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 9px; }
   .th-send { display: flex; gap: 8px; align-items: center; }
   .th-note { font-family: var(--f-mono); font-size: 9.5px; color: var(--muted); }
+
+  /* conversation dont la fenêtre de réponse de la plateforme est dépassée (CDC E-03) */
+  .expired {
+    border: 1px solid var(--err); border-radius: 12px; background: var(--err-soft);
+    padding: 12px 14px; display: flex; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--err);
+  }
+  .expired b { display: block; margin-bottom: 2px; }
+  .thread[hidden] { display: none !important; }
 </style>
 </head>
 <body data-page="messages">
@@ -117,8 +124,8 @@
           <div class="ifgroup">
             <div class="label" style="padding:0 9px 4px">Canal</div>
             <button class="ifrow is-on" type="button"><span class="who">Tous</span><span class="n">12</span></button>
-            <button class="ifrow" type="button"><span class="who">Messages privés</span><span class="n">5</span></button>
-            <button class="ifrow" type="button"><span class="who">Commentaires</span><span class="n">6</span></button>
+            <button class="ifrow" type="button"><span class="who">Messages privés</span><span class="n">6</span></button>
+            <button class="ifrow" type="button"><span class="who">Commentaires</span><span class="n">5</span></button>
             <button class="ifrow" type="button"><span class="who">Mentions</span><span class="n">1</span></button>
           </div>
 
@@ -153,13 +160,13 @@
               </span>
             </button>
 
-            <button class="conv" type="button">
+            <button class="conv" type="button" data-thread="thread-late">
               <span class="av">FS</span>
               <span class="conv-main">
                 <span class="conv-top"><b>fatou.sarr_</b><span class="t">1 j</span></span>
                 <span class="conv-x">La certification GRADEO Power BI, c'est combien d'heures par semaine ?</span>
                 <span class="conv-meta">
-                  <span class="conv-src"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Commentaire</span>
+                  <span class="conv-src"><i data-net="instagram" class="logo-net" style="width:12px;height:12px"></i> Message privé</span>
                   <span class="flag flag-late">Hors délai</span>
                 </span>
               </span>
@@ -206,13 +213,13 @@
         </section>
 
         <!-- ---------- conversation ---------- -->
-        <section class="panel thread" aria-label="Conversation">
+        <section class="panel thread" id="thread-main" aria-label="Conversation">
 
           <div class="th-head">
             <span class="av">MD</span>
             <span class="who">
               <b>Mamadou Diallo</b>
-              <span>LinkedIn · message privé · Dakar · a assisté au webinaire du 17 juillet</span>
+              <span>LinkedIn · message privé · Dakar</span>
             </span>
             <span class="flag flag-ai">Réponse à valider</span>
             <button class="btn btn-icon btn-ghost" type="button" aria-label="Plus d'actions"><i data-ico="dots" class="ico"></i></button>
@@ -229,7 +236,6 @@
               <div class="ai-head">
                 <span class="ai-mark"><i data-ico="sparkle" class="ico ico-sm"></i></span>
                 <b>Réponse proposée par l'agent</b>
-                <span class="cost">confiance 0,79 · 1,8 s · 0,003 €</span>
               </div>
 
               <div class="ai-text">
@@ -265,6 +271,49 @@
           </div>
 
         </section>
+
+        <!-- ---------- conversation hors délai : envoi impossible depuis IAGORA ---------- -->
+        <section class="panel thread" id="thread-late" aria-label="Conversation" hidden>
+
+          <div class="th-head">
+            <span class="av">FS</span>
+            <span class="who">
+              <b>fatou.sarr_</b>
+              <span>Instagram · message privé</span>
+            </span>
+            <span class="flag flag-late">Hors délai</span>
+            <button class="btn btn-icon btn-ghost" type="button" aria-label="Plus d'actions"><i data-ico="dots" class="ico"></i></button>
+          </div>
+
+          <div class="th-body">
+
+            <div class="bubble">
+              <div class="txt">La certification GRADEO Power BI, c'est combien d'heures par semaine ?</div>
+              <div class="when">Hier 07 h 40</div>
+            </div>
+
+            <div class="expired">
+              <i data-ico="warn" class="ico ico-sm"></i>
+              <span>
+                <b>Délai de réponse dépassé</b>
+                Instagram n'autorise une réponse depuis une application tierce que dans les 24 h
+                qui suivent le dernier message reçu. Répondez directement depuis Instagram.
+              </span>
+            </div>
+
+          </div>
+
+          <div class="th-foot">
+            <div class="th-send">
+              <input class="input" type="text" placeholder="Envoi impossible depuis IAGORA — délai de 24 h dépassé" aria-label="Réponse manuelle" disabled>
+              <a class="btn btn-primary" href="https://business.facebook.com/latest/inbox" target="_blank" rel="noopener">
+                Répondre dans Instagram <i data-ico="external" class="ico ico-sm"></i>
+              </a>
+            </div>
+            <p class="th-note">La réponse envoyée depuis Instagram sera reportée dans l'historique de la conversation.</p>
+          </div>
+
+        </section>
       </div>
     </div>
   </div>
@@ -278,6 +327,9 @@
     if (c) {
       Array.prototype.forEach.call(document.querySelectorAll('.conv'), function (n) { n.classList.remove('is-on'); });
       c.classList.add('is-on');
+      // une conversation hors délai affiche sa propre vue ; les autres, la vue principale
+      var target = c.getAttribute('data-thread') || 'thread-main';
+      Array.prototype.forEach.call(document.querySelectorAll('.thread'), function (t) { t.hidden = t.id !== target; });
       return;
     }
     var f = e.target.closest('.ifgroup .ifrow');

@@ -15,6 +15,7 @@
   .toggle-row { display: flex; align-items: center; gap: 11px; border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
   .toggle-row .who { flex: 1; font-size: 13.5px; }
   .toggle-row .n { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); }
+  .net-toggles { display: flex; flex-direction: column; gap: 8px; }
   .switch { width: 34px; height: 20px; border-radius: 10px; background: var(--border-2); position: relative; flex: none; transition: background .15s ease; }
   .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform .15s ease; }
   .toggle-row.is-on .switch { background: var(--accent); }
@@ -182,11 +183,20 @@
           </div>
 
           <div class="field">
-            <label for="res">Réseau visé</label>
-            <button class="fselect input" id="res" type="button" style="display:flex;align-items:center;justify-content:space-between;height:42px">
-              <span style="display:flex;align-items:center;gap:8px"><i data-net="instagram" class="logo-net"></i> Instagram</span>
-              <i data-ico="chevron" class="ico ico-sm"></i>
-            </button>
+            <label>Réseaux visés</label>
+            <div class="net-toggles">
+              <label class="toggle-row is-on">
+                <i data-net="facebook" class="logo-net logo-net-lg"></i>
+                <span class="who">Page Facebook</span>
+                <span class="switch"></span>
+              </label>
+              <label class="toggle-row is-on">
+                <i data-net="instagram" class="logo-net logo-net-lg"></i>
+                <span class="who">Instagram</span>
+                <span class="switch"></span>
+              </label>
+            </div>
+            <p class="brief-note">Une proposition adaptée à chaque réseau coché.</p>
           </div>
 
           <div class="field">
