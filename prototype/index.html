@@ -50,7 +50,6 @@
   .login-form { display: flex; flex-direction: column; gap: 15px; }
   .login-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
-  .login-alt { text-align: center; font-size: 13.5px; color: var(--muted); }
 
   .login-foot {
     flex: none; height: 52px;
@@ -86,10 +85,6 @@
           <svg class="logo-net" viewBox="0 0 24 24" role="img" aria-label="Google"><rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 7.1a4.9 4.9 0 1 0 4.75 6.1h-4.6v-2.1h6.7a6 6 0 0 1 .1 1.1A6.9 6.9 0 1 1 16.6 7l-1.5 1.5A4.8 4.8 0 0 0 12 7.1Z" fill="currentColor" stroke="none"/></svg>
           Google
         </a>
-        <a class="btn" href="publications.html">
-          <i data-net="facebook" class="logo-net"></i>
-          Facebook
-        </a>
       </div>
 
       <div class="login-sep"><span>ou par e-mail</span></div>
@@ -103,15 +98,14 @@
           <label for="pwd">Mot de passe</label>
           <input class="input" id="pwd" type="password" value="prototype" autocomplete="current-password">
         </div>
-        <div class="login-row">
+        <!-- <div class="login-row">
           <label class="check"><input type="checkbox" checked> Rester connecté</label>
           <a class="link" href="#" style="font-size:13px">Mot de passe oublié&nbsp;?</a>
-        </div>
+        </div> -->
       </div>
 
       <button class="btn btn-primary btn-lg btn-block" type="submit">Se connecter</button>
 
-      <p class="login-alt">Nouveau ici&nbsp;? <a class="link" href="#">Créer un compte</a></p>
 
     </form>
   </main>
