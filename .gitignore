@@ -27,3 +27,12 @@ npm-debug.log*
 # Ceci attrape les exports bruts déposés à la racine par le navigateur.
 /*.json
 !package.json
+
+# --- Python (backend) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

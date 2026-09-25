@@ -57,16 +57,32 @@ Légende : `[x]` fait · `[~]` en cours · `[ ]` à faire · `[?]` bloqué par u
 - [ ] Figer les noms de champs retenus, puis la table `social_account_metrics`
 - [ ] Même travail pour les statistiques **par publication** (`publications.html`)
 
-## 5. Prochaines étapes du code — en attente du feu vert
+## 5. Le code — état au 25 septembre 2026
 
-| Étape | Contenu |
-|---|---|
-| 1. Socle | `pyproject.toml` (ruff, mypy, pytest), configuration, PostgreSQL dans Docker, Alembic avec la convention de nommage, `/health`, modules `auth` et `users` |
-| 2. Publications | CRUD, cycle de vie, versions, médias, historiques |
-| 3. Génération | dépend du choix du fournisseur LLM |
-| 4. Intégration sociale | `integrations/social/`, n8n en test, publications programmées |
-| 5. Messagerie | webhooks Meta, conversations, réponses |
-| 6. Webinaires, notifications, calendrier | dépend des réponses sur le site datumacademy.com |
+Le backend tourne **en local** (PostgreSQL du poste, `uvicorn` dans le terminal).
+Démarrage et commandes : `backend/README.md`. Tables et colonnes : `IAdocs/base-de-donnees.md`.
+
+- [x] **Outillage** : `pyproject.toml` (ruff, mypy strict, pytest), `.env.example`, `Dockerfile`
+- [x] **Socle** : `config` avec contrôle au démarrage, `database` avec la convention de nommage,
+      `errors` au format unique, `/health`, racine qui redirige vers la documentation
+- [x] **Sécurité** : bcrypt, JWT, chiffrement Fernet des jetons de plateformes
+- [x] **`auth`** : connexion, renouvellement **avec rotation**, déconnexion, `/auth/me`
+- [x] **`users`** : comptes, droits F-22 attribuables un par un, archivage, garde-fous
+      (ni son propre compte, ni le dernier administrateur)
+- [x] **`social_accounts`** : tables `platforms`, `social_account_statuses`, `social_accounts`,
+      `social_account_metrics` — modèles et migrations, sans service ni endpoints
+- [x] **Migrations** : 5 appliquées, valeurs initiales comprises (droits, réseaux, statuts)
+- [x] **Commentaires SQL** sur les 8 tables et 73 colonnes, et leur document généré
+- [x] **Swagger** : bouton Authorize, sections, exemples, erreurs documentées
+- [x] **Tests** : 32, dont les conventions de nommage en base
+- [ ] **Collecte des statistiques Meta** — étape en cours
+- [ ] **`publications`** : tables de référence, versions, cibles, historiques
+- [ ] `media`, `messages`, `webinars`, `calendar`, `activity`, `notifications`, `webhooks`
+
+### Outillage encore absent
+- [ ] Tests **avec base de données** (fixtures, session annulée après chaque test)
+- [ ] Enveloppe de pagination `{items, total, page, page_size}`
+- [ ] Intégration continue GitHub Actions (`ruff`, `mypy`, `pytest`)
 
 ## 6. Décisions attendues
 

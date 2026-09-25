@@ -59,6 +59,15 @@ règles ou peut évoluer. `VARCHAR` + `CHECK` seulement pour le technique et fig
 **Jamais de mot réservé PostgreSQL** comme nom de table ou de colonne (`user`, `order`, `group`…) :
 le pluriel nous en protège déjà.
 
+**Jamais plus de 63 caractères** pour un nom de table, de colonne ou de contrainte : PostgreSQL
+tronque au-delà, sans prévenir. Quand la convention dépasse cette limite, donner un nom court à la
+main (`fk_social_accounts_status`).
+
+**Un commentaire sur chaque table et chaque colonne**, déclaré dans le modèle
+(`__table_args__ = {"comment": …}` et `mapped_column(..., comment=…)`), puis appliqué en base par
+migration. C'est ce qui alimente `IAdocs/base-de-donnees.md` et ce qu'affiche DataGrip. Une colonne
+sans commentaire apparaît vide dans le document : ça se voit.
+
 **Historiques** : en ajout seul, droits `UPDATE`/`DELETE` retirés. Statut courant et ligne
 d'historique écrits **dans la même transaction**, par une seule fonction de service.
 
@@ -102,6 +111,17 @@ PR : un sujet, description « quoi / pourquoi / comment tester ».
 
 **Avant chaque PR :** `ruff format` · `ruff check` · `mypy app` · `pytest` · migration incluse ·
 `.env.example` à jour · aucun secret · nommage conforme.
+
+## Avant de committer — en local
+
+Depuis `backend/`, environnement activé :
+
+```bash
+ruff format . ; ruff check . --fix ; mypy app ; pytest
+```
+
+Les tests utilisent `stage_iagora_test`, jamais la base de travail : `tests/conftest.py`
+**impose** l'URL de test, même en présence d'un fichier `.env`.
 
 ## Règles de travail avec l'assistant
 

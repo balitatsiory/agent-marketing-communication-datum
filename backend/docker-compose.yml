@@ -1,0 +1,60 @@
+# Services du backend IAGORA : PostgreSQL et l'API.
+# Volontairement séparé du docker-compose.yml de la racine, qui fait tourner n8n :
+# les deux piles démarrent et s'arrêtent indépendamment.
+#
+#   cd backend
+#   docker compose up -d --build
+#
+# Depuis la racine du dépôt :
+#   docker compose -f backend/docker-compose.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iagora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iagora}
+      POSTGRES_DB: ${POSTGRES_DB:-iagora}
+      # Les dates et les tris ne dépendent pas de la locale de l'hôte.
+      TZ: UTC
+    ports:
+      # 5433 côté hôte : PostgreSQL 16 est déjà installé sur le poste et occupe 5432.
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # L'API n'est lancée qu'une fois la base réellement prête à répondre.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iagora} -d ${POSTGRES_DB:-iagora}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      args:
+        # Pile de développement : ruff, mypy et pytest sont dans l'image.
+        INSTALL_DEV: "true"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      # Le code est monté pour que --reload prenne les modifications sans reconstruire.
+      # À retirer en production.
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      # Les tests ne sont pas dans l'image (.dockerignore les exclut) : on les monte
+      # pour pouvoir lancer pytest dans le conteneur pendant le développement.
+      - ./tests:/app/tests
+      # Monté aussi, sinon un changement de réglage de ruff, mypy ou pytest
+      # n'aurait d'effet qu'après reconstruction de l'image.
+      - ./pyproject.toml:/app/pyproject.toml
+
+volumes:
+  postgres_data:
