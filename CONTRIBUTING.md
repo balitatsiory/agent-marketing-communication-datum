@@ -155,11 +155,31 @@ PostgreSQL, SQLAlchemy 2, migrations Alembic.
 | Clé étrangère avec un rôle, ou plusieurs vers la même table : `id_<table_cible>_<rôle>` | `id_users_author`, `id_users_approver` |
 | Horodatage : suffixe `_at`, **toujours en UTC** avec fuseau (`timestamptz`) | `scheduled_at` |
 | Booléen : préfixe `is_` / `has_` | `is_generated_by_ai` |
-| Statut : colonne `status`, `VARCHAR` + contrainte `CHECK` (pas d'enum PostgreSQL) | `status = 'pending_review'` |
-| Valeurs de statut : anglais, `snake_case` | `draft`, `pending_review`, `published` |
-| Données souples : `JSONB`, nommée `metadata` ou `payload` | `activity_logs.metadata` |
+| Statut : clé étrangère vers une **table de référence** | `id_publication_statuses` |
+| Valeurs techniques figées : `VARCHAR` + contrainte `CHECK` (pas d'enum PostgreSQL) | `media.kind`, `messages.direction` |
+| Codes et statuts : anglais, `snake_case` | `draft`, `pending_review`, `published` |
+| Données souples : `JSONB`, nommée `metadata`, `payload` ou `details` | `activity_logs.metadata` |
 
 **Colonnes présentes dans toutes les tables :** `id_<table>`, `created_at`, `updated_at`.
+
+### Valeurs fermées : table de référence ou contrainte CHECK ?
+
+Une **table de référence** dès que la valeur est **affichée à l'écran**, **porte des règles** ou
+**peut évoluer**. Elle a deux colonnes : `code` (technique, stable, utilisé par le code Python, on
+ne le renomme jamais) et `label` (affiché, modifiable librement), plus au besoin `sort_order`,
+`is_enabled` et les règles propres à la valeur. Les valeurs initiales sont posées par une migration
+Alembic, pour que toutes les bases soient identiques.
+
+Exemples : `publication_statuses`, `publication_target_statuses`, `publication_event_types`,
+`platforms`, `formats`, `platform_formats`, `social_account_statuses`, `tones`.
+
+Un `VARCHAR` + `CHECK` **seulement** pour une valeur purement technique et figée, jamais affichée
+telle quelle : `media.kind` (image, vidéo), `messages.direction` (entrant, sortant), `language`
+(code ISO).
+
+Dans les deux cas, le code Python s'appuie sur le **`code`**, jamais sur l'identifiant numérique,
+et les codes sont repris dans un `Enum` Python du module (`constants.py`) pour éviter les fautes de
+frappe.
 
 > `GENERATED ALWAYS` interdit d'insérer une valeur d'identifiant à la main. Lors d'un
 > import ou d'une reprise de données, il faut écrire explicitement
@@ -186,6 +206,14 @@ pour que les migrations Alembic soient stables et lisibles :
 | Unicité | `uq_<table>_<colonne>` | `uq_users_email` |
 | Index | `ix_<table>_<colonne>` | `ix_publications_scheduled_at` |
 | Check | `ck_<table>_<nom>` | `ck_publications_status` |
+
+> **Limite de 63 caractères.** PostgreSQL tronque tout identifiant à 63 octets, **sans
+> prévenir** : la contrainte existe alors sous un autre nom que celui déclaré, et la
+> migration qui la supprimerait échoue. Quand la convention dépasse cette longueur, on
+> donne un nom court à la main, par exemple `fk_social_accounts_status` au lieu de
+> `fk_social_accounts_id_social_account_statuses_social_account_statuses` (70 caractères).
+> Le test `tests/test_naming.py` vérifie automatiquement cette limite, ainsi que le
+> pluriel des tables et la forme des clés primaires.
 
 ### Migrations Alembic
 

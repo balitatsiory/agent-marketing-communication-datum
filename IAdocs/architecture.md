@@ -1,6 +1,18 @@
 # Architecture — backend IAGORA
 
-État : **conçue, pas encore codée.** Aucun fichier Python n'existe à ce jour.
+État au 25 septembre 2026 : **socle, `auth`, `users` et les tables de `social_accounts` sont
+écrits et fonctionnent**. Le reste est conçu, pas encore codé.
+
+## 0. Exécution
+
+| | Aujourd'hui | Plus tard |
+|---|---|---|
+| PostgreSQL | **service Windows local**, port 5432, base `stage_iagora` | conteneur |
+| API | **`uvicorn` dans le terminal**, `backend/.venv` | conteneur |
+| Pourquoi | journaux visibles, rechargement immédiat, débogage depuis l'éditeur | démonstration et production en une commande |
+
+`Dockerfile` et `docker-compose.yml` sont conservés et fonctionnels. Le passage de l'un à
+l'autre se fait par `DATABASE_URL` dans `.env`. Détail des commandes : `backend/README.md`.
 
 ## 1. Vue d'ensemble
 
@@ -95,11 +107,28 @@ déduisent de l'historique. Seul le statut courant est recopié sur la ligne, pa
 permanence. Une **seule fonction de service** modifie la ligne et écrit l'historique, dans la même
 transaction. Les droits `UPDATE` et `DELETE` sont retirés sur les tables d'historique.
 
-### Domaines couverts
-Publications (publications, versions, cibles, médias), comptes sociaux, utilisateurs et sessions,
-messagerie (conversations, messages, réponses types), historique d'activité, notifications.
-**Pas encore modélisés :** webinaires, statistiques, campagnes, base de connaissances, newsletters,
-droits par utilisateur. Voir `docs/TODO.md`.
+### Tables existantes
+
+| Domaine | Tables | État |
+|---|---|---|
+| `users` | `users`, `permissions`, `user_permissions` | **en base** |
+| `auth` | `refresh_tokens` | **en base** |
+| `social_accounts` | `platforms`, `social_account_statuses`, `social_accounts`, `social_account_metrics` | **en base** |
+| `publications` | publications, versions, cibles, historiques, tables de référence | conçues |
+| `messages`, `webinars`, `activity`, `notifications`, `media` | — | conçues ou à concevoir |
+
+Le détail colonne par colonne vit dans **`IAdocs/base-de-donnees.md`**, généré depuis la base à
+partir des commentaires SQL. Chaque table et chaque colonne porte sa description : elle s'affiche
+aussi dans DataGrip et pgAdmin.
+
+**Pas encore modélisés :** webinaires, statistiques des publications, campagnes, base de
+connaissances, newsletters. Voir `docs/TODO.md`.
+
+### Contraintes : la limite des 63 caractères
+PostgreSQL tronque tout identifiant à 63 octets, sans prévenir. Quand la convention de nommage
+produit un nom plus long, on le raccourcit à la main — par exemple `fk_social_accounts_status`.
+`tests/test_naming.py` vérifie automatiquement cette limite, le pluriel des tables, l'absence de
+mot réservé et la forme des clés primaires.
 
 ## 5. API
 
