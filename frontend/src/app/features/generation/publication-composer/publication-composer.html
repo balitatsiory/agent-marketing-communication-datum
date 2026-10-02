@@ -1,0 +1,404 @@
+<app-topbar [trail]="trail">
+  <span class="saved mono">brouillon non enregistré</span>
+  <button class="btn" type="button" (click)="saveDraft()">
+    <app-icon name="files" size="sm" />
+    Enregistrer en brouillon
+  </button>
+  <button class="btn btn-primary" type="button" [disabled]="!canSubmit()" (click)="openSummary()">
+    <app-icon name="send" size="sm" />
+    Envoyer
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Nouvelle publication</h1>
+      <p class="sub">
+        Le média d'abord : c'est lui qui dit quels formats sont possibles.
+      </p>
+    </div>
+  </div>
+
+  @if (draftMessage(); as message) {
+    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+  @if (successMessage(); as message) {
+    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+
+  <div class="editor">
+    <!-- ---------- colonne d'édition ---------- -->
+    <div class="steps">
+      <!-- 1 · média -->
+      <section class="step">
+        <div class="step-head">
+          <span class="step-n"><b>1</b> Média</span>
+          @if (hasMedia()) {
+            <span class="counter">
+              {{ imageCount() }} image{{ imageCount() > 1 ? 's' : '' }}
+              @if (videoCount()) {
+                · {{ videoCount() }} vidéo{{ videoCount() > 1 ? 's' : '' }}
+              }
+            </span>
+          }
+        </div>
+
+        <input
+          #fileInput
+          class="sr-only"
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          (change)="onFilesSelected($event)"
+        />
+
+        <button
+          class="drop"
+          type="button"
+          [class.is-over]="isDragOver()"
+          (click)="fileInput.click()"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+        >
+          <app-icon name="image" size="lg" />
+          <b>Glissez vos fichiers ici</b>
+          <span>images ou vidéo · ou cliquez pour parcourir</span>
+        </button>
+
+        @if (importError(); as error) {
+          <p class="import-error">
+            <app-icon name="warn" size="sm" />
+            {{ error }}
+          </p>
+        }
+
+        @if (hasMedia()) {
+          <div class="media-row">
+            @for (item of media(); track item.id) {
+              <figure class="media-tile">
+                @if (item.kind === 'image') {
+                  <img [src]="item.url" [alt]="item.name" />
+                } @else {
+                  <video [src]="item.url" muted playsinline preload="metadata"></video>
+                  <span class="media-kind" aria-hidden="true">vidéo</span>
+                }
+                <button
+                  class="x"
+                  type="button"
+                  [attr.aria-label]="'Retirer ' + item.name"
+                  (click)="removeMedia(item.id)"
+                >
+                  <app-icon name="close" size="sm" />
+                </button>
+                <figcaption>
+                  <span class="media-name">{{ item.name }}</span>
+                  <span class="media-meta mono">
+                    {{ item.sizeLabel }}@if (item.durationLabel) { · {{ item.durationLabel }} }
+                  </span>
+                </figcaption>
+              </figure>
+            }
+
+            <button class="media-add" type="button" aria-label="Ajouter un média" (click)="fileInput.click()">
+              <app-icon name="plus" />
+            </button>
+          </div>
+        }
+      </section>
+
+      <!-- 2 · format -->
+      <section class="step">
+        <div class="step-head">
+          <span class="step-n"><b>2</b> Format</span>
+          @if (!hasMedia()) {
+            <span class="counter">en attente d'un média</span>
+          }
+        </div>
+
+        <div class="fmt-row">
+          @for (option of formats; track option) {
+            <button
+              class="fmt"
+              type="button"
+              [class.is-on]="format() === option"
+              [disabled]="!isFormatAvailable(option)"
+              [attr.title]="isFormatAvailable(option) ? null : formatReason(option)"
+              (click)="format.set(option)"
+            >
+              <b>{{ formatLabels[option] }}</b>
+              <span>{{ formatHints[option] }}</span>
+            </button>
+          }
+        </div>
+
+        @if (!hasMedia()) {
+          <p class="fmt-note">Importez un média : les formats possibles en découlent.</p>
+        } @else if (videoCount()) {
+          <p class="fmt-note">Une vidéo est importée — le carrousel et l'image sont fermés.</p>
+        } @else if (imageCount() === 1) {
+          <p class="fmt-note">Une seule image — ajoutez-en une deuxième pour un carrousel.</p>
+        }
+      </section>
+
+      <!-- 3 · description -->
+      <section class="step">
+        <div class="step-head">
+          <span class="step-n"><b>3</b> Description</span>
+          <span class="counter" [class.is-over]="isOverLimit()">
+            {{ captionLength() }} / {{ captionLimit }}
+          </span>
+        </div>
+
+        <textarea
+          class="textarea"
+          rows="5"
+          placeholder="Écrivez la légende…  #hashtags  @mentions"
+          [ngModel]="caption()"
+          (ngModelChange)="caption.set($event)"
+        ></textarea>
+      </section>
+
+      <!-- 4 · plateformes -->
+      <section class="step">
+        <div class="step-head"><span class="step-n"><b>4</b> Plateformes</span></div>
+
+        <div class="plat">
+          @for (network of networks; track network.code) {
+            <button
+              class="plat-row"
+              type="button"
+              [class.is-on]="selectedNetworks().has(network.code)"
+              [attr.aria-pressed]="selectedNetworks().has(network.code)"
+              (click)="toggleNetwork(network.code)"
+            >
+              <app-network-logo [network]="network.code" size="lg" />
+              <span class="who">
+                <b>{{ network.label }}</b>
+                <span>{{ network.accountName }}</span>
+              </span>
+              <span class="switch" aria-hidden="true"></span>
+            </button>
+          }
+        </div>
+      </section>
+
+      <!-- 5 · publication -->
+      <section class="step">
+        <div class="step-head"><span class="step-n"><b>5</b> Publication</span></div>
+
+        <div class="when">
+          <button class="btn" type="button" [class.is-on]="timing() === 'now'" (click)="timing.set('now')">
+            Maintenant
+          </button>
+          <button
+            class="btn"
+            type="button"
+            [class.is-on]="timing() === 'scheduled'"
+            (click)="timing.set('scheduled')"
+          >
+            <app-icon name="clock" size="sm" />
+            Programmer
+          </button>
+        </div>
+
+        @if (timing() === 'scheduled') {
+          <div class="sched">
+            <div class="field">
+              <label for="scheduled-date">Date</label>
+              <input
+                class="input"
+                id="scheduled-date"
+                type="date"
+                [ngModel]="scheduledDate()"
+                (ngModelChange)="scheduledDate.set($event)"
+              />
+            </div>
+            <div class="field time">
+              <label for="scheduled-time">Heure</label>
+              <input
+                class="input"
+                id="scheduled-time"
+                type="time"
+                [ngModel]="scheduledTime()"
+                (ngModelChange)="scheduledTime.set($event)"
+              />
+            </div>
+          </div>
+
+          <p class="tz">
+            Fuseau&nbsp;: Antananarivo (UTC+3)@if (gmtSchedule(); as gmt) { — soit {{ gmt }} }
+          </p>
+        }
+      </section>
+    </div>
+
+    <!-- ---------- aperçu ---------- -->
+    <aside class="preview" aria-label="Aperçu">
+      <div class="chips">
+        @for (network of networks; track network.code) {
+          <button
+            class="chip"
+            type="button"
+            [class.is-on]="previewNetwork() === network.code"
+            (click)="previewNetwork.set(network.code)"
+          >
+            <app-network-logo [network]="network.code" />
+            {{ network.label }}
+          </button>
+        }
+      </div>
+
+      <div class="pv-frame">
+        <div class="pv-phone" [style.aspect-ratio]="previewRatio()">
+          @if (previewMedia(); as item) {
+            @if (item.kind === 'image') {
+              <img [src]="item.url" [alt]="item.name" />
+            } @else {
+              <video [src]="item.url" controls muted playsinline preload="metadata"></video>
+            }
+          } @else {
+            <span class="pv-ratio">aucun média</span>
+          }
+        </div>
+
+        @if (format()) {
+          <p class="pv-dims mono">{{ formatLabels[format()!] }} · {{ previewRatio() }}</p>
+        }
+
+        @if (caption()) {
+          <p class="pv-caption">{{ caption() }}</p>
+        } @else {
+          <p class="pv-note">L'aperçu s'adapte au format et à la plateforme choisis.</p>
+        }
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============ résumé avant envoi ============ -->
+@if (isSummaryOpen()) {
+  <div class="modal-back" (click)="closeSummary()" (keydown.escape)="closeSummary()" tabindex="-1">
+    <div
+      class="modal summary"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Résumé avant envoi"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div>
+          <h2>Avant d'envoyer</h2>
+          <p class="modal-sub">Relisez : rien ne part sans validation humaine.</p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="closeSummary()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="sum">
+          <!-- aperçu -->
+          <div class="sum-visual">
+            <div class="sum-frame" [style.aspect-ratio]="previewRatio()">
+              @if (previewMedia(); as item) {
+                @if (item.kind === 'image') {
+                  <img [src]="item.url" [alt]="item.name" />
+                } @else {
+                  <video [src]="item.url" controls muted playsinline preload="metadata"></video>
+                }
+              }
+            </div>
+            <p class="sum-dims mono">{{ formatLabels[format()!] }} · {{ previewRatio() }}</p>
+          </div>
+
+          <!-- récapitulatif -->
+          <div class="sum-meta">
+            <div class="block">
+              <div class="label">Description</div>
+              <p class="sum-caption">{{ caption() }}</p>
+              <p class="cap">{{ captionLength() }} caractères sur {{ captionLimit }}</p>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Média</div>
+              <dl class="sum-list">
+                <div>
+                  <dt>Format</dt>
+                  <dd>{{ formatLabels[format()!] }}</dd>
+                </div>
+                @if (format() === 'carousel') {
+                  <div>
+                    <dt>Images</dt>
+                    <dd>{{ imageCount() }} dans le carrousel</dd>
+                  </div>
+                } @else {
+                  <div>
+                    <dt>Fichiers</dt>
+                    <dd>{{ media().length }} importé{{ media().length > 1 ? 's' : '' }}</dd>
+                  </div>
+                }
+                @if (firstVideo(); as video) {
+                  <div>
+                    <dt>Durée</dt>
+                    <dd>{{ video.durationLabel ?? 'en cours de lecture…' }}</dd>
+                  </div>
+                }
+              </dl>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Plateformes</div>
+              <div class="sum-nets">
+                @for (network of networks; track network.code) {
+                  @if (selectedNetworks().has(network.code)) {
+                    <span class="sum-net">
+                      <app-network-logo [network]="network.code" />
+                      {{ network.label }}
+                    </span>
+                  }
+                }
+              </div>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Programmation</div>
+              <dl class="sum-list">
+                <div>
+                  <dt>Antananarivo</dt>
+                  <dd>{{ localSchedule() }}</dd>
+                </div>
+                @if (gmtSchedule(); as gmt) {
+                  <div>
+                    <dt>GMT</dt>
+                    <dd>{{ gmt }}</dd>
+                  </div>
+                }
+              </dl>
+              <p class="cap">
+                Les plateformes raisonnent en GMT : les deux heures sont données pour éviter
+                un départ décalé de trois heures.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="mono foot-note">Aucun envoi réel depuis ce prototype.</span>
+        <button class="btn" type="button" (click)="closeSummary()">Revenir à l'édition</button>
+        <button class="btn btn-primary" type="button" (click)="confirmSend()">
+          <app-icon name="send" size="sm" />
+          Envoyer à la validation
+        </button>
+      </div>
+    </div>
+  </div>
+}

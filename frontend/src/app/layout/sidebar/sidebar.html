@@ -1,0 +1,122 @@
+<nav class="sidebar" [class.is-rail]="state.isRail()" aria-label="Navigation principale">
+  <div class="sb-head">
+    <a class="sb-brand" routerLink="/tableau-de-bord" aria-label="IAGORA — accueil">
+      <app-brand-logo variant="lockup" />
+    </a>
+
+    <button
+      class="sb-toggle"
+      type="button"
+      (click)="state.toggleRail()"
+      [attr.aria-pressed]="state.isRail()"
+      [attr.aria-label]="state.isRail() ? 'Déplier la navigation' : 'Replier la navigation'"
+    >
+      <app-icon name="panelLeft" size="sm" />
+    </button>
+  </div>
+
+  <button class="sb-search" type="button">
+    <app-icon name="search" size="sm" />
+    <span>Rechercher…</span>
+    <span class="k">Ctrl K</span>
+  </button>
+
+  @for (entry of navigation; track entry.key) {
+    @if (entry.type === 'link') {
+      <a
+        class="sb-item"
+        [routerLink]="entry.route"
+        routerLinkActive="is-active"
+        [class.is-pending]="entry.isPending"
+        [attr.title]="entry.label"
+      >
+        <app-icon [name]="entry.icon" size="sm" />
+        <span class="sb-label">{{ entry.label }}</span>
+        @if (entry.badge) {
+          <span class="sb-badge">{{ entry.badge }}</span>
+        }
+      </a>
+    } @else {
+      <div class="sb-group" [class.is-closed]="!state.isGroupOpen(entry.key)">
+        <button
+          class="sb-gh"
+          type="button"
+          (click)="state.toggleGroup(entry.key)"
+          [attr.aria-expanded]="state.isGroupOpen(entry.key)"
+        >
+          <app-icon [name]="entry.icon" size="sm" />
+          <span>{{ entry.label }}</span>
+          <app-icon name="chevron" size="sm" class="chev" />
+        </button>
+
+        <div class="sb-sub">
+          @for (child of entry.items; track child.key) {
+            @if (child.kind === 'link') {
+              <a
+                class="sb-item"
+                [routerLink]="child.route"
+                routerLinkActive="is-active"
+                [routerLinkActiveOptions]="{ exact: child.route === '/publications' }"
+                [class.is-pending]="child.isPending"
+                [attr.title]="child.label"
+              >
+                <app-icon [name]="child.icon" size="sm" />
+                <span class="sb-label">{{ child.label }}</span>
+                @if (child.badge) {
+                  <span class="sb-badge">{{ child.badge }}</span>
+                } @else if (child.count) {
+                  <span class="sb-count">{{ child.count }}</span>
+                }
+              </a>
+            } @else {
+              <!-- troisième niveau : un sous-menu repliable -->
+              <div class="sb-subgroup" [class.is-closed]="!state.isGroupOpen(child.key)">
+                <button
+                  class="sb-sgh"
+                  type="button"
+                  (click)="state.toggleGroup(child.key)"
+                  [attr.aria-expanded]="state.isGroupOpen(child.key)"
+                >
+                  <app-icon [name]="child.icon" size="sm" />
+                  <span class="sb-label">{{ child.label }}</span>
+                  <app-icon name="chevron" size="sm" class="chev" />
+                </button>
+
+                <div class="sb-subsub">
+                  @for (leaf of child.items; track leaf.key) {
+                    <a
+                      class="sb-item"
+                      [routerLink]="leaf.route"
+                      routerLinkActive="is-active"
+                      [class.is-pending]="leaf.isPending"
+                      [attr.title]="leaf.label"
+                    >
+                      <app-icon [name]="leaf.icon" size="sm" />
+                      <span class="sb-label">{{ leaf.label }}</span>
+                      @if (leaf.badge) {
+                        <span class="sb-badge">{{ leaf.badge }}</span>
+                      } @else if (leaf.count) {
+                        <span class="sb-count">{{ leaf.count }}</span>
+                      }
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <div class="sb-foot">
+    <button class="sb-user" type="button">
+      <span class="sb-av">{{ user.initials }}</span>
+      <span class="sb-who">
+        <b>{{ user.fullName }}</b>
+        <span>{{ userSummary }}</span>
+      </span>
+      <app-icon name="chevron" size="sm" />
+    </button>
+  </div>
+</nav>

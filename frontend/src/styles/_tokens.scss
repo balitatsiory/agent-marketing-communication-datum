@@ -1,0 +1,83 @@
+/* ============================================================
+   IAGORA — jetons de couleur et de mesure
+   ------------------------------------------------------------
+   Charte reprise du site public Datum Academy
+   (https://www.datumacademy.com/fr/about). Les valeurs marquées
+   « Datum » sont lues telles quelles dans la feuille de style du
+   site ; les autres en sont dérivées pour les besoins d'une
+   interface applicative, que le site public n'a pas.
+
+   Toute couleur de l'application passe par ces jetons. Aucune
+   valeur hexadécimale ne doit apparaître ailleurs.
+   ============================================================ */
+
+:root {
+  /* --- fonds ---------------------------------------------- */
+  --ground:        #f4f7f8;   /* dérivé : blanc du site, refroidi vers la marque */
+  --ground-2:      #eaf1f4;   /* dérivé : rayures de l'écran de connexion */
+  --surface:       #ffffff;   /* Datum — --bs-white */
+  --surface-2:     #e9f0f3;   /* dérivé : survol de ligne, fonds secondaires */
+
+  /* --- texte ---------------------------------------------- */
+  --ink:           #212529;   /* Datum — --bs-dark */
+  --ink-2:         #44525a;   /* dérivé */
+  --muted:         #5d6d76;   /* dérivé — contraste vérifié ≥ 4.5:1 sur --ground */
+  --placeholder:   #64757e;   /* dérivé — 4.8:1 sur --surface (une invite de champ porte du sens) */
+
+  /* --- traits --------------------------------------------- */
+  --border:        #dee2e6;   /* Datum — gris de séparation du site */
+  --border-2:      #b3c6cd;   /* Datum — --bs-gray-600, redéfini par Datum */
+
+  /* --- accent --------------------------------------------- */
+  --accent:        #167fa4;   /* Datum — --bs-primary */
+  --accent-hover:  #126683;   /* Datum — --bs-link-hover-color */
+  --accent-deep:   #0a4d64;   /* Datum — --bs-cyan / --bs-info */
+  --accent-deeper: #073c4e;   /* Datum — aplat le plus sombre du site */
+  --accent-soft:   #d0e5ed;   /* Datum — --bs-primary-bg-subtle */
+  --accent-line:   #a2cbda;   /* Datum — --bs-primary-border-subtle */
+  --accent-ink:    #ffffff;
+
+  /* Lavande de la charte Datum (--bs-warning sur le site public).
+     Beaucoup trop claire pour porter du texte : elle sert ici
+     d'accent décoratif — jamais de signal d'état. */
+  --lavender:      #d3c5fe;
+  --lavender-deep: #5b4b8a;   /* dérivé — version lisible de la lavande */
+
+  /* --- états ---------------------------------------------- */
+  /* Le #198754 de Datum ne tient que 4.5:1 sur du blanc et 3.9:1 sur
+     --ok-soft : trop juste pour les 10 px capitales d'une pastille de
+     statut. Assombri d'un cran, même famille, 5.1:1. */
+  --ok:            #157347;
+  --ok-soft:       #e3f1ea;
+  --wait:          #8a6d1f;   /* dérivé — la lavande Datum ne peut pas porter ce rôle */
+  --wait-soft:     #f6efdb;
+  --err:           #c42532;   /* dérivé de --bs-danger #dc3545, assombri pour atteindre AA */
+  --err-soft:      #fae3e5;
+
+  /* --- couleurs de série, pour les graphiques --------------
+     Une couleur par réseau. Ce ne sont pas celles des plateformes :
+     côte à côte, leurs rouges et leurs bleus se battraient entre eux et
+     avec la charte. Ces quatre teintes viennent de la palette de
+     l'application, se distinguent nettement, et tiennent AA sur blanc.
+     La couleur ne porte jamais seule l'information : légende et
+     infobulle nomment toujours le réseau. */
+  --series-instagram: #167fa4;
+  --series-facebook:  #5b4b8a;
+  --series-linkedin:  #8a6d1f;
+  --series-tiktok:    #157347;
+  --series-youtube:   #a8432c;
+
+  /* --- typographie ---------------------------------------- */
+  --f-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --f-body:    'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* --- structure ------------------------------------------ */
+  --sidebar-w:      272px;
+  --sidebar-w-rail: 68px;
+  --topbar-h:       56px;
+  --radius:         8px;
+  --radius-lg:      12px;
+  --shadow-pop:     0 12px 32px rgba(7, 60, 78, .18);
+  --overlay:        rgba(7, 60, 78, .42);
+}

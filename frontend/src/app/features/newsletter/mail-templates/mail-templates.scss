@@ -1,0 +1,307 @@
+/* Modèles de courriel — liste par catégorie, aperçu versionné. */
+
+:host {
+  display: contents;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 22px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head h1 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+.page-head .sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+  max-width: 78ch;
+}
+
+.tpl {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 18px;
+}
+
+/* La barre latérale prend déjà 272 px : sous 1200 px de fenêtre, les
+   deux colonnes n'ont plus la place et la page reprend son défilement. */
+@media (max-width: 1200px) {
+  .page {
+    overflow-y: auto;
+  }
+  .tpl {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .tpl-list {
+    max-height: none;
+  }
+}
+
+/* ---------- liste ---------- */
+
+.tpl-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-right: 4px;
+}
+
+.cat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.cat-head h2 {
+  font-size: 14px;
+  font-weight: 700;
+}
+.cat-n {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 9px;
+  padding: 1px 6px;
+}
+.cat-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: -4px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.card:hover {
+  border-color: var(--border-2);
+}
+.card.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.card-top h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.card-subject {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.card-meta .ver {
+  background: var(--surface-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ink-2);
+}
+.card-meta .usage {
+  margin-left: auto;
+}
+
+/* ---------- aperçu ---------- */
+
+.tpl-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.detail-head {
+  flex: none;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.detail-head h2 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+.detail-acts {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.block-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.block-head .label {
+  flex: 1;
+}
+
+.cap {
+  font-family: var(--f-mono);
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+/* ---------- versions ---------- */
+
+.versions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 14px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: var(--f-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.vchip:hover {
+  border-color: var(--muted);
+}
+.vchip.is-on {
+  border-color: var(--accent);
+  border-width: 1.5px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+/* Le point marque la version en service — celle que reçoivent les
+   destinataires aujourd'hui. */
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.vmeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vchange {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.warn-old {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--wait);
+  border-radius: 8px;
+  background: var(--wait-soft);
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wait);
+}
+.warn-old app-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* ---------- variables ---------- */
+
+.vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vars .var {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  border-radius: 4px;
+  padding: 3px 7px;
+}
+
+/* ---------- aperçu du courriel ---------- */
+
+.preview {
+  background: var(--ground);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+}

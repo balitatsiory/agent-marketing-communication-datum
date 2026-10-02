@@ -1,0 +1,126 @@
+/* Écran de connexion — maquette 2a : carte centrée sur fond rayé. */
+
+:host {
+  display: contents;
+}
+
+.login {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: repeating-linear-gradient(135deg, var(--ground-2) 0 11px, var(--ground) 11px 22px);
+}
+
+.login-top {
+  height: 64px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.login-mid {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  width: 460px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 14px;
+  padding: 40px 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.login-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+}
+.login-title h1 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 34px;
+  letter-spacing: -0.01em;
+}
+.login-title p {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.login-social {
+  display: flex;
+  gap: 12px;
+}
+.login-social .btn {
+  flex: 1;
+  height: 48px;
+  justify-content: center;
+  border-width: 1.5px;
+  border-color: var(--ink);
+  color: var(--ink);
+  font-size: 14.5px;
+}
+.login-social .btn:hover {
+  background: var(--surface-2);
+}
+
+.login-sep {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.login-sep::before,
+.login-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.login-sep span {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.login-foot {
+  flex: none;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.login-foot a {
+  text-decoration: none;
+}
+.login-foot a:hover {
+  color: var(--ink-2);
+}

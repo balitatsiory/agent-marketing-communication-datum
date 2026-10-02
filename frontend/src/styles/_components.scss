@@ -1,0 +1,225 @@
+/* ============================================================
+   Composants partagés
+   ------------------------------------------------------------
+   Classes globales utilisées par plusieurs écrans. Tout ce qui
+   n'appartient qu'à un seul écran vit dans le `.scss` de son
+   composant Angular.
+   ============================================================ */
+
+/* ---------- Boutons ---------- */
+
+.btn {
+  height: 34px; padding: 0 13px; border-radius: var(--radius);
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--ink-2);
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: border-color .12s ease, background .12s ease;
+}
+.btn:hover { border-color: var(--muted); color: var(--ink); }
+
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-ink); }
+
+.btn-ghost { border-color: transparent; background: transparent; }
+.btn-ghost:hover { background: var(--surface-2); border-color: transparent; }
+
+.btn-lg    { height: 46px; padding: 0 20px; font-size: 15px; border-radius: 10px; }
+.btn-sm    { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+.btn-icon  { width: 34px; padding: 0; justify-content: center; }
+
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Pastilles de filtre ---------- */
+
+.chips { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+.chip {
+  height: 30px; padding: 0 11px; border-radius: 15px;
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--muted);
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.chip:hover { border-color: var(--muted); color: var(--ink-2); }
+.chip.is-on { border-color: var(--ink); border-width: 1.5px; color: var(--ink); background: var(--surface); }
+.chip .n { font-family: var(--f-mono); font-size: 10.5px; opacity: .75; }
+
+.chip-active {
+  height: 26px; padding: 0 9px; border-radius: 13px;
+  border: 1px solid var(--ink); background: transparent; color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--f-mono); font-size: 10.5px; cursor: pointer;
+}
+
+/* ---------- Statuts ----------
+   La forme de la pastille porte l'information autant que la
+   couleur : lisible en nuances de gris et pour un daltonien. */
+
+.status {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 9px; border-radius: 11px;
+  font-family: var(--f-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex: none; }
+
+.status-published { background: var(--ok-soft); color: var(--ok); }
+.status-published::before { background: var(--ok); }
+
+.status-scheduled { background: transparent; color: var(--wait); box-shadow: inset 0 0 0 1px var(--wait); }
+.status-scheduled::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--wait); }
+
+.status-draft { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--border-2); }
+.status-draft::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted); }
+
+.status-review { background: var(--accent-soft); color: var(--accent-deep); }
+.status-review::before { background: var(--accent-deep); border-radius: 1px; }
+
+.status-failed { background: var(--err-soft); color: var(--err); }
+.status-failed::before { background: var(--err); border-radius: 1px; transform: rotate(45deg); }
+
+/* ---------- Surfaces ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.card-pad { padding: 16px 18px; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.panel-head {
+  flex: none; padding: 12px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.panel-head h2 { font-size: 15px; font-weight: 700; }
+.panel-body { flex: 1; min-height: 0; overflow-y: auto; }
+
+.divider { height: 1px; background: var(--border); border: 0; margin: 0; }
+
+/* Tuiles de chiffres — réservées aux écrans où les chiffres sont le sujet. */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 13px 15px; display: flex; flex-direction: column; gap: 3px;
+}
+.stat .v { font-family: var(--f-mono); font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.stat .d { font-size: 11.5px; color: var(--muted); }
+.stat .d.up { color: var(--ok); }
+
+/* ---------- Tableaux ---------- */
+
+.tbl-wrap { overflow-x: auto; }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th {
+  text-align: left; padding: 10px 12px;
+  font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tbl tbody tr { cursor: pointer; }
+.tbl tbody tr:hover { background: var(--surface-2); }
+.tbl tbody tr.is-selected { background: var(--accent-soft); }
+.tbl .num { text-align: right; }
+
+/* Vignette de média : rayures, pour dire « image non chargée ». */
+.thumb {
+  width: 38px; height: 48px; flex: none; border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 6px, var(--ground) 6px 12px);
+}
+.thumb-sq { height: 38px; }
+
+/* ---------- Champs ---------- */
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label {
+  font-family: var(--f-mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+.input, .textarea, .select {
+  width: 100%; border: 1px solid var(--border-2); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px;
+  padding: 0 12px; height: 42px;
+}
+.textarea { height: auto; padding: 11px 12px; line-height: 1.55; resize: vertical; }
+.input::placeholder, .textarea::placeholder { color: var(--placeholder); }
+.input:focus, .textarea:focus, .select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+
+.link { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+.link:hover { border-bottom-color: currentColor; }
+
+/* ---------- Barre d'outils et recherche ---------- */
+
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.searchbox {
+  flex: 1; min-width: 180px; height: 38px;
+  border: 1px solid var(--border-2); border-radius: 20px;
+  background: var(--surface);
+  display: flex; align-items: center; gap: 9px; padding: 0 15px;
+}
+.searchbox input {
+  flex: 1; min-width: 0; border: 0; background: none;
+  font: inherit; color: var(--ink); outline: none;
+}
+.searchbox input::placeholder { color: var(--placeholder); }
+.searchbox .ico { color: var(--muted); }
+
+.segmented {
+  display: flex; border: 1px solid var(--border-2); border-radius: var(--radius);
+  overflow: hidden; background: var(--surface);
+}
+.segmented button {
+  height: 32px; padding: 0 11px; border: 0; background: transparent; color: var(--muted);
+  font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button.is-on { background: var(--accent-deep); color: var(--accent-ink); }
+
+/* ---------- Pop-ups ---------- */
+
+.modal-back {
+  position: fixed; inset: 0; z-index: 40;
+  background: var(--overlay);
+  display: grid; place-items: center; padding: 28px;
+}
+
+.modal {
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: 14px; box-shadow: var(--shadow-pop);
+  display: flex; flex-direction: column; overflow: hidden;
+  max-height: calc(100vh - 56px); width: 100%;
+}
+.modal-head {
+  flex: none; padding: 14px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+}
+.modal-head h2 { font-family: var(--f-display); font-weight: 400; font-size: 21px; }
+.modal-body { flex: 1; min-height: 0; overflow-y: auto; }
+.modal-foot {
+  flex: none; padding: 13px 18px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: flex-end; gap: 9px;
+}
+
+/* ---------- Écran vide ---------- */
+
+.empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; color: var(--muted); padding: 60px 20px;
+}
+.empty h2 { font-family: var(--f-display); font-weight: 400; font-size: 26px; color: var(--ink); }
+.empty p { max-width: 46ch; font-size: 13.5px; }

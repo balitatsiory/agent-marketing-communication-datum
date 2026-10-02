@@ -1,0 +1,384 @@
+/* Tableau de bord — OB-07, F-19 à F-21. */
+
+:host {
+  display: contents;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-head h1 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+.page-head .sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* ---------- à traiter ---------- */
+
+.todo {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.todo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.todo-total {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 9px;
+  padding: 1px 7px;
+}
+
+.todo-items {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.todo-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.todo-item:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.todo-item .n {
+  font-family: var(--f-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+/* Ce qui bloque un départ ou une réponse se repère d'abord. */
+.todo-item.is-urgent .n {
+  color: var(--err);
+}
+.todo-item app-icon {
+  color: var(--muted);
+}
+
+/* ---------- compteurs ---------- */
+
+.stat .v-wait {
+  color: var(--wait);
+}
+
+/* ---------- grille ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 1240px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .span-2 {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .span-2 {
+    grid-column: span 1;
+  }
+}
+
+.panel-pad {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.muted-note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---------- graphique des abonnés ---------- */
+
+.chart-figures {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.chart-total {
+  font-family: var(--f-mono);
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.chart-gain {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--ok);
+}
+.chart-gain.is-flat {
+  color: var(--muted);
+}
+.chart-gain .rate {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.chart-note {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.chart {
+  width: 100%;
+  height: 160px;
+  display: block;
+  overflow: visible;
+}
+.chart .area {
+  fill: var(--accent);
+  opacity: 0.12;
+}
+.chart .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  /* `preserveAspectRatio="none"` étire le tracé : sans cela l'épaisseur
+     du trait varierait avec la largeur du panneau. */
+  vector-effect: non-scaling-stroke;
+}
+.chart .last {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.chart .baseline {
+  stroke: var(--border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-scale {
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.gain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.gain b {
+  font-weight: 500;
+}
+.gain .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.gain .g {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--ok);
+}
+.gain .g.is-flat {
+  color: var(--muted);
+}
+
+/* ---------- webinaires ---------- */
+
+.mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mini .v {
+  font-family: var(--f-mono);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.attendance {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.bar {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.attendance-note {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.next {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.next-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink-2);
+  padding: 5px 0;
+}
+.next-row:hover {
+  color: var(--ink);
+}
+.next-date {
+  font-size: 10px;
+  color: var(--muted);
+  flex: none;
+  width: 56px;
+}
+.next-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.next-n {
+  font-size: 10.5px;
+  color: var(--muted);
+  flex: none;
+}
+
+/* ---------- meilleures publications ---------- */
+
+.top-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.nets {
+  display: inline-flex;
+  gap: 5px;
+  color: var(--ink-2);
+}
+.tbl .strong {
+  font-family: var(--f-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.tbl .when {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Pas de curseur « cliquable » : ces lignes ne mènent nulle part. */
+.tbl tbody tr {
+  cursor: default;
+}
+
+/* ---------- par canal ---------- */
+
+.channels {
+  gap: 16px;
+}
+.channel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.channel-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-2);
+}
+.channel-top b {
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+}
+.channel-n {
+  font-size: 11px;
+  color: var(--muted);
+}
+.channel-bar {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.channel-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.channel-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.channel-caveat {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}

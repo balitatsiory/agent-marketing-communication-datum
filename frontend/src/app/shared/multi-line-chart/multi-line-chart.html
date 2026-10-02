@@ -1,0 +1,49 @@
+<div class="wrap">
+  <div class="plot">
+    <svg
+      [attr.viewBox]="'0 0 ' + width + ' ' + height"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Abonnés par réseau au fil du temps"
+      (pointermove)="onMove($event)"
+      (pointerleave)="onLeave()"
+    >
+      @if (hoverIndex() !== null) {
+        <line class="guide" [attr.x1]="guideX()" y1="0" [attr.x2]="guideX()" [attr.y2]="baseline" />
+      }
+
+      @for (line of drawn(); track line.key) {
+        <path class="line" [attr.d]="line.path" [style.stroke]="line.color" />
+        <circle class="end" [attr.cx]="line.lastX" [attr.cy]="line.lastY" r="3" [style.fill]="line.color" />
+      }
+
+      @for (point of hoveredValues(); track point.key) {
+        <circle class="hit" [attr.cx]="point.x" [attr.cy]="point.y" r="4" [style.fill]="point.color" />
+      }
+
+      <line class="axis" x1="0" [attr.y1]="baseline" [attr.x2]="width" [attr.y2]="baseline" />
+    </svg>
+
+    @if (hoverIndex() !== null) {
+      <div class="tip" [class.is-flipped]="hoverFlips()" [style.left.%]="hoverLeft()">
+        <span class="tip-day">{{ hoveredLabel() }}</span>
+        @for (point of hoveredValues(); track point.key) {
+          <span class="tip-row">
+            <span class="dot" [style.background]="point.color"></span>
+            {{ point.label }}
+            <b>{{ point.value.toLocaleString('fr-FR') }}</b>
+          </span>
+        }
+      </div>
+    }
+  </div>
+
+  <p class="scale mono">
+    échelle de {{ scale().min.toLocaleString('fr-FR') }} à
+    {{ scale().max.toLocaleString('fr-FR') }} — elle ne part pas de zéro
+  </p>
+
+  <div class="legend">
+    <ng-content />
+  </div>
+</div>

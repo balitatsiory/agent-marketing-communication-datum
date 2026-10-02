@@ -1,0 +1,403 @@
+<app-topbar [trail]="['Publier', 'Publications']">
+  <span class="sync-label mono">synchronisé {{ lastSyncLabel() }}</span>
+  <button class="btn" type="button" [disabled]="isSyncing()" (click)="synchronise()">
+    <app-icon name="history" size="sm" />
+    {{ isSyncing() ? 'Synchronisation…' : 'Synchroniser les plateformes' }}
+  </button>
+  <button class="btn" type="button">
+    <app-icon name="download" size="sm" />
+    Exporter CSV
+  </button>
+  <a class="btn btn-primary" routerLink="/publications/nouvelle">
+    <app-icon name="plus" size="sm" />
+    Créer une publication
+  </a>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Publications</h1>
+      <p class="sub">
+        {{ store.everything().length }} publications ·
+        {{ store.totalDeliveryCount() }} envois sur les réseaux ·
+        {{ store.totalViewCount() | number: '1.0-0' : 'fr' }} vues ·
+        {{ store.totalCommentCount() | number: '1.0-0' : 'fr' }} commentaires
+      </p>
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+
+  <div class="pubs">
+    <!-- ---------- colonne de filtres ---------- -->
+    <aside class="filters" aria-label="Filtres">
+      <div class="fgroup">
+        <div class="label">Réseau · envois</div>
+        @for (network of networks; track network.code) {
+          <label class="fopt">
+            <input
+              type="checkbox"
+              [checked]="store.selectedNetworks().has(network.code)"
+              (change)="store.toggleNetwork(network.code)"
+            />
+            {{ network.label }}
+            <span class="n">{{ deliveriesFor(network.code) }}</span>
+          </label>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Format</div>
+        @for (format of formats; track format) {
+          <label class="fopt">
+            <input
+              type="checkbox"
+              [checked]="store.selectedFormats().has(format)"
+              (change)="store.toggleFormat(format)"
+            />
+            {{ formatLabels[format] }}
+          </label>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Statut</div>
+        @for (status of statuses; track status) {
+          <label class="fopt">
+            <input
+              type="checkbox"
+              [checked]="store.selectedStatuses().has(status)"
+              (change)="store.toggleStatus(status)"
+            />
+            {{ statusLabels[status] }}
+          </label>
+        }
+        <label class="fopt fopt-sep">
+          <input
+            type="checkbox"
+            [checked]="store.showWithdrawn()"
+            (change)="store.showWithdrawn.set(!store.showWithdrawn())"
+          />
+          Afficher les retirées
+        </label>
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Période</div>
+        <button class="fselect" type="button">
+          30 derniers jours
+          <app-icon name="chevron" size="sm" />
+        </button>
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Auteur</div>
+        <button class="fselect" type="button">
+          Tous
+          <app-icon name="chevron" size="sm" />
+        </button>
+      </div>
+
+      @if (store.hasActiveFilters()) {
+        <button class="freset" type="button" (click)="store.resetFilters()">Réinitialiser</button>
+      }
+    </aside>
+
+    <!-- ---------- résultats ---------- -->
+    <section class="results">
+      <div class="toolbar">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Rechercher une publication, un hashtag, un auteur…"
+            aria-label="Rechercher"
+            [value]="store.searchTerm()"
+            (input)="onSearch($any($event.target).value)"
+          />
+        </div>
+
+        <button class="btn btn-sm" type="button" (click)="cycleSort()">
+          Trier&nbsp;: {{ sortLabels[store.sort()] }}
+          <app-icon name="chevron" size="sm" />
+        </button>
+
+        <div class="segmented" role="group" aria-label="Affichage">
+          <button
+            type="button"
+            [class.is-on]="viewMode() === 'grid'"
+            (click)="viewMode.set('grid')"
+          >
+            <app-icon name="grid" size="sm" />
+            Grille
+          </button>
+          <button
+            type="button"
+            [class.is-on]="viewMode() === 'list'"
+            (click)="viewMode.set('list')"
+          >
+            <app-icon name="files" size="sm" />
+            Liste
+          </button>
+        </div>
+      </div>
+
+      <div class="resline">
+        <span class="count">
+          {{ store.resultCount() }}
+          {{ store.resultCount() > 1 ? 'publications' : 'publication' }}
+        </span>
+        @for (label of activeFilterLabels(); track label) {
+          <span class="chip-active">{{ label }}</span>
+        }
+      </div>
+
+      @if (store.resultCount() === 0) {
+        <div class="empty">
+          <h2>Aucune publication</h2>
+          <p>Aucune publication ne correspond à ces filtres. Élargissez la sélection ou repartez de zéro.</p>
+          <button class="btn" type="button" (click)="store.resetFilters()">Réinitialiser les filtres</button>
+        </div>
+      } @else if (viewMode() === 'grid') {
+        <div class="grid">
+          @for (publication of store.results(); track publication.id) {
+            <article
+              class="pcard"
+              tabindex="0"
+              role="button"
+              (click)="open(publication)"
+              (keydown.enter)="open(publication)"
+              (keydown.space)="open(publication); $event.preventDefault()"
+            >
+              <div class="pcard-media">
+                <span class="pcard-tag">
+                  <app-network-logo [network]="publication.networks[0]" />
+                  {{ formatLabels[publication.format] }}
+                </span>
+              </div>
+              <div class="pcard-body">
+                <h3 class="pcard-title">{{ publication.title }}</h3>
+                <app-status-badge [status]="publication.status" />
+                <div class="pcard-metrics">
+                  <span class="metric">
+                    <app-icon name="chart" size="sm" />
+                    {{ publication.viewCount | number: '1.0-0' : 'fr' }}
+                  </span>
+                  <span class="metric">
+                    <app-icon name="chat" size="sm" />
+                    {{ publication.commentCount }}
+                  </span>
+                </div>
+                <div class="pcard-foot">{{ displayDate(publication) }} · {{ publication.authorName }}</div>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Publication</th>
+                  <th>Réseaux</th>
+                  <th>Format</th>
+                  <th>Statut</th>
+                  <th>Date</th>
+                  <th class="num">Vues</th>
+                  <th class="num">Comm.</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (publication of store.results(); track publication.id) {
+                  <tr (click)="open(publication)">
+                    <td>{{ publication.title }}</td>
+                    <td>
+                      <span class="net-row">
+                        @for (code of publication.networks; track code) {
+                          <app-network-logo [network]="code" />
+                        }
+                      </span>
+                    </td>
+                    <td>{{ formatLabels[publication.format] }}</td>
+                    <td><app-status-badge [status]="publication.status" /></td>
+                    <td class="mono">{{ displayDate(publication) }}</td>
+                    <td class="num">{{ publication.viewCount | number: '1.0-0' : 'fr' }}</td>
+                    <td class="num">{{ publication.commentCount }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </section>
+  </div>
+</div>
+
+<!-- ---------- pop-up de détail ---------- -->
+@if (openedPublication(); as publication) {
+  <div class="modal-back" (click)="close()" (keydown.escape)="close()" tabindex="-1">
+    <div
+      class="modal pub-detail"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="publication.title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div class="pd-head-t">
+          <div class="pd-kicker">
+            <app-status-badge [status]="publication.status" />
+            <span class="pd-sub">{{ formatLabels[publication.format] }}</span>
+          </div>
+          <h2>{{ publication.title }}</h2>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="close()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="pd-body">
+          <!-- ---------- colonne principale ---------- -->
+          <div class="pd-main">
+            <!-- le média, pour toute publication qui n'est pas un simple brouillon -->
+            @if (publication.status !== 'draft') {
+              <div class="pd-media">
+                <div class="pd-media-frame" [style.aspect-ratio]="publication.format === 'reel' || publication.format === 'story' ? '9 / 16' : '4 / 5'">
+                  <span class="pd-media-tag">
+                    <app-network-logo [network]="publication.networks[0]" />
+                    {{ formatLabels[publication.format] }}
+                  </span>
+                </div>
+                <p class="cap">
+                  Le média sera servi par le backend — ici, son emplacement et son rapport.
+                </p>
+              </div>
+            }
+
+            <div class="block">
+              <div class="label">Légende</div>
+              <p class="pd-caption">{{ publication.caption }}</p>
+              @if (publication.hashtags.length) {
+                <div class="chips">
+                  @for (hashtag of publication.hashtags; track hashtag) {
+                    <span class="chip-active">{{ hashtag }}</span>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- programmée : les réactions attendues et la confirmation -->
+            @if (isPending(publication)) {
+              <div class="block">
+                <div class="label">Réactions</div>
+                <div class="stats">
+                  <div class="stat">
+                    <span class="label">Vues</span>
+                    <span class="v dash">—</span>
+                    <span class="d">rien n'est encore parti</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">Réactions</span>
+                    <span class="v dash">—</span>
+                    <span class="d">mesurées après le départ</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">Commentaires</span>
+                    <span class="v dash">—</span>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- publiée : vues et réactions jour par jour -->
+            @if (isLive(publication) && publication.dailyStats) {
+              <div class="block">
+                <div class="block-head">
+                  <span class="label">Vues et réactions depuis le départ</span>
+                  <span class="cap">
+                    {{ totalViews(publication) | number: '1.0-0' : 'fr' }} vues ·
+                    {{ totalReactions(publication) | number: '1.0-0' : 'fr' }} réactions
+                  </span>
+                </div>
+                <app-time-bar-chart [bars]="publication.dailyStats" />
+              </div>
+            }
+          </div>
+
+          <!-- ---------- colonne latérale ---------- -->
+          <div class="pd-side">
+            <div class="block">
+              <div class="label">Réseaux visés</div>
+              @for (code of publication.networks; track code) {
+                <div class="pd-net">
+                  <app-network-logo [network]="code" size="lg" />
+                  <span class="who">
+                    <b>{{ code }}</b>
+                    <span>{{ fullDate(publication) }}</span>
+                  </span>
+                </div>
+              }
+              @if (gmtDate(publication); as gmt) {
+                <p class="cap">soit {{ gmt }}</p>
+              }
+            </div>
+
+            <hr class="divider" />
+
+            <!-- historique : qui a créé, programmé, modifié, confirmé -->
+            <div class="block">
+              <div class="block-head">
+                <span class="label">Historique</span>
+                <span class="cap">{{ publication.history.length }} étapes</span>
+              </div>
+              <div class="pd-history">
+                @for (event of publication.history; track $index) {
+                  <article class="pd-event" [class]="'kind-' + event.kind">
+                    <div class="pd-event-top">
+                      <span class="pd-event-label">{{ event.label }}</span>
+                      <span class="pd-event-when mono">{{ event.atLabel }}</span>
+                    </div>
+                    <span class="pd-event-author">
+                      <span class="av">{{ event.authorInitials }}</span>
+                      {{ event.authorName }}
+                    </span>
+                  </article>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="mono foot-note">Aucune action réelle depuis ce prototype.</span>
+        <button class="btn" type="button" (click)="close()">Fermer</button>
+
+        @if (publication.status === 'draft') {
+          <button class="btn btn-danger" type="button" (click)="deleteDraft(publication)">
+            <app-icon name="close" size="sm" />
+            Supprimer le brouillon
+          </button>
+        }
+
+        <button class="btn" type="button">
+          <app-icon name="pencil" size="sm" />
+          Modifier
+        </button>
+
+        @if (isPending(publication)) {
+          <button class="btn btn-primary" type="button" (click)="confirmPublication(publication)">
+            <app-icon name="check" size="sm" />
+            Confirmer la publication
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

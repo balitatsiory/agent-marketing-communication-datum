@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1080" width="1080" height="1080" role="img" aria-label="Flyer — trois raisons de passer au cloud AWS, format 1:1">
+  <title>3 raisons de passer au cloud AWS — 1080 × 1080</title>
+
+  <rect width="1080" height="1080" fill="#ffffff"/>
+  <rect x="0" y="0" width="1080" height="16" fill="#ff9900"/>
+  <rect x="690" y="690" width="390" height="390" fill="#232f3e" opacity=".04"/>
+
+  <g transform="translate(80 76) scale(0.55)" fill="#232f3e">
+    <rect width="42" height="10"/><rect x="76" width="42" height="10"/>
+    <rect y="20" width="118" height="10"/><rect y="40" width="118" height="10"/>
+    <rect y="60" width="118" height="10"/>
+    <rect y="80" width="42" height="10"/><rect x="76" y="80" width="42" height="10"/>
+    <rect y="100" width="42" height="10"/><rect x="76" y="100" width="42" height="10"/>
+  </g>
+  <text x="155" y="120" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="700"
+        letter-spacing="5" fill="#232f3e" opacity=".75">DATUM ACADEMY</text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#232f3e" letter-spacing="-1">
+    <tspan x="80" y="300" font-size="86">3 RAISONS</tspan>
+    <tspan x="80" y="390" font-size="86">DE PASSER AU</tspan>
+    <tspan x="80" y="480" font-size="86" fill="#ff9900">CLOUD AWS</tspan>
+  </text>
+
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="80" y="628" font-size="54" font-weight="700" fill="#ff9900">01</text>
+    <text x="180" y="628" font-size="38" fill="#232f3e">Payer à l'usage</text>
+    <line x1="80" y1="664" x2="1000" y2="664" stroke="#232f3e" stroke-opacity=".12" stroke-width="2"/>
+
+    <text x="80" y="744" font-size="54" font-weight="700" fill="#ff9900">02</text>
+    <text x="180" y="744" font-size="38" fill="#232f3e">Scaler en un clic</text>
+    <line x1="80" y1="780" x2="1000" y2="780" stroke="#232f3e" stroke-opacity=".12" stroke-width="2"/>
+
+    <text x="80" y="860" font-size="54" font-weight="700" fill="#ff9900">03</text>
+    <text x="180" y="860" font-size="38" fill="#232f3e">Dormir tranquille</text>
+  </g>
+
+  <rect x="80" y="936" width="360" height="76" rx="38" fill="#232f3e"/>
+  <text x="260" y="984" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700"
+        fill="#ffffff" text-anchor="middle">Formation complète</text>
+</svg>

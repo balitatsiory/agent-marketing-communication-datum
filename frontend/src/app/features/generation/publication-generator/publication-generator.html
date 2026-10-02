@@ -1,0 +1,418 @@
+<app-topbar [trail]="['Publier', 'Générer une publication']">
+  <span class="quota">{{ remainingGenerations }} générations restantes</span>
+  <button class="btn" type="button">
+    <app-icon name="history" size="sm" />
+    Historique
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Générer une publication</h1>
+      <p class="sub">
+        Décrivez le sujet, l'IA propose trois angles. Vous gardez la main sur le texte et le visuel.
+      </p>
+    </div>
+  </div>
+
+  <div class="gen">
+    <!-- ---------- brief ---------- -->
+    <section class="brief" aria-label="Votre brief">
+      <div class="label">Votre brief</div>
+
+      <div class="field">
+        <label for="subject">Titre / sujet</label>
+        <input
+          class="input"
+          id="subject"
+          type="text"
+          [ngModel]="subject()"
+          (ngModelChange)="subject.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="context">Décrivez l'image ou le contexte</label>
+        <textarea
+          class="textarea"
+          id="context"
+          rows="4"
+          [ngModel]="context()"
+          (ngModelChange)="context.set($event)"
+        ></textarea>
+      </div>
+
+      <div class="field">
+        <span class="label">Média (optionnel)</span>
+        <button class="drop-sm" type="button">
+          <app-icon name="image" size="sm" />
+          Déposer une image — l'IA la décrit
+        </button>
+      </div>
+
+      <div class="field">
+        <span class="label">Ton</span>
+        <div class="chips">
+          @for (option of tones; track option) {
+            <button class="chip" type="button" [class.is-on]="tone() === option" (click)="tone.set(option)">
+              {{ toneLabels[option] }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Format visé</span>
+        <div class="chips">
+          @for (option of formats; track option) {
+            <button
+              class="chip"
+              type="button"
+              [class.is-on]="format() === option"
+              (click)="format.set(option)"
+            >
+              {{ formatLabels[option] }}
+            </button>
+          }
+        </div>
+        <p class="brief-note">La longueur de la légende s'adapte au format.</p>
+      </div>
+
+      <div class="field">
+        <span class="label">Réseaux visés</span>
+        <div class="net-toggles">
+          @for (network of networks; track network.code) {
+            <button
+              class="toggle-row"
+              type="button"
+              [class.is-on]="briefNetworks().has(network.code)"
+              [attr.aria-pressed]="briefNetworks().has(network.code)"
+              (click)="toggleBriefNetwork(network.code)"
+            >
+              <app-network-logo [network]="network.code" size="lg" />
+              <span class="who">{{ network.label }}</span>
+              <span class="switch" aria-hidden="true"></span>
+            </button>
+          }
+        </div>
+        <p class="brief-note">Une proposition adaptée à chaque réseau coché.</p>
+      </div>
+
+      <div class="field">
+        <label for="language">Langue</label>
+        <button class="fselect" id="language" type="button">
+          {{ language() }}
+          <app-icon name="chevron" size="sm" />
+        </button>
+      </div>
+
+      <button
+        class="toggle-row"
+        type="button"
+        [class.is-on]="includeHashtags()"
+        [attr.aria-pressed]="includeHashtags()"
+        (click)="includeHashtags.set(!includeHashtags())"
+      >
+        <span class="who">Inclure des hashtags</span>
+        <span class="n">8–12</span>
+        <span class="switch" aria-hidden="true"></span>
+      </button>
+
+      <button
+        class="btn btn-primary btn-lg btn-block"
+        type="button"
+        (click)="generate()"
+        [disabled]="isGenerating()"
+      >
+        <app-icon name="sparkle" size="sm" />
+        {{ isGenerating() ? 'Génération…' : 'Générer 3 propositions' }}
+      </button>
+
+      <p class="brief-note centered">Vous pourrez modifier le texte avant publication.</p>
+    </section>
+
+    <!-- ---------- propositions ---------- -->
+    <section class="props" aria-label="Propositions">
+      <div class="props-head">
+        <div class="label">Propositions</div>
+        <button class="btn btn-sm" type="button" (click)="generate()">
+          <app-icon name="history" size="sm" />
+          Régénérer
+        </button>
+      </div>
+
+      @for (proposal of proposals(); track proposal.id) {
+        <article
+          class="prop"
+          [class.is-selected]="selectedId() === proposal.id"
+          tabindex="0"
+          (click)="select(proposal)"
+          (keydown.enter)="select(proposal)"
+        >
+          <div class="prop-visual">
+            <div class="prop-thumb" [style.aspect-ratio]="proposal.visual.ratio">
+              <img [src]="proposal.visual.source" [alt]="proposal.visual.alt" loading="lazy" />
+              <button class="redo" type="button" aria-label="Régénérer le visuel" (click)="$event.stopPropagation()">
+                <app-icon name="history" size="sm" />
+              </button>
+            </div>
+            <span class="cap">
+              visuel généré<br />{{ proposal.visual.dimensions }}
+            </span>
+          </div>
+
+          <div class="prop-main">
+            <div class="prop-head">
+              <b>{{ proposal.title }}</b>
+              <span class="kind">{{ proposal.angle }}</span>
+              <span class="len">{{ lengthOf(proposal) }} caractères</span>
+            </div>
+
+            <div class="prop-text">
+              @for (paragraph of proposal.paragraphs; track paragraph) {
+                <p>{{ paragraph }}</p>
+              }
+            </div>
+
+            @if (includeHashtags()) {
+              <div class="tags">
+                @for (hashtag of proposal.hashtags; track hashtag) {
+                  <span class="tag">{{ hashtag }}</span>
+                }
+                @if (proposal.extraHashtagCount) {
+                  <button class="tag more" type="button" (click)="$event.stopPropagation()">
+                    + {{ proposal.extraHashtagCount }} suggérés
+                  </button>
+                }
+              </div>
+            }
+
+            <div class="prop-acts">
+              <button
+                class="btn btn-sm"
+                type="button"
+                [class.btn-primary]="selectedId() === proposal.id"
+                (click)="openRetouch(proposal); $event.stopPropagation()"
+              >
+                Voir aperçu &amp; éditer
+                <app-icon name="arrowRight" size="sm" />
+              </button>
+              <button class="btn btn-sm" type="button" (click)="$event.stopPropagation()">Modifier</button>
+              @if (proposal.id === 1) {
+                <button class="btn btn-sm" type="button" (click)="$event.stopPropagation()">Raccourcir</button>
+              }
+            </div>
+          </div>
+        </article>
+      }
+
+      <div class="genbar">
+        <span class="sel"><b>{{ selected().title }}</b> sélectionnée</span>
+        <button class="btn" type="button">Enregistrer en brouillon</button>
+        <a class="btn btn-primary" routerLink="/publications/nouvelle">
+          Continuer vers la publication
+          <app-icon name="arrowRight" size="sm" />
+        </a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ============ pop-up 4a1 — retouche du visuel par conversation ============ -->
+@if (isRetouchOpen()) {
+  <div class="modal-back" (click)="closeRetouch()" (keydown.escape)="closeRetouch()" tabindex="-1">
+    <div
+      class="modal retouche"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="retouche-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div>
+          <h2 id="retouche-title">Aperçu &amp; édition</h2>
+          <p class="modal-sub">
+            {{ retouchProposal().title }} · Instagram · {{ formatLabels[format()] }} ·
+            version {{ versions.length - versionIndex() }} sur {{ versions.length }}
+          </p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="closeRetouch()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="rt">
+          <!-- ---- visuel ---- -->
+          <div class="rt-visual">
+            <div class="chips">
+              @for (option of crops; track option) {
+                <button class="chip" type="button" [class.is-on]="crop() === option" (click)="crop.set(option)">
+                  {{ option }}
+                </button>
+              }
+            </div>
+
+            <div class="rt-canvas">
+              <img
+                [src]="currentVersion().visual.source"
+                [alt]="currentVersion().visual.alt"
+              />
+            </div>
+
+            <p class="rt-dims mono">
+              {{ currentVersion().visual.dimensions }} · 9:16
+            </p>
+
+            <div class="versions">
+              @for (version of versions; track version.label; let index = $index) {
+                <button
+                  class="chip"
+                  type="button"
+                  [class.is-on]="versionIndex() === index"
+                  (click)="showVersion(index)"
+                >
+                  {{ version.label }}
+                </button>
+              }
+              <button class="btn btn-icon" type="button" aria-label="Régénérer le visuel">
+                <app-icon name="history" size="sm" />
+              </button>
+            </div>
+          </div>
+
+          <!-- ---- légende, palette, historique ---- -->
+          <div class="rt-meta">
+            <div class="block">
+              <div class="label">
+                Légende <span class="plain">· {{ lengthOf(retouchProposal()) }} car.</span>
+              </div>
+              <div class="rt-caption">
+                @for (paragraph of retouchProposal().paragraphs; track paragraph) {
+                  <p>{{ paragraph }}</p>
+                }
+              </div>
+              <div class="tags">
+                @for (hashtag of retouchProposal().hashtags.slice(0, 3); track hashtag) {
+                  <span class="tag">{{ hashtag }}</span>
+                }
+                @if (retouchProposal().extraHashtagCount) {
+                  <span class="tag more">+ {{ retouchProposal().extraHashtagCount }}</span>
+                }
+              </div>
+              <button class="btn btn-sm self-start" type="button">
+                <app-icon name="pencil" size="sm" />
+                Éditer la légende
+              </button>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Palette utilisée</div>
+              <div class="swatches">
+                @for (color of palette; track color) {
+                  <span class="swatch" [style.background]="color" [title]="color"></span>
+                }
+              </div>
+              <p class="mono tiny">
+                palette de marque · <a class="link" href="#" (click)="$event.preventDefault()">enregistrer</a>
+              </p>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Historique des retouches</div>
+              <div class="hist">
+                @for (entry of retouchHistory(); track entry) {
+                  <span>{{ entry }}</span>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- ---- conversation ---- -->
+          <div class="rt-chat">
+            <div class="label">Retoucher par conversation</div>
+
+            <div class="chat-log">
+              @for (message of conversation(); track $index) {
+                @switch (message.author) {
+                  @case ('system') {
+                    <div class="msg msg-system">{{ message.text }}</div>
+                  }
+                  @case ('user') {
+                    <div class="msg msg-user">{{ message.text }}</div>
+                  }
+                  @default {
+                    <div class="msg msg-assistant">
+                      {{ message.text }}
+                      @if (message.actions?.length) {
+                        <div class="msg-acts">
+                          @for (action of message.actions; track action) {
+                            <button class="btn btn-sm" type="button">
+                              @if ($first) {
+                                <app-icon name="check" size="sm" />
+                              }
+                              {{ action }}
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                }
+              }
+
+              @if (isRetouching()) {
+                <div class="working"><span class="dot"></span> Génération en cours…</div>
+              }
+            </div>
+
+            <div>
+              <div class="label chat-suggest-label">Suggestions</div>
+              <div class="chips">
+                @for (suggestion of retouchSuggestions; track suggestion) {
+                  <button class="chip" type="button" (click)="sendMessage(suggestion)">
+                    {{ suggestion }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <form class="chat-send" (ngSubmit)="sendMessage()">
+              <input
+                class="input"
+                type="text"
+                placeholder="Décrivez la modification…"
+                aria-label="Décrivez la modification"
+                [ngModel]="draftMessage()"
+                (ngModelChange)="draftMessage.set($event)"
+                name="draftMessage"
+              />
+              <button class="btn btn-primary btn-icon send" type="submit" aria-label="Envoyer">
+                <app-icon name="sparkle" size="sm" />
+              </button>
+            </form>
+
+            <p class="chat-hint">joindre une image de référence ou coller des codes couleur</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="mono foot-note">
+          Visuel {{ currentVersion().label }} · légende éditée · prêt pour Instagram {{ formatLabels[format()] }}
+        </span>
+        <button class="btn" type="button" (click)="closeRetouch()">Annuler</button>
+        <button class="btn" type="button">
+          <app-icon name="download" size="sm" />
+          Télécharger le visuel
+        </button>
+        <button class="btn btn-primary" type="button" (click)="closeRetouch()">Valider &amp; continuer</button>
+      </div>
+    </div>
+  </div>
+}

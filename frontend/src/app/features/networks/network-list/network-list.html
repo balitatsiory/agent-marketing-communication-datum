@@ -1,0 +1,106 @@
+<app-topbar [trail]="['Mesurer', 'Réseaux & plateformes']">
+  <button class="btn" type="button">
+    30 derniers jours
+    <app-icon name="chevron" size="sm" />
+  </button>
+  <button class="btn btn-primary" type="button">
+    <app-icon name="plus" size="sm" />
+    Connecter un compte
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Réseaux &amp; plateformes</h1>
+      <p class="sub">
+        {{ counts().connected }} comptes connectés sur {{ counts().all }} ·
+        {{ totals().publications }} publications ·
+        {{ totals().followers | number: '1.0-0' : 'fr' }} abonnés · 30 derniers jours
+      </p>
+    </div>
+
+    <div class="chips">
+      @for (option of filters; track option) {
+        <button class="chip" type="button" [class.is-on]="filter() === option" (click)="filter.set(option)">
+          {{ filterLabels[option] }}
+          <span class="n">{{ counts()[option] }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="nets">
+    @for (network of results(); track network.code) {
+      <article class="net" [class.is-off]="!network.isConnected">
+        <!-- identité -->
+        <div class="net-id">
+          <span class="net-mark"><app-network-logo [network]="network.code" size="lg" /></span>
+          <span class="net-who">
+            <b>{{ network.label }}</b>
+            <span>{{ network.accountKind }} · {{ network.accountName }}</span>
+          </span>
+        </div>
+
+        <!-- les trois chiffres -->
+        <div class="net-stats">
+          <div class="net-stat">
+            <span class="label">Publications</span>
+            <span class="v" [class.off]="!network.isConnected">{{ network.publicationCount }}</span>
+          </div>
+          <div class="net-stat">
+            <span class="label">Abonnés</span>
+            <span class="v" [class.off]="!network.isConnected">
+              {{ network.followerCount | number: '1.0-0' : 'fr' }}
+            </span>
+          </div>
+          <div class="net-stat">
+            <span class="label">Vues profil</span>
+            <span class="v" [class.off]="!network.isConnected">
+              {{ network.profileViewCount | number: '1.0-0' : 'fr' }}
+            </span>
+          </div>
+        </div>
+
+        <!-- actions -->
+        <div class="net-acts">
+          @if (network.profileUrl; as url) {
+            <a class="btn" [href]="url" target="_blank" rel="noopener noreferrer">
+              Voir la page
+              <app-icon name="external" size="sm" />
+            </a>
+          } @else {
+            <button class="btn" type="button" disabled title="Aucune adresse de profil renseignée">
+              Voir la page
+              <app-icon name="external" size="sm" />
+            </button>
+          }
+          <button class="btn" type="button">Gérer le compte</button>
+        </div>
+
+        <!-- pied : fraîcheur de la collecte, ou adresse manquante -->
+        <div class="net-foot">
+          @if (network.profileUrl; as url) {
+            <span class="net-host mono">{{ hostOf(url) }}</span>
+          } @else {
+            <span class="net-host mono is-missing">adresse de profil à renseigner</span>
+          }
+          <span class="net-sync mono">statistiques du {{ network.lastSyncLabel }}</span>
+        </div>
+
+        @if (network.connectionNote; as note) {
+          <div class="net-alert">
+            <app-icon name="warn" size="sm" />
+            {{ note }}
+            <button class="btn btn-primary btn-sm" type="button">Reconnecter</button>
+          </div>
+        }
+      </article>
+    } @empty {
+      <div class="empty">
+        <h2>Aucun compte</h2>
+        <p>Aucun compte ne correspond à ce filtre.</p>
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,81 @@
+@if (showHeader()) {
+  <div class="mail-head">
+    <span class="label">Objet</span>
+    <b>{{ content().subject }}</b>
+    <span class="pre">{{ content().preheader }}</span>
+  </div>
+}
+
+<article class="mail" [attr.aria-label]="'Aperçu du courriel : ' + content().subject">
+  <!-- bandeau de marque -->
+  <header class="mail-banner">
+    <app-brand-logo variant="mark" />
+    <span class="mail-brand">
+      <b>Datum Academy</b>
+      <span>Paving the way for tomorrow's IT leaders</span>
+    </span>
+  </header>
+
+  <div class="mail-body">
+    <p class="mail-greeting">
+      @for (segment of segments(content().greeting); track $index) {
+        <span [class.var]="segment.isVariable">{{ segment.value }}</span>
+      }
+    </p>
+
+    @for (paragraph of content().paragraphs; track paragraph) {
+      <p class="mail-p">
+        @for (segment of segments(paragraph); track $index) {
+          <span [class.var]="segment.isVariable">{{ segment.value }}</span>
+        }
+      </p>
+    }
+
+    @if (content().details.length) {
+      <table class="mail-details">
+        <tbody>
+          @for (detail of content().details; track detail.label) {
+            <tr>
+              <th scope="row">{{ detail.label }}</th>
+              <td>
+                @for (segment of segments(detail.value); track $index) {
+                  <span [class.var]="segment.isVariable">{{ segment.value }}</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    @if (content().action; as action) {
+      <p class="mail-cta">
+        <span class="mail-button">{{ action.label }}</span>
+      </p>
+      <p class="mail-fallback">
+        Si le bouton ne fonctionne pas, copiez ce lien&nbsp;:
+        <span class="mail-url">{{ action.url }}</span>
+      </p>
+    }
+
+    <p class="mail-p">{{ content().closing }}</p>
+  </div>
+
+  <!-- signature électronique -->
+  <footer class="mail-sign">
+    <span class="seal" aria-hidden="true"><app-icon name="check" size="sm" /></span>
+    <span class="sign-text">
+      <b>{{ content().signature.signedBy }}</b>
+      <span>{{ content().signature.organisation }}</span>
+      <span class="sign-meta mono">
+        Signé électroniquement le {{ content().signature.signedAt }} ·
+        empreinte {{ content().signature.fingerprint }}
+      </span>
+    </span>
+  </footer>
+
+  <div class="mail-legal">
+    Vous recevez ce message parce que vous vous êtes inscrit·e à un événement Datum Academy.
+    <span class="mail-url">Se désabonner</span> · <span class="mail-url">Préférences d'envoi</span>
+  </div>
+</article>
