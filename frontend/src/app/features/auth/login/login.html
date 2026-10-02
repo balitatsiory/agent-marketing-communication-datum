@@ -1,0 +1,69 @@
+<div class="login">
+  <header class="login-top">
+    <a class="login-brand" routerLink="/connexion" aria-label="IAGORA">
+      <app-brand-logo variant="lockup" />
+    </a>
+    <a class="link" href="#" (click)="$event.preventDefault()">Besoin d'aide&nbsp;?</a>
+  </header>
+
+  <main class="login-mid">
+    <form class="login-card" (ngSubmit)="submit()">
+      <div class="login-title">
+        <h1>Content de vous revoir</h1>
+        <p>Connectez-vous à votre espace Datum Academy</p>
+      </div>
+
+      <div class="login-social">
+        <button class="btn" type="button" (click)="submit()">
+          <svg class="logo-net" viewBox="0 0 24 24" role="img" aria-label="Google">
+            <rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path
+              d="M12 7.1a4.9 4.9 0 1 0 4.75 6.1h-4.6v-2.1h6.7a6 6 0 0 1 .1 1.1A6.9 6.9 0 1 1 16.6 7l-1.5 1.5A4.8 4.8 0 0 0 12 7.1Z"
+              fill="currentColor"
+              stroke="none"
+            />
+          </svg>
+          Continuer avec Google
+        </button>
+      </div>
+
+      <div class="login-sep"><span>ou par e-mail</span></div>
+
+      <div class="login-form">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input
+            class="input"
+            id="email"
+            type="email"
+            name="email"
+            autocomplete="username"
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Mot de passe</label>
+          <input
+            class="input"
+            id="password"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Se connecter</button>
+    </form>
+  </main>
+
+  <footer class="login-foot">
+    <a href="#" (click)="$event.preventDefault()">CGU</a>
+    <a href="#" (click)="$event.preventDefault()">Confidentialité</a>
+    <span>© 2026 Datum Academy</span>
+  </footer>
+</div>

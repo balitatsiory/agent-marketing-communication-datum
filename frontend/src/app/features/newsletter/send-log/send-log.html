@@ -1,0 +1,291 @@
+<app-topbar [trail]="trail">
+  <button class="btn" type="button">
+    <app-icon name="download" size="sm" />
+    Exporter l'historique
+  </button>
+  <button class="btn btn-primary" type="button">
+    <app-icon name="send" size="sm" />
+    Nouvel envoi
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Boîte d'envois</h1>
+      <p class="sub">
+        {{ totals().sends }} envois ·
+        {{ totals().delivered | number: '1.0-0' : 'fr' }} messages remis ·
+        {{ totals().deliveryRate }} % de remise · {{ totals().bounced }} rejets
+      </p>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="label">Envois</span>
+      <span class="v">{{ totals().sends }}</span>
+      <span class="d">toutes catégories</span>
+    </div>
+    <div class="stat">
+      <span class="label">Messages remis</span>
+      <span class="v">{{ totals().delivered | number: '1.0-0' : 'fr' }}</span>
+      <span class="d">hors rejets</span>
+    </div>
+    <div class="stat">
+      <span class="label">Rejets</span>
+      <span class="v">{{ totals().bounced }}</span>
+      <span class="d">adresses injoignables</span>
+    </div>
+    <div class="stat">
+      <span class="label">À reprendre</span>
+      <span class="v">{{ totals().needingAttention }}</span>
+      <span class="d">échecs ou envois partiels</span>
+    </div>
+  </div>
+
+  <div class="log">
+    <!-- ---------- filtres ---------- -->
+    <aside class="filters" aria-label="Filtres">
+      <div class="fgroup">
+        <div class="label">Catégorie</div>
+        <button
+          class="frow"
+          type="button"
+          [class.is-on]="categoryFilter() === null"
+          (click)="categoryFilter.set(null)"
+        >
+          <span class="who">Toutes</span>
+          <span class="n">{{ everything().length }}</span>
+        </button>
+        @for (category of categories; track category) {
+          <button
+            class="frow"
+            type="button"
+            [class.is-on]="categoryFilter() === category"
+            (click)="toggleCategory(category)"
+          >
+            <span class="who">{{ categoryLabels[category] }}</span>
+            <span class="n">{{ countFor(category) }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Statut</div>
+        @for (status of statuses; track status) {
+          <button
+            class="frow"
+            type="button"
+            [class.is-on]="statusFilter() === status"
+            (click)="toggleStatus(status)"
+          >
+            <span class="who">{{ statusLabels[status] }}</span>
+            <span class="n">{{ countForStatus(status) }}</span>
+          </button>
+        }
+      </div>
+
+      @if (hasActiveFilters()) {
+        <button class="freset" type="button" (click)="resetFilters()">Réinitialiser</button>
+      }
+    </aside>
+
+    <!-- ---------- historique ---------- -->
+    <section class="results">
+      <div class="toolbar">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Rechercher un objet, un événement, un modèle…"
+            aria-label="Rechercher"
+            [value]="searchTerm()"
+            (input)="searchTerm.set($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      @for (group of groups(); track group.category) {
+        <section class="cat">
+          <header class="cat-head">
+            <h2>{{ group.label }}</h2>
+            <span class="cat-n">{{ group.sends.length }}</span>
+            <span class="cat-note">{{ group.note }}</span>
+          </header>
+
+          <div class="panel">
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Objet</th>
+                    <th>Modèle</th>
+                    <th class="num">Destinataires</th>
+                    <th class="num">Remis</th>
+                    <th class="num">Rejets</th>
+                    <th>Envoi</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (send of group.sends; track send.id) {
+                    <tr (click)="open(send)">
+                      <td>
+                        <span class="subj">{{ send.subject }}</span>
+                        <span class="evt">{{ send.eventTitle }}</span>
+                      </td>
+                      <td>
+                        <span class="tpl">{{ send.templateName }}</span>
+                        <span class="ver mono">{{ send.templateVersion }}</span>
+                      </td>
+                      <td class="num">{{ send.recipientCount }}</td>
+                      <td class="num">
+                        @if (wasAttemptedOf(send)) {
+                          {{ send.deliveredCount }}
+                        } @else {
+                          <span class="dash">—</span>
+                        }
+                      </td>
+                      <td class="num">
+                        @if (!wasAttemptedOf(send)) {
+                          <span class="dash">—</span>
+                        } @else if (bouncesOf(send)) {
+                          <span class="bounced">{{ bouncesOf(send) }}</span>
+                        } @else {
+                          0
+                        }
+                      </td>
+                      <td class="mono when">{{ send.sentAtLabel }}</td>
+                      <td>
+                        <span class="status" [class]="modifierFor(send.status)">
+                          {{ statusLabels[send.status] }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      } @empty {
+        <div class="empty">
+          <h2>Aucun envoi</h2>
+          <p>Aucun envoi ne correspond à ces filtres.</p>
+          <button class="btn" type="button" (click)="resetFilters()">Réinitialiser les filtres</button>
+        </div>
+      }
+    </section>
+  </div>
+</div>
+
+<!-- ---------- détail d'un envoi ---------- -->
+@if (opened(); as send) {
+  <div class="modal-back" (click)="close()" (keydown.escape)="close()" tabindex="-1">
+    <div
+      class="modal send-detail"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="send.subject"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div class="sd-head">
+          <div class="sd-kicker">
+            <span class="label">{{ categoryLabels[send.category] }}</span>
+            <span class="status" [class]="modifierFor(send.status)">
+              {{ statusLabels[send.status] }}
+            </span>
+          </div>
+          <h2>{{ send.subject }}</h2>
+          <p class="sd-sub">
+            {{ send.eventTitle }} · modèle {{ send.templateName }} {{ send.templateVersion }} ·
+            {{ send.sentAtLabel }}
+          </p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="close()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="sd-body">
+          <div class="sd-mail">
+            <app-email-preview [content]="send.content" [showHeader]="false" />
+          </div>
+
+          <div class="sd-side">
+            @if (send.failureNote; as note) {
+              <div class="alert">
+                <app-icon name="warn" size="sm" />
+                <span>{{ note }}</span>
+              </div>
+            }
+
+            <div class="block">
+              <div class="label">Acheminement</div>
+              <div class="stats">
+                <div class="stat">
+                  <span class="label">Destinataires</span>
+                  <span class="v">{{ send.recipientCount }}</span>
+                </div>
+                <div class="stat">
+                  <span class="label">Remis</span>
+                  @if (wasAttemptedOf(send)) {
+                    <span class="v">{{ send.deliveredCount }}</span>
+                    <span class="d">{{ deliveryRateOf(send) }} % des destinataires</span>
+                  } @else {
+                    <span class="v dash">—</span>
+                    <span class="d">{{ send.status === 'scheduled' ? 'envoi à venir' : 'rien n’est parti' }}</span>
+                  }
+                </div>
+                <div class="stat">
+                  <span class="label">Rejets</span>
+                  @if (wasAttemptedOf(send)) {
+                    <span class="v">{{ bouncesOf(send) }}</span>
+                    <span class="d">adresses injoignables</span>
+                  } @else {
+                    <span class="v dash">—</span>
+                  }
+                </div>
+              </div>
+              <p class="measure-note">
+                Seul l'acheminement est mesuré : ouvertures et clics demandent un pixel de
+                suivi et une réécriture des liens, qui restent à mettre en place.
+              </p>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Modèle utilisé</div>
+              <p class="sd-tpl">
+                {{ send.templateName }}
+                <span class="mono">{{ send.templateVersion }}</span>
+              </p>
+              <a class="btn btn-sm self-start" routerLink="/newsletter/modeles">
+                Ouvrir le modèle
+                <app-icon name="arrowRight" size="sm" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="mono foot-note">
+          Signé par {{ send.content.signature.signedBy }} · empreinte
+          {{ send.content.signature.fingerprint }}
+        </span>
+        <button class="btn" type="button" (click)="close()">Fermer</button>
+        @if (send.status === 'failed' || send.status === 'partial') {
+          <button class="btn btn-primary" type="button">
+            <app-icon name="send" size="sm" />
+            Relancer les non-remis
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

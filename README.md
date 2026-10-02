@@ -43,6 +43,20 @@ documentation Swagger générée. En cours de développement.
 
 → `backend/` — voir [backend/README.md](backend/README.md).
 
+### 5. Front-end
+
+Application **Angular 20** reprenant le prototype en code : coquille, navigation,
+design system aux couleurs de Datum Academy, et onze écrans construits
+(tableau de bord, connexion, publications, calendrier éditorial, création
+et génération de publication, messagerie unifiée, webinaires, boîte
+d'envois et modèles de newsletter, réseaux & plateformes, habilitations et
+utilisateurs). Les trois autres écrans ont leur route et une page
+d'attente.
+
+**Données statiques** pour l'instant : le backend n'est pas branché.
+
+→ `frontend/` — voir [frontend/README.md](frontend/README.md).
+
 ## Démarrer
 
 Le projet a **deux piles Docker indépendantes** : n8n d'un côté, le backend et sa base

@@ -1,0 +1,175 @@
+<app-topbar [trail]="trail">
+  <a class="btn" routerLink="/newsletter/envois">
+    <app-icon name="files" size="sm" />
+    Boîte d'envois
+  </a>
+  <button class="btn btn-primary" type="button">
+    <app-icon name="plus" size="sm" />
+    Nouveau modèle
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Modèles de mail</h1>
+      <p class="sub">
+        {{ everything().length }} modèles personnalisés, regroupés par catégorie et versionnés.
+        Chaque envoi porte la version du modèle qui l'a produit.
+      </p>
+    </div>
+
+    <div class="chips">
+      <button class="chip" type="button" [class.is-on]="categoryFilter() === null" (click)="categoryFilter.set(null)">
+        Toutes <span class="n">{{ everything().length }}</span>
+      </button>
+      @for (category of categories; track category) {
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="categoryFilter() === category"
+          (click)="toggleCategory(category)"
+        >
+          {{ categoryLabels[category] }} <span class="n">{{ countFor(category) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="tpl">
+    <!-- ---------- liste des modèles ---------- -->
+    <section class="tpl-list" aria-label="Modèles">
+      @for (group of groups(); track group.category) {
+        <div class="cat">
+          <header class="cat-head">
+            <h2>{{ group.label }}</h2>
+            <span class="cat-n">{{ group.templates.length }}</span>
+          </header>
+          <p class="cat-note">{{ group.note }}</p>
+
+          @for (template of group.templates; track template.id) {
+            <article
+              class="card"
+              [class.is-selected]="selected()?.id === template.id"
+              tabindex="0"
+              (click)="select(template)"
+              (keydown.enter)="select(template)"
+            >
+              <div class="card-top">
+                <h3>{{ template.name }}</h3>
+                <span class="status" [class]="template.status === 'published' ? 'status-published' : 'status-draft'">
+                  {{ template.status === 'published' ? 'Publié' : 'Brouillon' }}
+                </span>
+              </div>
+
+              <p class="card-subject">{{ template.content.subject }}</p>
+
+              <div class="card-meta">
+                <span class="ver mono">{{ template.versions[0].label }}</span>
+                <span>{{ template.updatedAt }} · {{ template.authorName }}</span>
+                <span class="usage mono">
+                  {{ template.usageCount }} {{ template.usageCount > 1 ? 'envois' : 'envoi' }}
+                </span>
+              </div>
+            </article>
+          }
+        </div>
+      } @empty {
+        <div class="empty">
+          <h2>Aucun modèle</h2>
+          <p>Aucun modèle dans cette catégorie.</p>
+        </div>
+      }
+    </section>
+
+    <!-- ---------- aperçu ---------- -->
+    @if (selected(); as template) {
+      <section class="tpl-detail" aria-label="Aperçu du modèle">
+        <header class="detail-head">
+          <div>
+            <span class="label">{{ categoryLabels[template.category] }}</span>
+            <h2>{{ template.name }}</h2>
+          </div>
+          <div class="detail-acts">
+            <button class="btn btn-sm" type="button">
+              <app-icon name="pencil" size="sm" />
+              Modifier
+            </button>
+            <button class="btn btn-sm" type="button">Dupliquer</button>
+          </div>
+        </header>
+
+        <div class="detail-body">
+          <!-- versions -->
+          <div class="block">
+            <div class="block-head">
+              <span class="label">Versions</span>
+              <span class="cap">{{ template.versions.length }} enregistrées</span>
+            </div>
+
+            <div class="versions">
+              @for (version of template.versions; track version.label; let index = $index) {
+                <button
+                  class="vchip"
+                  type="button"
+                  [class.is-on]="versionIndex() === index"
+                  (click)="showVersion(index)"
+                >
+                  {{ version.label }}
+                  @if (version.isCurrent) {
+                    <span class="dot" title="version en service" aria-label="version en service"></span>
+                  }
+                </button>
+              }
+            </div>
+
+            @if (shownVersion(); as version) {
+              <div class="vmeta">
+                <p class="vchange">{{ version.change }}</p>
+                <p class="cap">{{ version.createdAt }} · {{ version.authorName }}</p>
+              </div>
+
+              @if (isViewingOldVersion()) {
+                <!-- Sans cet avertissement, on croirait relire ce qui part
+                     aujourd'hui aux destinataires. -->
+                <p class="warn-old">
+                  <app-icon name="warn" size="sm" />
+                  Version antérieure. Les envois utilisent
+                  {{ template.versions[0].label }}.
+                </p>
+              }
+            }
+          </div>
+
+          <hr class="divider" />
+
+          <!-- variables -->
+          <div class="block">
+            <div class="label">Variables attendues</div>
+            <div class="vars">
+              @for (variable of template.variables; track variable) {
+                <code class="var">{{ braced(variable) }}</code>
+              }
+            </div>
+            <p class="cap">
+              Remplacées à l'envoi par les données de l'inscrit et de l'événement.
+            </p>
+          </div>
+
+          <hr class="divider" />
+
+          <!-- aperçu du courriel -->
+          <div class="block">
+            <div class="block-head">
+              <span class="label">Aperçu</span>
+              <span class="cap">variables non substituées</span>
+            </div>
+            <div class="preview">
+              <app-email-preview [content]="template.content" [showVariables]="true" />
+            </div>
+          </div>
+        </div>
+      </section>
+    }
+  </div>
+</div>

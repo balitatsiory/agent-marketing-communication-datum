@@ -1,0 +1,239 @@
+<app-topbar [trail]="['Tableau de bord']">
+  <button class="btn" type="button">
+    30 derniers jours
+    <app-icon name="chevron" size="sm" />
+  </button>
+  <a class="btn btn-primary" routerLink="/publications/nouvelle">
+    <app-icon name="plus" size="sm" />
+    Créer une publication
+  </a>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Tableau de bord</h1>
+      <p class="sub">
+        Ce qui attend une action, puis ce que les 30 derniers jours ont donné.
+      </p>
+    </div>
+  </div>
+
+  <!-- ---------- à traiter ---------- -->
+  @if (actionItems().length) {
+    <section class="card card-pad todo" aria-label="À traiter">
+      <div class="todo-head">
+        <span class="label">À traiter</span>
+        <span class="todo-total">{{ totalToHandle() }}</span>
+      </div>
+      <div class="todo-items">
+        @for (item of actionItems(); track item.one) {
+          <a class="todo-item" [class.is-urgent]="item.isUrgent" [routerLink]="item.route">
+            <span class="n">{{ item.count }}</span>
+            <span class="t">{{ item.count > 1 ? item.many : item.one }}</span>
+            <app-icon name="arrowRight" size="sm" />
+          </a>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- ---------- compteurs ---------- -->
+  <div class="stats">
+    <div class="stat">
+      <span class="label">Publiées</span>
+      <span class="v">{{ publicationCounts().published }}</span>
+      <span class="d">sur 30 jours</span>
+    </div>
+    <div class="stat">
+      <span class="label">Programmées</span>
+      <span class="v">{{ publicationCounts().scheduled }}</span>
+      <span class="d">départs à venir</span>
+    </div>
+    <div class="stat">
+      <span class="label">À valider</span>
+      <span class="v" [class.v-wait]="publicationCounts().review">{{ publicationCounts().review }}</span>
+      <span class="d">rien ne part sans validation</span>
+    </div>
+    <div class="stat">
+      <span class="label">Messages non lus</span>
+      <span class="v" [class.v-wait]="unreadMessageCount()">{{ unreadMessageCount() }}</span>
+      <span class="d">sur {{ lateMessageCount() }} hors délai</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- ---------- abonnés ---------- -->
+    <section class="panel span-2" aria-label="Abonnés">
+      <div class="panel-head">
+        <h2>Abonnés</h2>
+        <div class="segmented" role="group" aria-label="Fenêtre d'observation">
+          <button type="button" [class.is-on]="window() === 7" (click)="window.set(7)">7 jours</button>
+          <button type="button" [class.is-on]="window() === 30" (click)="window.set(30)">30 jours</button>
+        </div>
+      </div>
+
+      <div class="panel-pad chart-block">
+        <div class="chart-figures">
+          <span class="chart-total">{{ followerTotal().toLocaleString('fr-FR') }}</span>
+          <span class="chart-gain" [class.is-flat]="followerGain() === 0">
+            {{ followerGain() > 0 ? '+' : '' }}{{ followerGain().toLocaleString('fr-FR') }}
+            <span class="rate">({{ isGaining() ? '+' : '' }}{{ followerGainRate() }} %)</span>
+          </span>
+          <span class="chart-note">tous comptes raccordés, sur {{ window() }} jours</span>
+        </div>
+
+        <app-multi-line-chart [series]="followerSeries()" [labels]="dayLabels()">
+          @for (row of gainByNetwork(); track row.network.code) {
+            <span class="gain">
+              <span class="swatch" [style.background]="colorOf(row.network.code)"></span>
+              <app-network-logo [network]="row.network.code" />
+              <b>{{ row.network.label }}</b>
+              <span class="g" [class.is-flat]="row.gain === 0">
+                {{ row.gain > 0 ? '+' : '' }}{{ row.gain }}
+              </span>
+            </span>
+          }
+        </app-multi-line-chart>
+
+      </div>
+    </section>
+
+    <!-- ---------- webinaires ---------- -->
+    <section class="panel" aria-label="Webinaires">
+      <div class="panel-head">
+        <h2>Webinaires</h2>
+        <a class="link" routerLink="/webinaires">Tout voir</a>
+      </div>
+
+      <div class="panel-pad">
+        <div class="mini-stats">
+          <div class="mini">
+            <span class="label">À venir</span>
+            <span class="v">{{ webinarCounts().upcoming }}</span>
+          </div>
+          <div class="mini">
+            <span class="label">Passés</span>
+            <span class="v">{{ webinarCounts().past }}</span>
+          </div>
+          <div class="mini">
+            <span class="label">Brouillons</span>
+            <span class="v">{{ webinarCounts().draft }}</span>
+          </div>
+        </div>
+
+        <div class="attendance">
+          <span class="label">Présence observée</span>
+          <div class="bar" [attr.aria-label]="attendanceRate() + ' % de présence'">
+            <span [style.width.%]="attendanceRate()"></span>
+          </div>
+          <span class="attendance-note">
+            {{ attendanceRate() }} % — {{ webinarCounts().attendees }} présents sur
+            {{ webinarCounts().registrations }} inscrits
+          </span>
+        </div>
+
+        <div class="next">
+          <span class="label">Prochaines séances</span>
+          @for (webinar of nextWebinars(); track webinar.id) {
+            <a class="next-row" routerLink="/webinaires">
+              <span class="next-date mono">
+                {{ webinar.date?.day }} {{ webinar.date?.month }}
+              </span>
+              <span class="next-title">{{ webinar.title }}</span>
+              <span class="next-n mono">{{ webinar.registrationCount }}</span>
+            </a>
+          } @empty {
+            <p class="muted-note">Aucune séance programmée.</p>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- meilleures publications ---------- -->
+    <section class="panel span-2" aria-label="Publications les plus vues">
+      <div class="panel-head">
+        <h2>Publications qui ont porté</h2>
+        <div class="segmented" role="group" aria-label="Critère de classement">
+          <button type="button" [class.is-on]="topMetric() === 'views'" (click)="topMetric.set('views')">
+            Vues
+          </button>
+          <button
+            type="button"
+            [class.is-on]="topMetric() === 'reactions'"
+            (click)="topMetric.set('reactions')"
+          >
+            Réactions
+          </button>
+        </div>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Publication</th>
+              <th>Réseaux</th>
+              <th>Statut</th>
+              <th class="num">{{ topMetric() === 'views' ? 'Vues' : 'Réactions' }}</th>
+              <th class="num">Comm.</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (publication of topPublications(); track publication.id) {
+              <tr>
+                <td class="top-title">{{ publication.title }}</td>
+                <td>
+                  <span class="nets">
+                    @for (code of publication.networks; track code) {
+                      <app-network-logo [network]="code" />
+                    }
+                  </span>
+                </td>
+                <td><app-status-badge [status]="publication.status" /></td>
+                <td class="num strong">{{ metricOf(publication).toLocaleString('fr-FR') }}</td>
+                <td class="num">{{ publication.commentCount }}</td>
+                <td class="mono when">{{ displayDate(publication) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------- par canal ---------- -->
+    <section class="panel" aria-label="Performance par canal">
+      <div class="panel-head">
+        <h2>Par canal</h2>
+        <a class="link" routerLink="/reseaux">Détail</a>
+      </div>
+
+      <div class="panel-pad channels">
+        @for (row of byChannel(); track row.network.code) {
+          <div class="channel">
+            <div class="channel-top">
+              <app-network-logo [network]="row.network.code" />
+              <b>{{ row.network.label }}</b>
+              <span class="channel-n mono">
+                {{ row.publications }} {{ row.publications > 1 ? 'publications' : 'publication' }}
+              </span>
+            </div>
+            <div class="channel-bar">
+              <span [style.width.%]="row.share"></span>
+            </div>
+            <span class="channel-note">
+              {{ row.followers.toLocaleString('fr-FR') }} abonnés
+            </span>
+          </div>
+        }
+
+        <!-- Dire ce qui n'est pas mesuré vaut mieux que de l'inventer. -->
+        <p class="channel-caveat">
+          Les vues ne sont pas ventilées par réseau : une publication partie sur trois réseaux
+          ne porte qu'un seul total. Le détail par canal demandera un relevé réseau par réseau.
+        </p>
+      </div>
+    </section>
+  </div>
+</div>

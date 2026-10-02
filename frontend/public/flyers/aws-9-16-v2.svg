@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Visuel v2 — contraste du texte renforcé, format 9:16">
+  <title>Formation Cloud AWS — v2, 1080 × 1920</title>
+
+  <!-- v2 : même composition que v1, mais un voile sombre passe sous le
+       texte et les lettres s'assombrissent. C'est la retouche
+       « contraste du texte renforcé » de l'historique. -->
+  <defs>
+    <linearGradient id="soft2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#cfe0e8"/>
+      <stop offset="1" stop-color="#9fbccb"/>
+    </linearGradient>
+    <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1a22" stop-opacity="0"/>
+      <stop offset=".35" stop-color="#0d1a22" stop-opacity=".62"/>
+      <stop offset="1" stop-color="#0d1a22" stop-opacity=".88"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#soft2)"/>
+  <circle cx="860" cy="520" r="340" fill="#ffffff" opacity=".3"/>
+  <circle cx="220" cy="1430" r="280" fill="#ffffff" opacity=".22"/>
+  <rect x="0" y="620" width="1080" height="1300" fill="url(#scrim)"/>
+
+  <g transform="translate(90 120) scale(0.6)" fill="#1a2a33">
+    <rect width="42" height="10"/><rect x="76" width="42" height="10"/>
+    <rect y="20" width="118" height="10"/><rect y="40" width="118" height="10"/>
+    <rect y="60" width="118" height="10"/>
+    <rect y="80" width="42" height="10"/><rect x="76" y="80" width="42" height="10"/>
+    <rect y="100" width="42" height="10"/><rect x="76" y="100" width="42" height="10"/>
+  </g>
+  <text x="178" y="170" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700"
+        letter-spacing="5" fill="#1a2a33">DATUM ACADEMY</text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="-1">
+    <tspan x="90" y="880" font-size="106">FORMATION</tspan>
+    <tspan x="90" y="990" font-size="106">CLOUD AWS</tspan>
+  </text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-size="38" fill="#e4edf2">
+    <tspan x="90" y="1090">De « j'en ai entendu parler »</tspan>
+    <tspan x="90" y="1144">à « je déploie en production ».</tspan>
+  </text>
+
+  <rect x="90" y="1620" width="8" height="150" fill="#ffffff"/>
+  <text x="130" y="1700" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">
+    21 septembre · 12 places
+  </text>
+  <text x="130" y="1756" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#e4edf2">
+    datumacademy.com
+  </text>
+</svg>

@@ -1,0 +1,62 @@
+<div class="wrap">
+  <div class="legend">
+    <span class="key key-views">Vues <b>max {{ maxViews().toLocaleString('fr-FR') }}</b></span>
+    <span class="key key-reactions">Réactions <b>max {{ maxReactions().toLocaleString('fr-FR') }}</b></span>
+  </div>
+
+  <div class="plot">
+    <svg
+      [attr.viewBox]="'0 0 ' + width + ' ' + height"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Vues et réactions jour par jour depuis le départ de la publication"
+      (pointermove)="onMove($event)"
+      (pointerleave)="onLeave()"
+    >
+      @for (bar of drawn(); track $index) {
+        <g [class.is-hovered]="hoverIndex() === $index">
+          @if (hoverIndex() === $index) {
+            <rect
+              class="band"
+              [attr.x]="bar.groupX" y="0"
+              [attr.width]="bar.groupWidth" [attr.height]="baseline"
+            />
+          }
+          <rect
+            class="bar bar-views"
+            [attr.x]="bar.x" [attr.y]="bar.viewsY"
+            [attr.width]="bar.width" [attr.height]="bar.viewsHeight"
+            rx="2"
+          />
+          <rect
+            class="bar bar-reactions"
+            [attr.x]="bar.x + bar.width + 2" [attr.y]="bar.reactionsY"
+            [attr.width]="bar.width" [attr.height]="bar.reactionsHeight"
+            rx="2"
+          />
+        </g>
+      }
+      <line class="axis" x1="0" [attr.y1]="baseline" [attr.x2]="width" [attr.y2]="baseline" />
+    </svg>
+
+    @if (hovered(); as point) {
+      <div class="tip" [class.is-flipped]="hoverFlips()" [style.left.%]="hoverLeft()">
+        <span class="tip-day">{{ point.dayLabel }}</span>
+        <span class="tip-row">
+          <span class="dot dot-views"></span>
+          Vues <b>{{ point.views.toLocaleString('fr-FR') }}</b>
+        </span>
+        <span class="tip-row">
+          <span class="dot dot-reactions"></span>
+          Réactions <b>{{ point.reactions.toLocaleString('fr-FR') }}</b>
+        </span>
+      </div>
+    }
+  </div>
+
+  <div class="days">
+    @for (bar of bars(); track $index) {
+      <span [class.is-on]="hoverIndex() === $index">{{ bar.dayLabel }}</span>
+    }
+  </div>
+</div>

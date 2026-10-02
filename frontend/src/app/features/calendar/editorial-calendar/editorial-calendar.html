@@ -1,0 +1,158 @@
+<app-topbar [trail]="['Programmer', 'Calendrier']">
+  <div class="segmented" role="group" aria-label="Affichage">
+    <button type="button" [class.is-on]="view() === 'month'" (click)="view.set('month')">
+      <app-icon name="calendar" size="sm" />
+      Mois
+    </button>
+    <button type="button" [class.is-on]="view() === 'kanban'" (click)="view.set('kanban')">
+      <app-icon name="columns" size="sm" />
+      Kanban
+    </button>
+  </div>
+  <a class="btn btn-primary" routerLink="/publications/nouvelle">
+    <app-icon name="plus" size="sm" />
+    Créer une publication
+  </a>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Calendrier éditorial</h1>
+      <p class="sub">{{ monthPublications().length }} publications sur {{ monthLabel() }}</p>
+    </div>
+
+    @if (view() === 'month') {
+      <div class="month-nav">
+        <button class="btn btn-icon" type="button" (click)="shiftMonth(-1)" aria-label="Mois précédent">
+          <app-icon name="chevron" size="sm" class="chev-prev" />
+        </button>
+        <span class="month-label">{{ monthLabel() }}</span>
+        <button class="btn btn-icon" type="button" (click)="shiftMonth(1)" aria-label="Mois suivant">
+          <app-icon name="chevron" size="sm" class="chev-next" />
+        </button>
+        <button class="btn btn-sm" type="button" (click)="goToToday()">Aujourd'hui</button>
+      </div>
+    }
+  </div>
+
+  @if (view() === 'month') {
+    <div class="cal-layout">
+      <!-- ---------- grille du mois ---------- -->
+      <div class="cal panel">
+        <div class="cal-dow">
+          @for (name of weekdayNames; track name) {
+            <span>{{ name }}</span>
+          }
+        </div>
+
+        <div class="cal-grid">
+          @for (week of weeks(); track $index) {
+            @for (day of week; track day.date.getTime()) {
+              <div
+                class="cal-day"
+                [class.is-out]="!day.isInMonth"
+                [class.is-today]="day.isToday"
+              >
+                <span class="dnum">{{ day.dayNumber }}</span>
+
+                @for (publication of day.publications; track publication.id) {
+                  <button
+                    class="cal-item"
+                    type="button"
+                    [class.is-selected]="selected()?.id === publication.id"
+                    (click)="select(publication)"
+                  >
+                    <app-network-logo [network]="publication.networks[0]" />
+                    <span class="cal-item-title">{{ publication.title }}</span>
+                  </button>
+                }
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- ---------- panneau latéral ---------- -->
+      <aside class="side">
+        @if (selected(); as publication) {
+          <div class="card card-pad sel">
+            <div class="sel-head">
+              <app-status-badge [status]="publication.status" />
+              <span class="sel-when">{{ timeOf(publication) }}</span>
+            </div>
+            <h2 class="sel-title">{{ publication.title }}</h2>
+            <p class="sel-when">{{ dateOf(publication) }}</p>
+            <p class="sel-note">{{ publication.caption }}</p>
+
+            <div class="sel-nets">
+              @for (code of publication.networks; track code) {
+                <span class="sel-net">
+                  <app-network-logo [network]="code" />
+                </span>
+              }
+              <span class="sel-format">{{ formatLabels[publication.format] }}</span>
+            </div>
+
+            <button class="btn btn-block" type="button">
+              <app-icon name="pencil" size="sm" />
+              Modifier
+            </button>
+          </div>
+        } @else {
+          <div class="card card-pad sel-hint">
+            <p>Choisissez une publication dans le calendrier pour en voir le détail.</p>
+          </div>
+        }
+
+        <div class="panel">
+          <div class="panel-head"><h2>À venir</h2></div>
+          <div class="panel-body">
+            @for (publication of monthPublications(); track publication.id) {
+              <button class="up-row" type="button" (click)="select(publication)">
+                <span class="up-when mono">{{ timeOf(publication) }}</span>
+                <span class="up-title">{{ publication.title }}</span>
+                <app-network-logo [network]="publication.networks[0]" />
+              </button>
+            } @empty {
+              <p class="up-empty">Rien de programmé ce mois-ci.</p>
+            }
+          </div>
+        </div>
+      </aside>
+    </div>
+  } @else {
+    <!-- ---------- vue Kanban ---------- -->
+    <div class="kanban">
+      @for (column of kanbanColumns(); track column.status) {
+        <section class="col">
+          <header class="col-head">
+            <span>{{ column.label }}</span>
+            <span class="n">{{ column.publications.length }}</span>
+          </header>
+
+          <div class="col-body">
+            @for (publication of column.publications; track publication.id) {
+              <article class="kcard">
+                <h3>{{ publication.title }}</h3>
+                <p class="meta">
+                  {{ formatLabels[publication.format] }} · {{ publication.authorName }}
+                </p>
+                <div class="kcard-foot">
+                  <span class="nets">
+                    @for (code of publication.networks; track code) {
+                      <app-network-logo [network]="code" />
+                    }
+                  </span>
+                  <span class="mono">{{ timeOf(publication) }}</span>
+                </div>
+              </article>
+            } @empty {
+              <p class="col-empty">Vide</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</div>

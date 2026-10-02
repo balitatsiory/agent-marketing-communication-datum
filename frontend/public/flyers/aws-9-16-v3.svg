@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1920" width="1080" height="1920" role="img" aria-label="Visuel v3 — palette bleu nuit et orange, format 9:16">
+  <title>Formation Cloud AWS — v3, 1080 × 1920</title>
+
+  <!-- v3 : palette de marque appliquée — bleu nuit #232F3E, orange
+       #FF9900. C'est la version retenue dans la conversation de
+       retouche, et celle que montrent les pastilles de palette. -->
+  <rect width="1080" height="1920" fill="#232f3e"/>
+  <circle cx="900" cy="430" r="330" fill="#ffffff" opacity=".04"/>
+  <circle cx="150" cy="1520" r="260" fill="#ff9900" opacity=".08"/>
+  <rect x="0" y="0" width="1080" height="14" fill="#ff9900"/>
+
+  <g transform="translate(90 130) scale(0.6)" fill="#ffffff">
+    <rect width="42" height="10"/><rect x="76" width="42" height="10"/>
+    <rect y="20" width="118" height="10"/><rect y="40" width="118" height="10"/>
+    <rect y="60" width="118" height="10"/>
+    <rect y="80" width="42" height="10"/><rect x="76" y="80" width="42" height="10"/>
+    <rect y="100" width="42" height="10"/><rect x="76" y="100" width="42" height="10"/>
+  </g>
+  <text x="178" y="180" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700"
+        letter-spacing="5" fill="#ffffff" opacity=".9">DATUM ACADEMY</text>
+
+  <rect x="90" y="300" width="150" height="9" fill="#ff9900"/>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="-1">
+    <tspan x="90" y="470" font-size="112">FORMATION</tspan>
+    <tspan x="90" y="586" font-size="112">CLOUD <tspan fill="#ff9900">AWS</tspan></tspan>
+  </text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-size="39" fill="#c3cfd9">
+    <tspan x="90" y="700">De « j'en ai entendu parler »</tspan>
+    <tspan x="90" y="755">à « je déploie en production ».</tspan>
+  </text>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="37" fill="#ffffff">
+    <rect x="90" y="920" width="21" height="21" fill="#ff9900"/>
+    <text x="138" y="941">Facturation à l'usage</text>
+    <rect x="90" y="1020" width="21" height="21" fill="#ff9900"/>
+    <text x="138" y="1041">Mise à l'échelle automatique</text>
+    <rect x="90" y="1120" width="21" height="21" fill="#ff9900"/>
+    <text x="138" y="1141">Haute disponibilité multi-régions</text>
+    <rect x="90" y="1220" width="21" height="21" fill="#ff9900"/>
+    <text x="138" y="1241">Certification Solutions Architect</text>
+  </g>
+
+  <rect x="0" y="1660" width="1080" height="260" fill="#ff9900"/>
+  <text x="90" y="1768" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700"
+        fill="#232f3e" letter-spacing="1">21 SEPTEMBRE</text>
+  <text x="90" y="1832" font-family="Arial, Helvetica, sans-serif" font-size="40"
+        fill="#232f3e" opacity=".82">12 places · datumacademy.com</text>
+</svg>

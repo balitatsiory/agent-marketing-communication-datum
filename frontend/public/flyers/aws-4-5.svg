@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350" role="img" aria-label="Flyer — Formation Cloud AWS, format 4:5">
+  <title>Formation Cloud AWS — 1080 × 1350</title>
+
+  <!-- Palette de marque appliquée à la proposition 1 : bleu nuit #232F3E,
+       orange #FF9900. C'est celle que décrit la conversation de retouche. -->
+  <rect width="1080" height="1350" fill="#232f3e"/>
+  <circle cx="930" cy="200" r="300" fill="#ffffff" opacity=".035"/>
+  <circle cx="120" cy="1060" r="230" fill="#ff9900" opacity=".07"/>
+
+  <!-- monogramme Datum -->
+  <g transform="translate(90 86) scale(0.62)" fill="#ffffff">
+    <rect width="42" height="10"/><rect x="76" width="42" height="10"/>
+    <rect y="20" width="118" height="10"/><rect y="40" width="118" height="10"/>
+    <rect y="60" width="118" height="10"/>
+    <rect y="80" width="42" height="10"/><rect x="76" y="80" width="42" height="10"/>
+    <rect y="100" width="42" height="10"/><rect x="76" y="100" width="42" height="10"/>
+  </g>
+  <text x="182" y="139" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700"
+        letter-spacing="6" fill="#ffffff" opacity=".9">DATUM ACADEMY</text>
+
+  <rect x="90" y="226" width="150" height="9" fill="#ff9900"/>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="-1">
+    <tspan x="90" y="375" font-size="104">FORMATION</tspan>
+    <tspan x="90" y="482" font-size="104">CLOUD <tspan fill="#ff9900">AWS</tspan></tspan>
+  </text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-size="35" fill="#c3cfd9">
+    <tspan x="90" y="590">De « j'en ai entendu parler »</tspan>
+    <tspan x="90" y="640">à « je déploie en production ».</tspan>
+  </text>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="33" fill="#ffffff">
+    <rect x="90" y="755" width="19" height="19" fill="#ff9900"/>
+    <text x="132" y="774">Facturation à l'usage</text>
+    <rect x="90" y="838" width="19" height="19" fill="#ff9900"/>
+    <text x="132" y="857">Mise à l'échelle automatique</text>
+    <rect x="90" y="921" width="19" height="19" fill="#ff9900"/>
+    <text x="132" y="940">Haute disponibilité multi-régions</text>
+    <rect x="90" y="1004" width="19" height="19" fill="#ff9900"/>
+    <text x="132" y="1023">Certification Solutions Architect</text>
+  </g>
+
+  <rect x="0" y="1168" width="1080" height="182" fill="#ff9900"/>
+  <text x="90" y="1252" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="700"
+        fill="#232f3e" letter-spacing="1">21 SEPTEMBRE · 12 PLACES</text>
+  <text x="90" y="1304" font-family="Arial, Helvetica, sans-serif" font-size="29"
+        fill="#232f3e" opacity=".78">datumacademy.com</text>
+</svg>

@@ -1,0 +1,582 @@
+<app-topbar [trail]="['Événements', 'Webinaires']">
+  <button class="btn" type="button">
+    <app-icon name="download" size="sm" />
+    Exporter les inscrits
+  </button>
+  <button class="btn btn-primary" type="button">
+    <app-icon name="plus" size="sm" />
+    Nouveau webinaire
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Webinaires</h1>
+      <p class="sub">
+        {{ counts().scheduled }} à venir · {{ counts().past }} passés ·
+        {{ totalRegistrations() | number: '1.0-0' : 'fr' }} inscrits cumulés
+      </p>
+    </div>
+
+    <div class="chips">
+      @for (option of filters; track option) {
+        <button class="chip" type="button" [class.is-on]="filter() === option" (click)="setFilter(option)">
+          {{ filterLabels[option] }}
+          <span class="n">{{ counts()[option] }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ---------- à venir ---------- -->
+  @if (upcoming().length) {
+    <section class="wsection">
+      <div class="label">À venir</div>
+
+      @for (webinar of upcoming(); track webinar.id) {
+        <article
+          class="web"
+          [class.is-draft]="webinar.status === 'draft'"
+          tabindex="0"
+          (click)="open(webinar)"
+          (keydown.enter)="open(webinar)"
+        >
+          <div class="wdate">
+            @if (webinar.date) {
+              <span class="m">{{ webinar.date.month }}</span>
+              <span class="d">{{ webinar.date.day }}</span>
+              <span class="w">{{ webinar.date.weekday }}</span>
+            } @else {
+              <span class="m">DATE</span>
+              <span class="d none">—</span>
+            }
+          </div>
+
+          <div class="wmain">
+            <h3>{{ webinar.title }}</h3>
+            <span class="by">{{ webinar.subtitle }}</span>
+            @if (webinar.flags.length) {
+              <div class="wflags">
+                @for (flag of webinar.flags; track flag.label) {
+                  <span class="status" [class]="flag.modifier">{{ flag.label }}</span>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="wstats">
+            <div class="wstat">
+              <span class="label">Horaire</span>
+              <span class="v" [class.none]="webinar.startTimeLabel === '—'">{{ webinar.startTimeLabel }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Durée</span>
+              <span class="v" [class.none]="webinar.durationLabel === '—'">{{ webinar.durationLabel }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Participants</span>
+              @if (webinar.status === 'draft') {
+                <span class="v none">—</span>
+              } @else {
+                <span class="v">{{ webinar.registrationCount }} inscrits</span>
+              }
+            </div>
+          </div>
+
+          <button class="btn" type="button" (click)="open(webinar); $event.stopPropagation()">
+            {{ webinar.status === 'draft' ? 'Reprendre' : 'Voir le détail' }}
+          </button>
+        </article>
+      }
+    </section>
+  }
+
+  <!-- ---------- passés ---------- -->
+  @if (past().length) {
+    <section class="wsection">
+      <div class="label">Passés</div>
+
+      @for (webinar of past(); track webinar.id) {
+        <article
+          class="web is-past"
+          tabindex="0"
+          (click)="open(webinar)"
+          (keydown.enter)="open(webinar)"
+        >
+          <div class="wdate">
+            <span class="m">{{ webinar.date!.month }}</span>
+            <span class="d">{{ webinar.date!.day }}</span>
+            <span class="w">{{ webinar.date!.weekday }}</span>
+          </div>
+
+          <div class="wmain">
+            <h3>{{ webinar.title }}</h3>
+            <span class="by">{{ webinar.subtitle }}</span>
+            @if (webinar.flags.length) {
+              <div class="wflags">
+                @for (flag of webinar.flags; track flag.label) {
+                  <span class="status" [class]="flag.modifier">{{ flag.label }}</span>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="wstats">
+            <div class="wstat">
+              <span class="label">Présents</span>
+              <span class="v">{{ webinar.attendeeCount }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Durée</span>
+              <span class="v">{{ webinar.durationLabel }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Participants</span>
+              <span class="v">{{ webinar.registrationCount }} inscrits</span>
+            </div>
+          </div>
+
+          <button class="btn" type="button" (click)="open(webinar); $event.stopPropagation()">
+            Voir le détail
+          </button>
+        </article>
+      }
+
+      @if (hiddenPastCount() > 0) {
+        <div class="wmore">
+          <button class="btn btn-sm" type="button" (click)="isPastExpanded.set(true)">
+            Voir {{ hiddenPastCount() > 1 ? 'les ' + hiddenPastCount() + ' webinaires passés restants' : 'le dernier webinaire passé' }}
+          </button>
+        </div>
+      }
+    </section>
+  }
+
+  @if (!upcoming().length && !past().length) {
+    <div class="empty">
+      <h2>Aucun webinaire</h2>
+      <p>Aucun webinaire ne correspond à ce filtre.</p>
+    </div>
+  }
+</div>
+
+<!-- ============ pop-up 12b — détail, et publication d'après-événement ============ -->
+@if (opened(); as webinar) {
+  <div class="modal-back" (click)="close()" (keydown.escape)="close()" tabindex="-1">
+    <div
+      class="modal webinar-detail"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="webinar.title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div class="wd-head-t">
+          <div class="wd-kicker">
+            <span class="label">Webinaire</span>
+            @for (flag of webinar.flags; track flag.label) {
+              <span class="status" [class]="flag.modifier">{{ flag.label }}</span>
+            }
+          </div>
+          <h2>{{ webinar.title }}</h2>
+          <p class="wd-sub">{{ webinar.schedule }}</p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="close()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <!-- Les onglets n'ont de sens qu'une fois l'événement passé : avant,
+           il n'y a ni compte rendu ni rediffusion à publier. -->
+      @if (webinar.status === 'past') {
+        <div class="wd-tabs" role="tablist" aria-label="Sections du webinaire">
+          <button
+            class="wd-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="tab() === 'detail'"
+            [class.is-on]="tab() === 'detail'"
+            (click)="setTab('detail')"
+          >
+            <app-icon name="chart" size="sm" />
+            Détail
+          </button>
+          <button
+            class="wd-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="tab() === 'promo'"
+            [class.is-on]="tab() === 'promo'"
+            (click)="setTab('promo')"
+            [disabled]="!webinar.promoVisuals.length"
+          >
+            <app-icon name="image" size="sm" />
+            Poster le visuel de promo
+            @if (webinar.promoVisuals.length) {
+              <span class="n">{{ webinar.promoVisuals.length }}</span>
+            }
+          </button>
+          <button
+            class="wd-tab"
+            type="button"
+            role="tab"
+            [attr.aria-selected]="tab() === 'replay'"
+            [class.is-on]="tab() === 'replay'"
+            (click)="setTab('replay')"
+            [disabled]="!webinar.replay"
+          >
+            <app-icon name="video" size="sm" />
+            Poster compte rendu &amp; rediffusion
+          </button>
+        </div>
+      }
+
+      <div class="modal-body">
+        <!-- ---------------- onglet : détail ---------------- -->
+        @if (tab() === 'detail' || webinar.status !== 'past') {
+          <div class="wd-stats">
+            <div class="wd-stat">
+              <span class="label">Date</span>
+              <span class="v">{{ webinar.date ? webinar.date.day + ' ' + webinar.date.month.toLowerCase() : '—' }}</span>
+              <span class="d">{{ webinar.status === 'past' ? 'terminé' : 'à venir' }}</span>
+            </div>
+            <div class="wd-stat">
+              <span class="label">Durée</span>
+              <span class="v">{{ webinar.durationLabel }}</span>
+              <span class="d">{{ webinar.questionCount ? webinar.questionCount + ' questions posées' : 'dont 20 min de Q&R' }}</span>
+            </div>
+            <div class="wd-stat">
+              <span class="label">Inscrits</span>
+              <span class="v">{{ webinar.registrationCount }}</span>
+              <span class="d">{{ webinar.status === 'past' ? 'au total' : 'objectif 80' }}</span>
+            </div>
+            <div class="wd-stat">
+              <span class="label">{{ webinar.status === 'past' ? 'Présents' : 'Présence est.' }}</span>
+              <span class="v">{{ webinar.attendeeCount ?? '55 %' }}</span>
+              <span class="d">{{ webinar.status === 'past' ? 'le jour J' : 'moyenne passée' }}</span>
+            </div>
+          </div>
+
+          <div class="wd-body">
+            <div>
+              @if (webinar.promoVisuals.length) {
+                <img
+                  class="wd-visual"
+                  [src]="webinar.promoVisuals[0].source"
+                  [alt]="webinar.promoVisuals[0].alt"
+                />
+              } @else {
+                <div class="wd-visual wd-visual-missing">visuel de promo à produire</div>
+              }
+
+              <div class="block">
+                <div class="label">Description</div>
+                <p class="wd-desc">{{ webinar.description }}</p>
+                <div class="chips">
+                  @for (topic of webinar.topics; track topic) {
+                    <span class="chip is-static">{{ topic }}</span>
+                  }
+                </div>
+              </div>
+
+              @if (sparkBars().length) {
+                <div class="block chart">
+                  <div class="label">Inscriptions · 30 derniers jours</div>
+                  <svg
+                    [attr.viewBox]="'0 0 ' + sparkWidth + ' 96'"
+                    preserveAspectRatio="none"
+                    role="img"
+                    aria-label="Inscriptions quotidiennes sur 30 jours, avec deux pics après les publications de promotion"
+                  >
+                    <line
+                      [attr.x1]="sparkPad" [attr.y1]="sparkGuideY"
+                      [attr.x2]="sparkWidth - sparkPad" [attr.y2]="sparkGuideY"
+                      stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"
+                    />
+                    @for (bar of sparkBars(); track $index) {
+                      <rect
+                        [attr.x]="bar.x" [attr.y]="bar.y"
+                        [attr.width]="bar.width" [attr.height]="bar.height"
+                        rx="1.5" [attr.fill]="bar.fill"
+                      />
+                    }
+                    <line
+                      [attr.x1]="sparkPad" [attr.y1]="sparkBaselineY"
+                      [attr.x2]="sparkWidth - sparkPad" [attr.y2]="sparkBaselineY"
+                      stroke="var(--border-2)" stroke-width="1"
+                    />
+                  </svg>
+                  <p class="cap">pics après chaque publication de promotion</p>
+                </div>
+              }
+            </div>
+
+            <div>
+              @if (webinar.recentRegistrants.length) {
+                <div class="block">
+                  <div class="block-head">
+                    <span class="label">Derniers inscrits</span>
+                    <button class="btn btn-sm btn-ghost" type="button">
+                      Voir les {{ webinar.registrationCount }}
+                    </button>
+                  </div>
+                  @for (person of webinar.recentRegistrants; track person.name) {
+                    <div class="person">
+                      <span class="av">{{ person.initials }}</span>
+                      <span class="who">
+                        <b>{{ person.name }}</b>
+                        <span>{{ person.source }} · {{ person.when }}</span>
+                      </span>
+                    </div>
+                  }
+                </div>
+                <hr class="divider" />
+              }
+
+              @if (webinar.speakers.length) {
+                <div class="block">
+                  <div class="label">Animation</div>
+                  @for (speaker of webinar.speakers; track speaker.name) {
+                    <div class="person">
+                      <span class="av">{{ speaker.initials }}</span>
+                      <span class="who"><b>{{ speaker.name }}</b></span>
+                      <span class="role">{{ speaker.role }}</span>
+                    </div>
+                  }
+                </div>
+                <hr class="divider" />
+              }
+
+              @if (webinar.reminders.length) {
+                <div class="block">
+                  <div class="label">Rappels &amp; promotion</div>
+                  @for (reminder of webinar.reminders; track reminder.label) {
+                    <div class="remind">
+                      <app-icon name="send" size="sm" />
+                      {{ reminder.label }}
+                      <span class="when">{{ reminder.when }}</span>
+                    </div>
+                  }
+                  <button class="btn btn-sm self-start" type="button">+ ajouter un rappel</button>
+                </div>
+                <hr class="divider" />
+              }
+
+              <div class="block">
+                <div class="label">{{ webinar.status === 'past' ? 'Lien de la page' : "Lien d'inscription" }}</div>
+                <div class="linkrow">
+                  <code class="mono">{{ webinar.registrationUrl }}</code>
+                  <button class="btn btn-sm" type="button">Copier</button>
+                </div>
+                @if (webinar.status !== 'past') {
+                  <p class="cap">La rediffusion sera publiée automatiquement 24 h après la fin.</p>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ---------------- onglet : visuel de promo ---------------- -->
+        @else if (tab() === 'promo') {
+          <div class="tabpane promo">
+            <div class="pane-visual">
+              @if (selectedVisual(); as visual) {
+                <div class="visual-frame" [style.aspect-ratio]="visual.ratio">
+                  <img [src]="visual.source" [alt]="visual.alt" />
+                </div>
+                <p class="visual-dims mono">{{ visual.label }} · {{ visual.dimensions }}</p>
+              }
+
+              <div class="format-row">
+                @for (visual of webinar.promoVisuals; track visual.source; let index = $index) {
+                  <button
+                    class="format"
+                    type="button"
+                    [class.is-on]="visualIndex() === index"
+                    (click)="selectVisual(index)"
+                  >
+                    <span class="format-thumb" [style.aspect-ratio]="visual.ratio">
+                      <img [src]="visual.source" alt="" loading="lazy" />
+                    </span>
+                    <span class="format-label">{{ visual.label }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="pane-side">
+              <div class="block">
+                <div class="label">Publier sur</div>
+                @for (network of connectedNetworks(); track network.code) {
+                  <button
+                    class="toggle-row"
+                    type="button"
+                    [class.is-on]="promoNetworks().has(network.code)"
+                    [attr.aria-pressed]="promoNetworks().has(network.code)"
+                    (click)="togglePromoNetwork(network.code)"
+                  >
+                    <app-network-logo [network]="network.code" size="lg" />
+                    <span class="who">
+                      <b>{{ network.label }}</b>
+                      <span>{{ network.accountName }}</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                  </button>
+                }
+                @if (visualTargets().length) {
+                  <p class="hint">
+                    Format conseillé pour
+                    {{ visualTargets()[0].label }}@if (visualTargets().length > 1) { et {{ visualTargets()[1].label }} }.
+                  </p>
+                }
+              </div>
+
+              <hr class="divider" />
+
+              <div class="block">
+                <div class="label">Légende</div>
+                <textarea class="textarea" rows="5">{{ webinar.title }} — rediffusion en ligne. {{ webinar.description }}</textarea>
+              </div>
+
+              <hr class="divider" />
+
+              <div class="block">
+                <button
+                  class="btn btn-primary btn-block"
+                  type="button"
+                  [disabled]="!promoNetworks().size"
+                  (click)="publish('promo')"
+                >
+                  <app-icon name="send" size="sm" />
+                  Publier le visuel
+                </button>
+                <button class="btn btn-block" type="button">
+                  <app-icon name="download" size="sm" />
+                  Télécharger ce format
+                </button>
+                @if (publishNotice(); as notice) {
+                  <p class="notice"><app-icon name="check" size="sm" />{{ notice }}</p>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ---------------- onglet : compte rendu & rediffusion ---------------- -->
+        @else if (tab() === 'replay' && webinar.replay) {
+          <div class="tabpane replay">
+            <div class="pane-visual">
+              <!-- Aperçu de la publication : le bouton de lecture figure ce
+                   que verra le public, il n'ouvre aucun lecteur ici. -->
+              <div class="player" role="img" [attr.aria-label]="webinar.replay.thumbnailAlt">
+                <img [src]="webinar.replay.thumbnail" [alt]="webinar.replay.thumbnailAlt" />
+                <span class="play" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" /></svg>
+                </span>
+                <span class="duration mono" aria-hidden="true">{{ webinar.replay.durationLabel }}</span>
+                <span class="scrub" aria-hidden="true"><span></span></span>
+              </div>
+
+              <p class="visual-dims mono">
+                Aperçu de la publication · {{ webinar.replay.viewCount }} vues ·
+                le bouton de lecture est figuratif
+              </p>
+
+              <div class="block">
+                <div class="label">Compte rendu</div>
+                <div class="summary">
+                  @for (paragraph of webinar.replay.summary; track paragraph) {
+                    <p>{{ paragraph }}</p>
+                  }
+                </div>
+              </div>
+
+              <div class="block">
+                <div class="label">Ce qu'on y a vu</div>
+                <ul class="highlights">
+                  @for (highlight of webinar.replay.highlights; track highlight) {
+                    <li>{{ highlight }}</li>
+                  }
+                </ul>
+              </div>
+
+              <div class="tags">
+                @for (hashtag of webinar.replay.hashtags; track hashtag) {
+                  <span class="tag">{{ hashtag }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="pane-side">
+              <div class="block">
+                <div class="label">Publier sur</div>
+                @for (network of connectedNetworks(); track network.code) {
+                  <button
+                    class="toggle-row"
+                    type="button"
+                    [class.is-on]="replayNetworks().has(network.code)"
+                    [attr.aria-pressed]="replayNetworks().has(network.code)"
+                    (click)="toggleReplayNetwork(network.code)"
+                  >
+                    <app-network-logo [network]="network.code" size="lg" />
+                    <span class="who">
+                      <b>{{ network.label }}</b>
+                      <span>{{ network.accountName }}</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                  </button>
+                }
+              </div>
+
+              <hr class="divider" />
+
+              <div class="block">
+                <div class="label">Lien de la rediffusion</div>
+                <div class="linkrow">
+                  <code class="mono">{{ webinar.replay.url }}</code>
+                  <button class="btn btn-sm" type="button">Copier</button>
+                </div>
+                <p class="hint">Accessible sans inscription, les deux audits en direct compris.</p>
+              </div>
+
+              <hr class="divider" />
+
+              <div class="block">
+                <div class="label">Audience</div>
+                <div class="stats">
+                  <div class="stat">
+                    <span class="label">Présents</span>
+                    <span class="v">{{ webinar.attendeeCount }}</span>
+                  </div>
+                  <div class="stat">
+                    <span class="label">Vues du replay</span>
+                    <span class="v">{{ webinar.replay.viewCount }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="divider" />
+
+              <div class="block">
+                <button
+                  class="btn btn-primary btn-block"
+                  type="button"
+                  [disabled]="!replayNetworks().size"
+                  (click)="publish('replay')"
+                >
+                  <app-icon name="send" size="sm" />
+                  Publier le compte rendu
+                </button>
+                <button class="btn btn-block" type="button">Enregistrer en brouillon</button>
+                @if (publishNotice(); as notice) {
+                  <p class="notice"><app-icon name="check" size="sm" />{{ notice }}</p>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,250 @@
+<app-topbar [trail]="['Interagir', 'Messages unifiés']">
+  <button class="btn" type="button">
+    <app-icon name="check" size="sm" />
+    Marquer comme traité
+  </button>
+  <button class="btn" type="button">
+    <app-icon name="users" size="sm" />
+    Assigner
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Messagerie unifiée</h1>
+      <p class="sub">
+        Messages privés, commentaires et mentions des quatre réseaux dans une seule file.
+        L'agent prépare les réponses, un humain les envoie.
+      </p>
+    </div>
+  </div>
+
+  <div class="inbox">
+    <!-- ---------- filtres ---------- -->
+    <aside class="ifilters" aria-label="Filtres">
+      <div class="ifgroup">
+        <div class="label">Canal</div>
+        <button
+          class="ifrow"
+          type="button"
+          [class.is-on]="store.channelFilter() === null"
+          (click)="store.setChannelFilter(null)"
+        >
+          <span class="who">Tous</span>
+          <span class="n">{{ store.everything().length }}</span>
+        </button>
+
+        @for (channel of channels; track channel) {
+          <button
+            class="ifrow"
+            type="button"
+            [class.is-on]="store.channelFilter() === channel"
+            (click)="store.setChannelFilter(channel)"
+          >
+            <span class="who">{{ channelLabels[channel] }}</span>
+            <span class="n">{{ countFor(channel) }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="ifgroup">
+        <div class="label">Plateforme</div>
+        @for (network of networks; track network.code) {
+          <button
+            class="ifrow"
+            type="button"
+            [class.is-on]="store.networkFilter() === network.code"
+            (click)="store.setNetworkFilter(network.code)"
+          >
+            <span class="who">
+              <app-network-logo [network]="network.code" />
+              {{ network.label }}
+            </span>
+            <span class="n">{{ countForNetwork(network.code) }}</span>
+          </button>
+        }
+      </div>
+
+      @if (store.lateCount()) {
+        <div class="late">
+          <app-icon name="warn" size="sm" />
+          {{ store.lateCount() }} hors délai · &gt; 24 h
+        </div>
+      }
+    </aside>
+
+    <!-- ---------- file des conversations ---------- -->
+    <section class="panel conv-list" aria-label="Conversations">
+      <div class="panel-head">
+        <h2>Conversations</h2>
+        <span class="sort">non traitées d'abord</span>
+      </div>
+
+      <div class="panel-body">
+        @for (conversation of store.visible(); track conversation.id) {
+          <button
+            class="conv"
+            type="button"
+            [class.is-on]="store.selected()?.id === conversation.id"
+            (click)="store.select(conversation)"
+          >
+            <span class="av">{{ conversation.initials }}</span>
+            <span class="conv-main">
+              <span class="conv-top">
+                <b>{{ conversation.authorName }}</b>
+                <span class="t">{{ conversation.age }}</span>
+              </span>
+              <span class="conv-x">{{ excerpt(conversation) }}</span>
+              <span class="conv-meta">
+                <span class="conv-src">
+                  <app-network-logo [network]="conversation.network" />
+                  {{ channelShort[conversation.channel] }}
+                </span>
+                <span class="flag" [class]="'flag-' + conversation.flag.tone">
+                  {{ conversation.flag.label }}
+                </span>
+              </span>
+            </span>
+          </button>
+        } @empty {
+          <p class="conv-empty">Aucune conversation pour ces filtres.</p>
+        }
+
+        @if (store.hiddenCount() > 0) {
+          <div class="conv-more">
+            <button class="btn btn-sm" type="button" (click)="store.expandList()">
+              Voir les {{ store.hiddenCount() }} conversations restantes
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- ---------- fil ouvert ---------- -->
+    @if (store.selected(); as conversation) {
+      <section class="panel thread" aria-label="Conversation">
+        <div class="th-head">
+          <span class="av">{{ conversation.initials }}</span>
+          <span class="who">
+            <b>{{ conversation.authorName }}</b>
+            <span>{{ conversation.origin }}</span>
+          </span>
+          <span class="flag" [class]="'flag-' + conversation.flag.tone">
+            {{ conversation.flag.label }}
+          </span>
+          <button class="btn btn-icon btn-ghost" type="button" aria-label="Plus d'actions">
+            <app-icon name="dots" size="sm" />
+          </button>
+        </div>
+
+        <div class="th-body">
+          @for (message of conversation.messages; track message.at) {
+            <div class="bubble">
+              <div class="txt">{{ message.text }}</div>
+              <div class="when">{{ message.at }}</div>
+            </div>
+          }
+
+          @if (conversation.isReplyWindowClosed) {
+            <!-- Meta ferme la fenêtre 24 h après le dernier message reçu. -->
+            <div class="expired">
+              <app-icon name="warn" size="sm" />
+              <span>
+                <b>Délai de réponse dépassé</b>
+                {{ conversation.network === 'instagram' ? 'Instagram' : 'Facebook' }} n'autorise une
+                réponse depuis une application tierce que dans les 24 h qui suivent le dernier
+                message reçu. Répondez directement depuis la plateforme.
+              </span>
+            </div>
+          } @else if (conversation.draft; as draft) {
+            <div class="ai">
+              <div class="ai-head">
+                <span class="ai-mark"><app-icon name="sparkle" size="sm" /></span>
+                <b>Réponse proposée par l'agent</b>
+              </div>
+
+              <div class="ai-text">
+                @for (paragraph of draft.paragraphs; track paragraph) {
+                  <p>{{ paragraph }}</p>
+                }
+              </div>
+
+              <div class="ai-acts">
+                <button class="btn btn-primary" type="button">
+                  <app-icon name="send" size="sm" />
+                  Approuver et envoyer
+                </button>
+                <button class="btn" type="button">Modifier</button>
+                <button class="btn" type="button">Rejeter</button>
+                <span class="ai-warn">rien n'est envoyé sans cette action</span>
+              </div>
+
+              <div class="chips">
+                @for (action of draft.quickActions; track action) {
+                  <button class="chip" type="button">{{ action }}</button>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="no-draft">
+              Aucune réponse préparée pour cette conversation — répondez à la main ci-dessous.
+            </p>
+          }
+        </div>
+
+        <div class="th-foot">
+          @if (conversation.isReplyWindowClosed) {
+            <div class="th-send">
+              <input
+                class="input"
+                type="text"
+                placeholder="Envoi impossible depuis IAGORA — délai de 24 h dépassé"
+                aria-label="Réponse manuelle"
+                disabled
+              />
+              <a
+                class="btn btn-primary"
+                [href]="conversation.platformInboxUrl"
+                target="_blank"
+                rel="noopener"
+              >
+                Répondre sur la plateforme
+                <app-icon name="external" size="sm" />
+              </a>
+            </div>
+            <p class="th-note">
+              La réponse envoyée depuis la plateforme sera reportée dans l'historique de la
+              conversation.
+            </p>
+          } @else {
+            <div class="th-send">
+              <input
+                class="input"
+                type="text"
+                placeholder="Écrire une réponse manuelle…"
+                aria-label="Réponse manuelle"
+                [ngModel]="manualReply()"
+                (ngModelChange)="manualReply.set($event)"
+              />
+              <button class="btn" type="button">Réponses types</button>
+              <button class="btn btn-primary" type="button" [disabled]="!manualReply().trim()">
+                Envoyer
+              </button>
+            </div>
+            <p class="th-note">
+              Réponse envoyée depuis la page Datum Academy · signée « équipe communication »
+            </p>
+          }
+        </div>
+      </section>
+    } @else {
+      <section class="panel thread">
+        <div class="empty">
+          <h2>Rien à afficher</h2>
+          <p>Aucune conversation ne correspond à ces filtres.</p>
+        </div>
+      </section>
+    }
+  </div>
+</div>

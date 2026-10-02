@@ -1,0 +1,12 @@
+/* ============================================================
+   IAGORA — feuille de style globale
+   Charte Datum Academy · typographie du prototype validé
+
+   Les .woff2 sont auto-hébergés dans `public/fonts/` ; leurs
+   déclarations `@font-face` vivent dans `styles/_fonts.scss`.
+   ============================================================ */
+
+@use 'styles/fonts';
+@use 'styles/tokens';
+@use 'styles/base';
+@use 'styles/components';

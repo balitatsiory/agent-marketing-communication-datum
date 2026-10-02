@@ -1,0 +1,233 @@
+<app-topbar [trail]="['Administrer', 'Utilisateurs']">
+  <button class="btn btn-primary" type="button">
+    <app-icon name="plus" size="sm" />
+    Inviter une personne
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Habilitations et utilisateurs</h1>
+      <p class="sub">
+        Sélectionnez une personne pour voir comment elle se connecte et ce qu'elle peut faire.
+      </p>
+    </div>
+  </div>
+
+  <div class="admin">
+    <!-- ---------- liste des comptes ---------- -->
+    <section class="panel people" aria-label="Comptes">
+      <div class="people-head">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Nom ou e-mail"
+            aria-label="Rechercher un compte"
+            [value]="searchTerm()"
+            (input)="searchTerm.set($any($event.target).value)"
+          />
+        </div>
+
+        <div class="chips">
+          @for (option of filters; track option) {
+            <button class="chip" type="button" [class.is-on]="filter() === option" (click)="filter.set(option)">
+              {{ filterLabels[option] }}
+              <span class="n">{{ counts()[option] }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="people-body">
+        @for (user of results(); track user.id) {
+          <button
+            class="person"
+            type="button"
+            [class.is-on]="selected()?.id === user.id"
+            [class.is-off]="user.status !== 'active'"
+            (click)="select(user)"
+          >
+            <span class="av" [class.av-dashed]="user.status === 'invited'">
+              {{ user.status === 'invited' ? '' : user.initials }}
+            </span>
+            <span class="person-main">
+              <b>{{ user.fullName }}</b>
+              <span class="person-sub">
+                @if (user.status === 'active') {
+                  {{ summaryOf(user) }} · {{ statusLabels[user.status] }}
+                } @else {
+                  {{ statusLabels[user.status] }}
+                }
+              </span>
+            </span>
+          </button>
+        } @empty {
+          <p class="people-empty">Aucun compte pour ces filtres.</p>
+        }
+      </div>
+
+      <div class="people-foot">{{ counts().all }} comptes</div>
+    </section>
+
+    <!-- ---------- détail du compte ---------- -->
+    @if (selected(); as user) {
+      <section class="panel detail" aria-label="Détail du compte">
+        <header class="detail-head">
+          <span class="av av-lg">{{ user.initials }}</span>
+          <span class="detail-who">
+            <b>{{ user.fullName }}</b>
+            <span>{{ user.email }} · membre depuis {{ user.memberSinceLabel }}</span>
+          </span>
+
+          <div class="detail-acts">
+            <button
+              class="btn"
+              type="button"
+              [disabled]="!canResetPassword()"
+              [attr.title]="resetPasswordHint()"
+              (click)="resetPassword()"
+            >
+              <app-icon name="send" size="sm" />
+              Réinitialiser le mot de passe
+            </button>
+          </div>
+        </header>
+
+        <div class="detail-body">
+          <!-- authentification -->
+          <div class="block">
+            <div class="label">Authentification</div>
+            <div class="auth">
+              <div class="auth-cell">
+                <span class="label">Méthode</span>
+                <span class="v">{{ authMethodLabels[user.authMethod] }}</span>
+              </div>
+              <div class="auth-cell">
+                <span class="label">Double facteur</span>
+                <span class="v" [class.v-warn]="!user.hasTwoFactor">
+                  {{ user.hasTwoFactor ? 'Activé' : 'Non activé' }}
+                </span>
+              </div>
+              <div class="auth-cell">
+                <span class="label">Dernière connexion</span>
+                <span class="v">{{ user.lastSignInLabel ?? 'jamais connectée' }}</span>
+              </div>
+            </div>
+            @if (!canResetPassword()) {
+              <p class="hint">{{ resetPasswordHint() }}</p>
+            }
+          </div>
+
+          <!-- droits -->
+          <div class="block">
+            <div class="block-head">
+              <span class="label">Droits accordés</span>
+              <span class="cap">
+                @if (hasPendingChanges()) {
+                  {{ pendingCount() }} modification{{ pendingCount() > 1 ? 's' : '' }} non enregistrée{{ pendingCount() > 1 ? 's' : '' }}
+                } @else {
+                  {{ user.permissions.length }} sur {{ permissionOrder.length }}
+                }
+              </span>
+            </div>
+
+            <!-- Pas de colonne « hérité » : le cahier des charges ne prévoit
+                 aucun rôle, donc rien à hériter. Voir le commentaire du
+                 composant. -->
+            <table class="rights">
+              <thead>
+                <tr>
+                  <th>Droit</th>
+                  <th class="rights-ref">Exigence</th>
+                  <th class="rights-toggle">Accordé</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (code of permissionOrder; track code) {
+                  <tr [class.is-pending]="isPending(code)">
+                    <td>
+                      <span class="right-name">
+                        {{ permissionLabels[code] }}
+                        @if (isPending(code)) {
+                          <span class="pending-tag">modifié</span>
+                        }
+                      </span>
+                      <span class="right-desc">{{ permissionDescriptions[code].summary }}</span>
+                    </td>
+                    <td class="rights-ref mono">{{ permissionDescriptions[code].reference }}</td>
+                    <td class="rights-toggle">
+                      <button
+                        class="switch"
+                        type="button"
+                        role="switch"
+                        [class.is-on]="isGranted(code)"
+                        [attr.aria-checked]="isGranted(code)"
+                        [attr.aria-label]="permissionLabels[code]"
+                        (click)="togglePermission(code)"
+                      ></button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <footer class="detail-foot">
+          <span class="foot-note">Chaque modification de droit est journalisée avec son auteur.</span>
+          @if (hasPendingChanges()) {
+            <button class="btn" type="button" (click)="revert()">Annuler les modifications</button>
+          }
+          <button class="btn" type="button">
+            {{ user.status === 'disabled' ? 'Réactiver le compte' : 'Désactiver le compte' }}
+          </button>
+          <button class="btn btn-primary" type="button" [disabled]="!hasPendingChanges()" (click)="save()">
+            Enregistrer
+          </button>
+        </footer>
+
+        @if (notice(); as message) {
+          <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+        }
+      </section>
+
+      <!-- ---------- journal des modifications ---------- -->
+      <aside class="panel history" aria-label="Historique des modifications">
+        <div class="panel-head">
+          <h2>Historique</h2>
+          <span class="cap">{{ selectedChanges().length }} entrées</span>
+        </div>
+
+        <div class="panel-body">
+          @for (change of selectedChanges(); track change.id) {
+            <article class="change" [class]="'kind-' + change.kind">
+              <div class="change-top">
+                <span class="kind">{{ changeKindLabels[change.kind] }}</span>
+                <span class="when mono">{{ change.atLabel }}</span>
+              </div>
+              <p class="change-summary">{{ change.summary }}</p>
+              @if (change.detail; as detail) {
+                <p class="change-detail">{{ detail }}</p>
+              }
+              <div class="change-author">
+                <span class="av av-sm">{{ change.authorInitials }}</span>
+                {{ change.authorName }}
+              </div>
+            </article>
+          } @empty {
+            <p class="history-empty">Aucune modification enregistrée pour ce compte.</p>
+          }
+        </div>
+      </aside>
+    } @else {
+      <section class="panel detail">
+        <div class="empty">
+          <h2>Aucun compte</h2>
+          <p>Aucun compte ne correspond à ces filtres.</p>
+        </div>
+      </section>
+    }
+  </div>
+</div>

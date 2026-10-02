@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350" role="img" aria-label="Flyer de promotion du webinaire SEO technique, format 4:5">
+  <title>Webinaire — Les bases du SEO technique · 1080 × 1350</title>
+
+  <rect width="1080" height="1350" fill="#073c4e"/>
+  <circle cx="880" cy="250" r="320" fill="#167fa4" opacity=".18"/>
+  <circle cx="140" cy="1120" r="230" fill="#ffffff" opacity=".04"/>
+  <rect x="0" y="0" width="1080" height="12" fill="#167fa4"/>
+
+  <g transform="translate(90 96) scale(0.62)" fill="#ffffff">
+    <rect width="42" height="10"/><rect x="76" width="42" height="10"/>
+    <rect y="20" width="118" height="10"/><rect y="40" width="118" height="10"/>
+    <rect y="60" width="118" height="10"/>
+    <rect y="80" width="42" height="10"/><rect x="76" y="80" width="42" height="10"/>
+    <rect y="100" width="42" height="10"/><rect x="76" y="100" width="42" height="10"/>
+  </g>
+  <text x="182" y="149" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700"
+        letter-spacing="6" fill="#ffffff" opacity=".9">DATUM ACADEMY</text>
+
+  <text x="90" y="300" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700"
+        letter-spacing="9" fill="#7fc3dc">WEBINAIRE · GRATUIT</text>
+
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" fill="#ffffff" letter-spacing="-1.5">
+    <tspan x="90" y="440" font-size="98">LES BASES</tspan>
+    <tspan x="90" y="542" font-size="98">DU SEO</tspan>
+    <tspan x="90" y="644" font-size="98" fill="#7fc3dc">TECHNIQUE</tspan>
+  </text>
+
+  <rect x="90" y="710" width="150" height="8" fill="#167fa4"/>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="33" fill="#ffffff">
+    <rect x="90" y="800" width="19" height="19" fill="#167fa4"/>
+    <text x="132" y="819">Comprendre l'indexation</text>
+    <rect x="90" y="878" width="19" height="19" fill="#167fa4"/>
+    <text x="132" y="897">Construire un maillage interne</text>
+    <rect x="90" y="956" width="19" height="19" fill="#167fa4"/>
+    <text x="132" y="975">Tenir ses Core Web Vitals</text>
+  </g>
+
+  <text x="90" y="1072" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#8fb9c8">
+    Animé par Yann Ravelo
+  </text>
+
+  <rect x="0" y="1150" width="1080" height="200" fill="#167fa4"/>
+  <text x="90" y="1238" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="700"
+        fill="#ffffff" letter-spacing="1">15 SEPTEMBRE · 20 H</text>
+  <text x="90" y="1294" font-family="Arial, Helvetica, sans-serif" font-size="29"
+        fill="#ffffff" opacity=".85">Inscription sur datumacademy.com</text>
+</svg>
