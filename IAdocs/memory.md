@@ -68,6 +68,7 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 25/09 | Bases **`stage_iagora`** et **`stage_iagora_test`** | noms choisis par l'utilisateur ; tirets bas, donc pas de guillemets en SQL |
 | 25/09 | L'API **refuse de démarrer** si une clé est restée à sa valeur d'exemple | une clé Fernet invalide ne se verrait qu'au premier chiffrement, des semaines plus tard |
 | 25/09 | La racine `/` **redirige vers `/docs`** | un 404 sur `http://localhost:8000` laissait croire que l'API n'avait pas démarré |
+| 08/10 | Tables d'historique : nom préfixé **`history_`** (par exemple `history_publications`) | choix de l'utilisateur ; remplace `publication_history` et `publication_target_history` cités dans `architecture.md` |
 
 ## 5. Faits vérifiés
 

@@ -96,6 +96,20 @@ export interface Webinar {
   /** Déclinaisons du visuel de promotion. */
   readonly promoVisuals: readonly WebinarVisual[];
   readonly replay: WebinarReplay | null;
+
+  /* ---- champs ajoutés par la création d'un webinaire (décisions du 11/11/2026) ----
+     Facultatifs : les webinaires de démonstration ne les portent pas. */
+
+  /** Début en UTC (ISO 8601). Vide tant que le brouillon n'a pas de date. */
+  readonly startsAtUtc?: string | null;
+  /** Durée en minutes. Vide quand elle est inconnue (colonne NULL). */
+  readonly durationMinutes?: number | null;
+  /** Catégories thématiques (`meeting_theme_categories`). */
+  readonly categories?: readonly string[];
+  /** Lien de visioconférence : créé sur Zoom ou fourni à la main. */
+  readonly meetingLink?: { readonly mode: MeetingLinkMode; readonly url: string | null };
+  /** Publications associées (`meeting_publications`). */
+  readonly linkedPublications?: readonly WebinarPublicationLink[];
 }
 
 /** Filtres de la barre de pastilles, en haut de l'écran. */
@@ -107,3 +121,51 @@ export const WEBINAR_FILTER_LABELS: Readonly<Record<WebinarFilter, string>> = {
   draft: 'Brouillon',
   past: 'Passés',
 };
+
+/* ---------- création d'un webinaire (décisions du 11/11/2026) ---------- */
+
+/** Rôle d'une publication par rapport à un événement — `meeting_publication_types`. */
+export type MeetingPublicationType = 'promotion' | 'summary' | 'replay' | 'other';
+
+export const MEETING_PUBLICATION_TYPE_LABELS: Readonly<Record<MeetingPublicationType, string>> = {
+  promotion: 'Promotion du webinaire',
+  summary: 'Compte rendu',
+  replay: 'Rediffusion',
+  other: 'Autre',
+};
+
+/**
+ * Types de publication proposés selon le statut de l'événement lié.
+ *
+ * Avant la séance : promotion ou autre ; compte rendu et rediffusion
+ * n'existent qu'après. « Autre » reste possible dans les deux cas.
+ */
+export function publicationTypesFor(status: WebinarStatus): readonly MeetingPublicationType[] {
+  return status === 'past' ? ['summary', 'replay', 'other'] : ['promotion', 'other'];
+}
+
+/** Une ligne de `meeting_publications` : un couple (événement, publication) et son type. */
+export interface WebinarPublicationLink {
+  readonly publicationId: number;
+  readonly type: MeetingPublicationType;
+}
+
+/** Comment le lien de visioconférence est obtenu. */
+export type MeetingLinkMode = 'zoom_auto' | 'manual';
+
+/** Valeurs de départ de `meeting_theme_categories` — la catégorie « All » est exclue. */
+export const WEBINAR_CATEGORIES: readonly string[] = ['AI and BIG DATA', 'Programs Presentation'];
+
+/** Durées proposées en un clic ; la saisie libre reste possible. */
+export const DURATION_PRESETS: readonly number[] = [30, 45, 60, 90];
+
+/**
+ * Délais de rappel — paramètre global (`newsletter_reminder_schedules`).
+ *
+ * Exprimés en minutes avant le début : 1440 = exactement 24 h, pas « la
+ * veille à telle heure ». Ils ne se saisissent pas webinaire par webinaire.
+ */
+export const REMINDER_RULES: readonly { readonly minutesBefore: number; readonly label: string }[] = [
+  { minutesBefore: 1440, label: '24 h avant' },
+  { minutesBefore: 60, label: '1 h avant' },
+];

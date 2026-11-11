@@ -3,13 +3,17 @@
     <app-icon name="download" size="sm" />
     Exporter les inscrits
   </button>
-  <button class="btn btn-primary" type="button">
+  <button class="btn btn-primary" type="button" (click)="newWebinar()">
     <app-icon name="plus" size="sm" />
     Nouveau webinaire
   </button>
 </app-topbar>
 
 <div class="page">
+  @if (notice(); as message) {
+    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+
   <div class="page-head">
     <div>
       <h1>Webinaires</h1>

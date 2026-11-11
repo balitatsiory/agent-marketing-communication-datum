@@ -163,9 +163,29 @@
             <div class="block-head">
               <span class="label">Aperçu</span>
               <span class="cap">variables non substituées</span>
+              <button
+                class="btn btn-sm"
+                type="button"
+                (click)="openPreviewModal()"
+                aria-label="Agrandir l'aperçu du modèle"
+              >
+                <app-icon name="external" size="sm" />
+                Agrandir
+              </button>
             </div>
-            <div class="preview">
+            <div
+              class="preview preview-clickable"
+              tabindex="0"
+              role="button"
+              aria-label="Cliquer pour agrandir l'aperçu du courriel"
+              (click)="openPreviewModal()"
+              (keydown.enter)="openPreviewModal()"
+            >
               <app-email-preview [content]="template.content" [showVariables]="true" />
+              <span class="zoom-pill" aria-hidden="true">
+                <app-icon name="external" size="sm" />
+                Voir en grand
+              </span>
             </div>
           </div>
         </div>
@@ -173,3 +193,57 @@
     }
   </div>
 </div>
+
+<!-- ============================================================
+     Pop-up d'aperçu agrandi du modèle de courriel
+     ============================================================ -->
+@if (isPreviewModalOpen() && selected(); as template) {
+  <div class="modal-back viewer-back" (click)="closePreviewModal()" tabindex="-1">
+    <div
+      class="modal preview-modal"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="'Aperçu agrandi : ' + template.name"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div class="pm-head-t">
+          <div class="pm-kicker">
+            <span class="label">{{ categoryLabels[template.category] }}</span>
+            @if (shownVersion(); as version) {
+              <span class="ver mono">{{ version.label }}</span>
+            }
+            <span
+              class="status"
+              [class]="template.status === 'published' ? 'status-published' : 'status-draft'"
+            >
+              {{ template.status === 'published' ? 'Publié' : 'Brouillon' }}
+            </span>
+          </div>
+          <h2>{{ template.name }}</h2>
+        </div>
+        <button
+          class="btn btn-icon btn-ghost"
+          type="button"
+          (click)="closePreviewModal()"
+          aria-label="Fermer l'aperçu agrandi"
+        >
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body pm-body">
+        <app-email-preview
+          [content]="template.content"
+          [showVariables]="true"
+          [expanded]="true"
+        />
+      </div>
+
+      <div class="modal-foot">
+        <span class="cap pm-foot-note">Aperçu avec variables non substituées · Échap pour fermer</span>
+        <button class="btn" type="button" (click)="closePreviewModal()">Fermer</button>
+      </div>
+    </div>
+  </div>
+}

@@ -30,6 +30,8 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/overview/overview').then((m) => m.Overview),
       },
+
+
       {
         path: 'publications',
         title: 'Publications · IAGORA',
@@ -38,6 +40,8 @@ export const routes: Routes = [
             (m) => m.PublicationList,
           ),
       },
+
+
       {
         path: 'publications/nouvelle',
         title: 'Créer une publication · IAGORA',
@@ -46,6 +50,8 @@ export const routes: Routes = [
             (m) => m.PublicationComposer,
           ),
       },
+
+
       {
         path: 'publications/generer',
         title: 'Générer une publication · IAGORA',
@@ -54,6 +60,28 @@ export const routes: Routes = [
             (m) => m.PublicationGenerator,
           ),
       },
+
+
+      {
+        path: 'publications/generer_v2',
+        title: 'Générer une publication (v2) · IAGORA',
+        loadComponent: () =>
+          import('./features/generation/publication-generator-v2/publication-generator-v2').then(
+            (m) => m.PublicationGeneratorV2,
+          ),
+      },
+
+
+      {
+        path: 'medias-de-reference',
+        title: 'Médias de référence · IAGORA',
+        loadComponent: () =>
+          import('./features/media-references/media-reference-list/media-reference-list').then(
+            (m) => m.MediaReferenceList,
+          ),
+      },
+
+
       {
         path: 'calendrier',
         title: 'Calendrier éditorial · IAGORA',
@@ -63,6 +91,8 @@ export const routes: Routes = [
           ),
       },
 
+
+
       {
         path: 'messages',
         title: 'Messages unifiés · IAGORA',
@@ -70,24 +100,48 @@ export const routes: Routes = [
           import('./features/messages/unified-inbox/unified-inbox').then((m) => m.UnifiedInbox),
       },
 
+
+
+      {
+        path: 'webinaires/nouveau',
+        title: 'Nouveau webinaire · IAGORA',
+        loadComponent: () =>
+          import('./features/webinars/webinar-form/webinar-form').then((m) => m.WebinarForm),
+      },
+
+
+      {
+        path: 'webinaires/:id/modifier',
+        title: 'Reprendre un brouillon · IAGORA',
+        loadComponent: () =>
+          import('./features/webinars/webinar-form/webinar-form').then((m) => m.WebinarForm),
+      },
+
+
       {
         path: 'webinaires',
         title: 'Webinaires · IAGORA',
         loadComponent: () =>
           import('./features/webinars/webinar-list/webinar-list').then((m) => m.WebinarList),
       },
+
+
       {
         path: 'newsletter/envois',
         title: "Boîte d'envois · IAGORA",
         loadComponent: () =>
           import('./features/newsletter/send-log/send-log').then((m) => m.SendLog),
       },
+
+
       {
         path: 'newsletter/modeles',
         title: 'Modèles de mail · IAGORA',
         loadComponent: () =>
           import('./features/newsletter/mail-templates/mail-templates').then((m) => m.MailTemplates),
       },
+
+
       { path: 'newsletter', pathMatch: 'full', redirectTo: 'newsletter/envois' },
 
       {
@@ -96,6 +150,8 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/networks/network-list/network-list').then((m) => m.NetworkList),
       },
+
+
 
       /* ---------- écrans prévus, pages à construire ---------- */
       {
@@ -107,9 +163,13 @@ export const routes: Routes = [
           icon: 'history',
           mockup: '7b',
         },
+
+
         loadComponent: () =>
           import('./features/placeholder/pending-screen').then((m) => m.PendingScreen),
       },
+
+
       {
         path: 'notifications',
         title: 'Notifications · IAGORA',
@@ -119,15 +179,36 @@ export const routes: Routes = [
           icon: 'bell',
           mockup: '11a',
         },
+
+
         loadComponent: () =>
           import('./features/placeholder/pending-screen').then((m) => m.PendingScreen),
       },
+
+
+      {
+        path: 'modeles-ia',
+        title: 'Modèles IA · IAGORA',
+        loadComponent: () =>
+          import('./features/admin/ai-models/ai-models').then((m) => m.AiModels),
+      },
+
+
+      {
+        path: 'parametres/modeles-ia',
+        pathMatch: 'full',
+        redirectTo: 'modeles-ia',
+      },
+
+
       {
         path: 'utilisateurs',
         title: 'Habilitations et utilisateurs · IAGORA',
         loadComponent: () =>
           import('./features/admin/user-list/user-list').then((m) => m.UserList),
       },
+
+
       {
         path: 'parametres',
         title: 'Paramètres · IAGORA',
@@ -137,9 +218,13 @@ export const routes: Routes = [
           icon: 'gear',
           mockup: 'non maquettée',
         },
+
+
         loadComponent: () =>
           import('./features/placeholder/pending-screen').then((m) => m.PendingScreen),
       },
+
+
 
       { path: '', pathMatch: 'full', redirectTo: 'tableau-de-bord' },
     ],

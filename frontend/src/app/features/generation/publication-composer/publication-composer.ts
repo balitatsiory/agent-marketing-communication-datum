@@ -8,8 +8,21 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import {
+  CAPTION_LIMITS,
+  FORMAT_BOUNDS,
+  MediaKind,
+  acceptsFormat,
+} from '../../../core/data/platform-formats.data';
 import { SOCIAL_NETWORKS } from '../../../core/data/social-networks.data';
 import { PUBLICATION_FORMAT_LABELS, PublicationFormat } from '../../../core/models/publication';
+import {
+  MEETING_PUBLICATION_TYPE_LABELS,
+  MeetingPublicationType,
+  Webinar,
+  publicationTypesFor,
+} from '../../../core/models/webinar';
+import { WebinarStore } from '../../../core/services/webinar-store';
 import { SocialNetworkCode } from '../../../core/models/social-network';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
@@ -22,28 +35,18 @@ type Timing = 'now' | 'scheduled';
 interface MediaItem {
   readonly id: number;
   readonly name: string;
-  readonly kind: 'image' | 'video';
+  readonly kind: MediaKind;
   /** URL d'objet, créée à l'import et révoquée au retrait. */
   readonly url: SafeUrl;
   /** Même URL sous forme de chaîne, pour la révoquer. */
   readonly rawUrl: string;
   readonly sizeLabel: string;
+  /** Taille brute, qui sert à repérer un doublon. */
+  readonly sizeBytes: number;
   /** Durée formatée, pour une vidéo seulement. */
   readonly durationLabel: string | null;
   readonly durationSeconds: number | null;
 }
-
-/** Contrainte de chaque format, affichée sous son nom. */
-const FORMAT_HINTS: Readonly<Record<PublicationFormat, string>> = {
-  reel: '9:16 vidéo',
-  carousel: '2 à 10 médias',
-  image: '1:1 · 4:5',
-  story: '24 h',
-  video: 'Facebook et YouTube',
-};
-
-/** Longueur maximale d'une légende Instagram — la plus contraignante. */
-const CAPTION_LIMIT = 2200;
 
 /** Décalage d'Antananarivo par rapport à GMT, en heures. */
 const LOCAL_UTC_OFFSET = 3;
@@ -51,14 +54,23 @@ const LOCAL_UTC_OFFSET = 3;
 /**
  * Créer une publication — maquette 3a.
  *
- * Les cinq étapes suivent l'ordre de décision réel : on choisit d'abord
- * le média, puis le format — parce que c'est le média qui dit quels
- * formats sont possibles. Importer une vidéo ferme le carrousel ; une
- * seule image ferme le reel.
+ * L'ordre des quatre étapes est une décision de conception, pas une
+ * préférence d'écran : format → réseaux → médias → légendes.
  *
- * L'import est réel : les fichiers sont lus par le navigateur, l'aperçu
- * montre le média, et la durée d'une vidéo est relevée sur le fichier.
- * Rien ne quitte le poste — il n'y a pas encore de backend.
+ * Le format vient en premier parce qu'il ne se devine pas. Un Reel et
+ * une vidéo de fil portent le même fichier ; une story et un post aussi.
+ * Seule l'intention de l'utilisateur les distingue, et aucune détection
+ * sur les fichiers déposés ne peut la remplacer. Le format choisi filtre
+ * ensuite les réseaux ciblables, et le couple format + réseaux fixe les
+ * contraintes du dépôt : nombre de médias, nature de fichier, durée.
+ * L'utilisateur ne peut donc pas déposer un fichier qui sera refusé.
+ *
+ * Une publication ne porte qu'un seul format, commun à tous les réseaux
+ * visés : un Reel sur Instagram et un carrousel sur LinkedIn font deux
+ * publications. C'est pourquoi changer de format réinitialise tout.
+ *
+ * L'import est réel : les fichiers sont lus par le navigateur et la durée
+ * d'une vidéo est relevée sur le fichier. Rien ne quitte le poste.
  */
 @Component({
   selector: 'app-publication-composer',
@@ -73,26 +85,131 @@ export class PublicationComposer {
   protected readonly networks = SOCIAL_NETWORKS.filter((network) => network.isConnected);
   protected readonly formats = Object.keys(PUBLICATION_FORMAT_LABELS) as PublicationFormat[];
   protected readonly formatLabels = PUBLICATION_FORMAT_LABELS;
-  protected readonly formatHints = FORMAT_HINTS;
-  protected readonly captionLimit = CAPTION_LIMIT;
+  protected readonly bounds = FORMAT_BOUNDS;
   protected readonly trail: readonly string[] = ['Publier', 'Créer une publication'];
 
-  protected readonly caption = signal('');
+  /* ---------- 1 · format ---------- */
+
   protected readonly format = signal<PublicationFormat | null>(null);
-  protected readonly timing = signal<Timing>('scheduled');
-  protected readonly scheduledDate = signal('2026-10-12');
-  protected readonly scheduledTime = signal('18:30');
+
+  /** Format en attente de confirmation, quand le changement efface du travail. */
+  protected readonly pendingFormat = signal<PublicationFormat | null>(null);
+  protected readonly resetNotice = signal<string | null>(null);
+
+  /** Bornes du format retenu. Sans format, rien n'est permis. */
+  protected readonly activeBounds = computed(() => {
+    const format = this.format();
+    return format ? FORMAT_BOUNDS[format] : null;
+  });
+
+  /** Ce format attend-il des médias ? « Texte seul » n'en attend aucun. */
+  protected readonly wantsMedia = computed(() => (this.activeBounds()?.maxMediaCount ?? 0) > 0);
+
+  /** Types de fichiers ouverts au sélecteur, selon le format. */
+  protected readonly acceptAttribute = computed(() => {
+    const accepts = this.activeBounds()?.accepts ?? [];
+    const parts: string[] = [];
+    if (accepts.includes('image')) parts.push('image/*');
+    if (accepts.includes('video')) parts.push('video/*');
+    if (accepts.includes('document')) parts.push('application/pdf');
+    return parts.join(',');
+  });
+
+  /**
+   * Choisit un format.
+   *
+   * Changer de format réinitialise les réseaux, les médias et les
+   * légendes : ils dépendent tous du format. On demande confirmation
+   * seulement s'il y a quelque chose à perdre — sinon le clic serait
+   * ralenti pour rien.
+   */
+  protected chooseFormat(next: PublicationFormat): void {
+    if (this.format() === next) return;
+    if (this.format() === null || !this.hasWorkToLose()) {
+      this.applyFormat(next);
+      return;
+    }
+    this.pendingFormat.set(next);
+  }
+
+  protected confirmFormatChange(): void {
+    const next = this.pendingFormat();
+    if (!next) return;
+    this.applyFormat(next);
+    this.pendingFormat.set(null);
+    this.resetNotice.set(
+      `Format passé à « ${this.formatLabels[next].toLowerCase()} » : réseaux, médias et légendes ont été réinitialisés.`,
+    );
+  }
+
+  protected cancelFormatChange(): void {
+    this.pendingFormat.set(null);
+  }
+
+  /** Y a-t-il une saisie que le changement de format effacerait ? */
+  private hasWorkToLose(): boolean {
+    return (
+      this.media().length > 0 ||
+      this.selectedNetworks().size > 0 ||
+      Object.values(this.captions()).some((text) => text.trim().length > 0)
+    );
+  }
+
+  private applyFormat(next: PublicationFormat): void {
+    for (const item of this.media()) URL.revokeObjectURL(item.rawUrl);
+    this.media.set([]);
+    this.selectedNetworks.set(new Set());
+    this.captions.set({});
+    this.importError.set(null);
+    this.format.set(next);
+  }
+
+  /* ---------- 2 · réseaux ---------- */
+
+  protected readonly selectedNetworks = signal<ReadonlySet<SocialNetworkCode>>(new Set());
+
+  /** Ce réseau accepte-t-il le format retenu ? */
+  protected isNetworkAvailable(code: SocialNetworkCode): boolean {
+    const format = this.format();
+    return format !== null && acceptsFormat(code, format);
+  }
+
+  /** Pourquoi un réseau est fermé — affiché à côté de son nom. */
+  protected networkReason(code: SocialNetworkCode): string {
+    const format = this.format();
+    if (!format) return 'Choisissez un format.';
+    return `${this.formatLabels[format]} n'est pas accepté ici.`;
+  }
+
+  protected toggleNetwork(code: SocialNetworkCode): void {
+    if (!this.isNetworkAvailable(code)) return;
+    this.selectedNetworks.update((current) => {
+      const next = new Set(current);
+      if (!next.delete(code)) next.add(code);
+      return next;
+    });
+    // L'aperçu doit rester sur un réseau réellement visé.
+    const selected = [...this.selectedNetworks()];
+    if (selected.length && !this.selectedNetworks().has(this.previewNetwork())) {
+      this.previewNetwork.set(selected[0]);
+    }
+  }
+
+  protected readonly selectedNetworkList = computed(() =>
+    this.networks.filter((network) => this.selectedNetworks().has(network.code)),
+  );
+
+  protected readonly selectedNetworkLabels = computed(() =>
+    this.selectedNetworkList().map((network) => network.label),
+  );
+
+  /* ---------- 3 · médias ---------- */
 
   protected readonly media = signal<readonly MediaItem[]>([]);
   protected readonly isDragOver = signal(false);
   protected readonly importError = signal<string | null>(null);
-
-  /** Pop-up de résumé avant envoi. */
-  protected readonly isSummaryOpen = signal(false);
-  protected readonly successMessage = signal<string | null>(null);
-  protected readonly draftMessage = signal<string | null>(null);
-
   private nextMediaId = 1;
+  private dragIndex: number | null = null;
 
   constructor() {
     // Les URL d'objet survivent au composant : sans révocation, le
@@ -102,45 +219,19 @@ export class PublicationComposer {
     });
   }
 
-  /* ---------- médias ---------- */
-
-  protected readonly imageCount = computed(
-    () => this.media().filter((item) => item.kind === 'image').length,
-  );
-  protected readonly videoCount = computed(
-    () => this.media().filter((item) => item.kind === 'video').length,
-  );
   protected readonly hasMedia = computed(() => this.media().length > 0);
+  protected readonly mediaCount = computed(() => this.media().length);
+
+  /** Place restante avant le plafond du format. */
+  protected readonly remainingSlots = computed(() => {
+    const max = this.activeBounds()?.maxMediaCount ?? 0;
+    return Math.max(0, max - this.media().length);
+  });
 
   /** Première vidéo importée — celle dont on affiche la durée. */
   protected readonly firstVideo = computed(
     () => this.media().find((item) => item.kind === 'video') ?? null,
   );
-
-  /**
-   * Formats compatibles avec les médias importés.
-   *
-   * Sans média, aucun format n'est proposé : le choix n'aurait pas de sens.
-   */
-  protected readonly availableFormats = computed<readonly PublicationFormat[]>(() => {
-    if (!this.hasMedia()) return [];
-    if (this.videoCount() > 0) return ['reel', 'video', 'story'];
-    if (this.imageCount() > 1) return ['carousel', 'image', 'story'];
-    return ['image', 'story'];
-  });
-
-  protected isFormatAvailable(format: PublicationFormat): boolean {
-    return this.availableFormats().includes(format);
-  }
-
-  /** Pourquoi un format est fermé — affiché au survol. */
-  protected formatReason(format: PublicationFormat): string {
-    if (!this.hasMedia()) return 'Importez un média pour choisir un format.';
-    if (this.videoCount() > 0) return 'Une vidéo a été importée : ce format attend des images.';
-    if (format === 'reel' || format === 'video') return 'Ce format attend une vidéo.';
-    if (format === 'carousel') return 'Un carrousel demande au moins deux images.';
-    return '';
-  }
 
   protected onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -165,21 +256,35 @@ export class PublicationComposer {
     this.isDragOver.set(false);
   }
 
+  /**
+   * Ajoute des fichiers, en appliquant les règles du format.
+   *
+   * Trois refus possibles, dits séparément : nature de fichier non
+   * attendue par le format, plafond atteint, et doublon. Un même média ne
+   * peut pas figurer deux fois dans un carrousel — la base l'interdit par
+   * une contrainte d'unicité, l'écran le dit avant.
+   */
   private addFiles(files: FileList | null): void {
-    if (!files || files.length === 0) return;
+    const bounds = this.activeBounds();
+    if (!bounds || !files || files.length === 0) return;
     this.importError.set(null);
 
-    const rejected: string[] = [];
+    const wrongKind: string[] = [];
+    const duplicates: string[] = [];
+    let overflow = false;
 
     for (const file of Array.from(files)) {
-      const isImage = file.type.startsWith('image/');
-      const isVideo = file.type.startsWith('video/');
-      if (!isImage && !isVideo) {
-        rejected.push(file.name);
+      const kind = detectKind(file);
+      if (!kind || !bounds.accepts.includes(kind)) {
+        wrongKind.push(file.name);
         continue;
       }
-      if (this.media().length >= 10) {
-        rejected.push(file.name);
+      if (this.media().some((item) => item.name === file.name && item.sizeBytes === file.size)) {
+        duplicates.push(file.name);
+        continue;
+      }
+      if (this.media().length >= bounds.maxMediaCount) {
+        overflow = true;
         continue;
       }
 
@@ -187,27 +292,35 @@ export class PublicationComposer {
       const item: MediaItem = {
         id: this.nextMediaId++,
         name: file.name,
-        kind: isVideo ? 'video' : 'image',
+        kind,
         url: this.sanitizer.bypassSecurityTrustUrl(rawUrl),
         rawUrl,
         sizeLabel: formatSize(file.size),
+        sizeBytes: file.size,
         durationLabel: null,
         durationSeconds: null,
       };
       this.media.update((current) => [...current, item]);
-      if (isVideo) this.readDuration(item);
+      if (kind === 'video') this.readDuration(item);
     }
 
-    if (rejected.length) {
-      this.importError.set(
-        this.media().length >= 10
-          ? 'Dix médias au maximum par publication.'
-          : `Format non pris en charge : ${rejected.join(', ')}. Images et vidéos seulement.`,
+    const messages: string[] = [];
+    if (wrongKind.length) {
+      messages.push(
+        `${wrongKind.join(', ')} — ce format attend ${describeAccepts(bounds.accepts)}.`,
       );
     }
-
-    // Le format retenu peut être devenu impossible.
-    this.realignFormat();
+    if (duplicates.length) {
+      messages.push(
+        `${duplicates.join(', ')} — déjà dans la sélection. Un même média ne peut figurer qu'une fois.`,
+      );
+    }
+    if (overflow) {
+      messages.push(
+        `Plafond atteint : ${bounds.maxMediaCount} média${bounds.maxMediaCount > 1 ? 's' : ''} au maximum pour ce format.`,
+      );
+    }
+    this.importError.set(messages.length ? messages.join(' ') : null);
   }
 
   /** Relève la durée réelle du fichier vidéo, sans le lire. */
@@ -232,22 +345,83 @@ export class PublicationComposer {
     if (item) URL.revokeObjectURL(item.rawUrl);
     this.media.update((current) => current.filter((entry) => entry.id !== id));
     this.importError.set(null);
-
-    this.realignFormat();
   }
 
   /**
-   * Remet le format sur une valeur possible.
+   * Déplace un média dans l'ordre du carrousel.
    *
-   * Retirer un média peut fermer le format retenu : laisser l'étape vide
-   * obligerait à y revenir sans le dire.
+   * C'est ce geste qui fixe `carousel_position` : la position d'une
+   * vignette est son rang dans la liste, à partir de 1.
    */
-  private realignFormat(): void {
-    const current = this.format();
-    const available = this.availableFormats();
-    if (current && available.includes(current)) return;
-    this.format.set(available[0] ?? null);
+  protected moveMedia(from: number, to: number): void {
+    if (to < 0 || to >= this.media().length || from === to) return;
+    this.media.update((current) => {
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   }
+
+  protected onTileDragStart(index: number): void {
+    this.dragIndex = index;
+  }
+
+  protected onTileDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  protected onTileDrop(index: number, event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.dragIndex !== null) this.moveMedia(this.dragIndex, index);
+    this.dragIndex = null;
+  }
+
+  /* ---------- 4 · légendes ---------- */
+
+  /**
+   * Une légende par réseau.
+   *
+   * La légende vit sur la cible, pas sur la publication : les limites de
+   * longueur diffèrent d'un réseau à l'autre, et une proposition générée
+   * par l'IA est produite par plateforme.
+   */
+  protected readonly captions = signal<Readonly<Partial<Record<SocialNetworkCode, string>>>>({});
+
+  protected captionFor(code: SocialNetworkCode): string {
+    return this.captions()[code] ?? '';
+  }
+
+  protected setCaption(code: SocialNetworkCode, text: string): void {
+    this.captions.update((current) => ({ ...current, [code]: text }));
+  }
+
+  protected captionLimit(code: SocialNetworkCode): number {
+    return CAPTION_LIMITS[code];
+  }
+
+  protected isCaptionOverLimit(code: SocialNetworkCode): boolean {
+    return this.captionFor(code).length > CAPTION_LIMITS[code];
+  }
+
+  /** Recopie une légende sur tous les autres réseaux visés. */
+  protected copyCaptionToAll(source: SocialNetworkCode): void {
+    const text = this.captionFor(source);
+    this.captions.update((current) => {
+      const next = { ...current };
+      for (const network of this.selectedNetworkList()) next[network.code] = text;
+      return next;
+    });
+  }
+
+  protected readonly hasEmptyCaption = computed(() =>
+    this.selectedNetworkList().some((network) => !this.captionFor(network.code).trim()),
+  );
+
+  protected readonly hasCaptionOverLimit = computed(() =>
+    this.selectedNetworkList().some((network) => this.isCaptionOverLimit(network.code)),
+  );
 
   /* ---------- aperçu ---------- */
 
@@ -261,51 +435,100 @@ export class PublicationComposer {
     return '4 / 5';
   });
 
-  /** Média montré dans l'aperçu : le premier importé. */
+  /** Média montré dans l'aperçu : le premier de l'ordre retenu. */
   protected readonly previewMedia = computed(() => this.media()[0] ?? null);
 
-  /* ---------- légende et envoi ---------- */
+  protected readonly previewCaption = computed(() => this.captionFor(this.previewNetwork()));
 
-  protected readonly captionLength = computed(() => this.caption().length);
-  protected readonly isOverLimit = computed(() => this.captionLength() > CAPTION_LIMIT);
+  /* ---------- événement lié ---------- */
 
-  protected readonly selectedNetworks = signal<ReadonlySet<SocialNetworkCode>>(
-    new Set(SOCIAL_NETWORKS.filter((network) => network.isConnected).slice(0, 2).map((n) => n.code)),
-  );
+  /**
+   * Lien facultatif avec un événement — une ligne de `meeting_publications`.
+   *
+   * L'ordre est celui de la décision du 11/11/2026 : on choisit l'événement
+   * d'abord, puis le type de publication. Le type reste grisé tant
+   * qu'aucun événement n'est choisi, et ses valeurs dépendent du statut de
+   * l'événement : promotion avant la séance, compte rendu ou rediffusion après.
+   * La vidéo d'une rediffusion s'importe à l'étape « Médias », comme toute vidéo.
+   */
+  private readonly webinarStore = inject(WebinarStore);
+  protected readonly typeLabels = MEETING_PUBLICATION_TYPE_LABELS;
+  protected readonly webinarOptions = this.webinarStore.everything;
+  protected readonly linkedWebinarId = signal<number | null>(null);
+  protected readonly linkedType = signal<MeetingPublicationType | null>(null);
 
-  protected readonly canSubmit = computed(
-    () =>
-      this.hasMedia() &&
-      this.format() !== null &&
-      this.caption().trim().length > 0 &&
-      this.selectedNetworks().size > 0 &&
-      !this.isOverLimit(),
-  );
+  protected readonly linkedWebinar = computed<Webinar | null>(() => {
+    const id = this.linkedWebinarId();
+    return id === null ? null : (this.webinarStore.findById(id) ?? null);
+  });
+
+  /** Valeur de la liste déroulante, qui ne manipule que des chaînes. */
+  protected readonly linkedWebinarKey = computed(() => String(this.linkedWebinarId() ?? ''));
+
+  protected readonly availableTypes = computed<readonly MeetingPublicationType[]>(() => {
+    const webinar = this.linkedWebinar();
+    return webinar ? publicationTypesFor(webinar.status) : [];
+  });
+
+  /** Fragment ajouté au message de confirmation quand un événement est lié. */
+  protected readonly linkedSummary = computed(() => {
+    const webinar = this.linkedWebinar();
+    const type = this.linkedType();
+    return webinar && type
+      ? `, liée à « ${webinar.title} » (${MEETING_PUBLICATION_TYPE_LABELS[type].toLowerCase()})`
+      : '';
+  });
+
+  protected chooseWebinar(value: string): void {
+    const id = value === '' ? null : Number(value);
+    this.linkedWebinarId.set(id);
+    const webinar = id === null ? null : (this.webinarStore.findById(id) ?? null);
+    const types = webinar ? publicationTypesFor(webinar.status) : [];
+    // Un seul type possible : il est présélectionné. Sinon, l'utilisateur choisit.
+    this.linkedType.set(types.length === 1 ? types[0] : null);
+  }
+
+  protected chooseType(value: string): void {
+    this.linkedType.set(value === '' ? null : (value as MeetingPublicationType));
+  }
+
+  protected webinarOptionLabel(webinar: Webinar): string {
+    const when = webinar.date ? `${webinar.date.day} ${webinar.date.month.toLowerCase()}` : 'sans date';
+    const state = webinar.status === 'draft' ? ' (brouillon)' : webinar.status === 'past' ? ' (passé)' : '';
+    return `${webinar.title} — ${when}${state}`;
+  }
+
+  /* ---------- programmation et envoi ---------- */
+
+  protected readonly timing = signal<Timing>('scheduled');
+  protected readonly scheduledDate = signal('2026-10-12');
+  protected readonly scheduledTime = signal('18:30');
+
+  protected readonly isSummaryOpen = signal(false);
+  protected readonly successMessage = signal<string | null>(null);
+  protected readonly draftMessage = signal<string | null>(null);
+
+  protected readonly canSubmit = computed(() => this.blockers().length === 0);
 
   /** Ce qui manque encore, listé sous le bouton d'envoi. */
   protected readonly blockers = computed<readonly string[]>(() => {
+    const bounds = this.activeBounds();
     const missing: string[] = [];
-    if (!this.hasMedia()) missing.push('un média');
-    if (!this.format()) missing.push('un format');
-    if (!this.caption().trim()) missing.push('une description');
-    if (this.selectedNetworks().size === 0) missing.push('au moins une plateforme');
-    if (this.isOverLimit()) missing.push('une légende sous la limite');
+    if (!bounds) return ['un format'];
+    if (this.selectedNetworks().size === 0) missing.push('au moins un réseau');
+    if (this.mediaCount() < bounds.minMediaCount) {
+      const need = bounds.minMediaCount - this.mediaCount();
+      missing.push(`${need} média${need > 1 ? 's' : ''} de plus`);
+    }
+    if (this.selectedNetworks().size > 0 && this.hasEmptyCaption()) {
+      missing.push('une légende pour chaque réseau');
+    }
+    if (this.hasCaptionOverLimit()) missing.push('des légendes sous la limite');
+    if (this.linkedWebinarId() !== null && this.linkedType() === null) {
+      missing.push("le type de publication pour l'événement lié");
+    }
     return missing;
   });
-
-  protected toggleNetwork(code: SocialNetworkCode): void {
-    this.selectedNetworks.update((current) => {
-      const next = new Set(current);
-      if (!next.delete(code)) next.add(code);
-      return next;
-    });
-  }
-
-  protected readonly selectedNetworkLabels = computed(() =>
-    this.networks
-      .filter((network) => this.selectedNetworks().has(network.code))
-      .map((network) => network.label),
-  );
 
   /** Date et heure de programmation, telles que saisies (UTC+3). */
   protected readonly localSchedule = computed(() => {
@@ -352,21 +575,43 @@ export class PublicationComposer {
     const when = this.timing() === 'now' ? 'dès validation' : this.localSchedule();
     this.isSummaryOpen.set(false);
     this.successMessage.set(
-      `Publication envoyée à la validation pour ${networks}, départ ${when} — simulation, rien n'a été publié.`,
+      `Publication envoyée à la validation pour ${networks}, départ ${when}${this.linkedSummary()} — simulation, rien n'a été publié.`,
     );
   }
 
   protected saveDraft(): void {
+    const format = this.format();
     const pieces = [
-      this.media().length
-        ? `${this.media().length} média${this.media().length > 1 ? 's' : ''}`
+      format ? this.formatLabels[format].toLowerCase() : 'sans format',
+      this.mediaCount()
+        ? `${this.mediaCount()} média${this.mediaCount() > 1 ? 's' : ''}`
         : 'sans média',
-      this.format() ? this.formatLabels[this.format()!].toLowerCase() : 'sans format',
+      this.selectedNetworks().size
+        ? `${this.selectedNetworks().size} réseau${this.selectedNetworks().size > 1 ? 'x' : ''}`
+        : 'sans réseau',
     ];
     this.draftMessage.set(
       `Brouillon enregistré — ${pieces.join(', ')}. Simulation, rien n'a été envoyé.`,
     );
   }
+}
+
+/** Nature d'un fichier, d'après son type MIME. */
+function detectKind(file: File): MediaKind | null {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type === 'application/pdf') return 'document';
+  return null;
+}
+
+/** Phrase disant ce qu'un format accepte. */
+function describeAccepts(accepts: readonly MediaKind[]): string {
+  const words = accepts.map((kind) =>
+    kind === 'image' ? 'des images' : kind === 'video' ? 'une vidéo' : 'un PDF',
+  );
+  if (words.length === 0) return 'aucun média';
+  if (words.length === 1) return words[0];
+  return `${words.slice(0, -1).join(', ')} ou ${words[words.length - 1]}`;
 }
 
 /** Taille de fichier lisible. */

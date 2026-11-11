@@ -10,7 +10,9 @@ import {
   PublicationStatus,
 } from '../../../core/models/publication';
 import { SocialNetworkCode } from '../../../core/models/social-network';
+import { MEETING_PUBLICATION_TYPE_LABELS } from '../../../core/models/webinar';
 import {
+  EventTypeFilter,
   PUBLICATION_SORT_LABELS,
   PublicationSort,
   PublicationStore,
@@ -39,6 +41,18 @@ export class PublicationList {
   protected readonly formatLabels = PUBLICATION_FORMAT_LABELS;
   protected readonly statusLabels = PUBLICATION_STATUS_LABELS;
   protected readonly sortLabels = PUBLICATION_SORT_LABELS;
+
+  protected readonly eventTypeLabels: Readonly<Record<EventTypeFilter, string>> = {
+    ...MEETING_PUBLICATION_TYPE_LABELS,
+    none: 'Sans événement lié',
+  };
+  protected readonly eventTypes: readonly EventTypeFilter[] = [
+    'promotion',
+    'summary',
+    'replay',
+    'other',
+    'none',
+  ];
 
   protected readonly formats = Object.keys(PUBLICATION_FORMAT_LABELS) as PublicationFormat[];
   /** « Retirée » a sa propre case, à part : elle ne filtre pas, elle révèle. */
@@ -93,10 +107,15 @@ export class PublicationList {
     }
     for (const format of this.store.selectedFormats()) labels.push(this.formatLabels[format]);
     for (const status of this.store.selectedStatuses()) labels.push(this.statusLabels[status]);
+    for (const type of this.store.selectedEventTypes()) labels.push(this.eventTypeLabels[type]);
     return labels;
   });
 
   protected readonly sortOrder: readonly PublicationSort[] = ['recent', 'views', 'comments'];
+
+  protected eventTypeCount(type: EventTypeFilter): number {
+    return this.store.eventTypeCounts().get(type) ?? 0;
+  }
 
   protected deliveriesFor(code: SocialNetworkCode): number {
     return this.store.deliveryCountByNetwork().get(code) ?? 0;

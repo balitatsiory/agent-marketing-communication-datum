@@ -64,6 +64,22 @@
       </div>
 
       <div class="fgroup">
+        <div class="label">Type de publication</div>
+        @for (type of eventTypes; track type) {
+          <label class="fopt" [class.is-empty]="eventTypeCount(type) === 0">
+            <input
+              type="checkbox"
+              [checked]="store.selectedEventTypes().has(type)"
+              [disabled]="eventTypeCount(type) === 0 && !store.selectedEventTypes().has(type)"
+              (change)="store.toggleEventType(type)"
+            />
+            {{ eventTypeLabels[type] }}
+            <span class="n">{{ eventTypeCount(type) }}</span>
+          </label>
+        }
+      </div>
+
+      <div class="fgroup">
         <div class="label">Statut</div>
         @for (status of statuses; track status) {
           <label class="fopt">

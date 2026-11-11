@@ -603,3 +603,168 @@
   color: var(--muted);
   margin-right: auto;
 }
+
+
+/* ---------- étapes verrouillées ---------- */
+
+/* Une étape dont le préalable n'est pas rempli reste visible mais
+   éteinte : la masquer ferait croire que l'écran est plus court. */
+.step.is-locked {
+  opacity: 0.55;
+}
+
+.step.is-locked .plat-row,
+.step.is-locked .drop {
+  pointer-events: none;
+}
+
+/* ---------- réseau incompatible ---------- */
+
+.plat-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plat-row:disabled .switch {
+  visibility: hidden;
+}
+
+.who .why {
+  color: var(--err);
+  font-size: 11.5px;
+}
+
+.drop:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---------- ordre du carrousel ---------- */
+
+/* La position est écrite sur la vignette : c'est elle qui devient
+   `carousel_position` en base, à partir de 1. */
+.media-pos {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10.5px;
+  padding: 0 6px;
+}
+
+.media-tile[draggable='true'] {
+  cursor: grab;
+}
+
+.media-doc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--f-mono);
+  font-size: 13px;
+}
+
+.media-move {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.media-move button {
+  width: 22px;
+  height: 20px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.media-move button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.media-move button:not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- une légende par réseau ---------- */
+
+.cap-block + .cap-block {
+  margin-top: 14px;
+}
+
+.cap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.cap-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.cap-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cap-copy {
+  border: 1px solid var(--border-2);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.cap-copy:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- avis et blocages ---------- */
+
+.notice.is-warn {
+  border-color: var(--warn, var(--border-2));
+}
+
+.blockers {
+  color: var(--muted);
+}
+
+/* ---------- événement lié ---------- */
+
+.link-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 14px;
+}
+/* Champ grisé : lisible, mais clairement hors d'usage. */
+.select:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}

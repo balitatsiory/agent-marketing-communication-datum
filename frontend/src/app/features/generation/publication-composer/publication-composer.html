@@ -15,11 +15,14 @@
     <div>
       <h1>Nouvelle publication</h1>
       <p class="sub">
-        Le média d'abord : c'est lui qui dit quels formats sont possibles.
+        Le format d'abord : il décide des réseaux possibles, puis des médias attendus.
       </p>
     </div>
   </div>
 
+  @if (resetNotice(); as message) {
+    <p class="notice is-warn"><app-icon name="warn" size="sm" />{{ message }}</p>
+  }
   @if (draftMessage(); as message) {
     <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
   }
@@ -30,91 +33,11 @@
   <div class="editor">
     <!-- ---------- colonne d'édition ---------- -->
     <div class="steps">
-      <!-- 1 · média -->
+      <!-- 1 · format -->
       <section class="step">
         <div class="step-head">
-          <span class="step-n"><b>1</b> Média</span>
-          @if (hasMedia()) {
-            <span class="counter">
-              {{ imageCount() }} image{{ imageCount() > 1 ? 's' : '' }}
-              @if (videoCount()) {
-                · {{ videoCount() }} vidéo{{ videoCount() > 1 ? 's' : '' }}
-              }
-            </span>
-          }
-        </div>
-
-        <input
-          #fileInput
-          class="sr-only"
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          (change)="onFilesSelected($event)"
-        />
-
-        <button
-          class="drop"
-          type="button"
-          [class.is-over]="isDragOver()"
-          (click)="fileInput.click()"
-          (dragover)="onDragOver($event)"
-          (dragleave)="onDragLeave()"
-          (drop)="onDrop($event)"
-        >
-          <app-icon name="image" size="lg" />
-          <b>Glissez vos fichiers ici</b>
-          <span>images ou vidéo · ou cliquez pour parcourir</span>
-        </button>
-
-        @if (importError(); as error) {
-          <p class="import-error">
-            <app-icon name="warn" size="sm" />
-            {{ error }}
-          </p>
-        }
-
-        @if (hasMedia()) {
-          <div class="media-row">
-            @for (item of media(); track item.id) {
-              <figure class="media-tile">
-                @if (item.kind === 'image') {
-                  <img [src]="item.url" [alt]="item.name" />
-                } @else {
-                  <video [src]="item.url" muted playsinline preload="metadata"></video>
-                  <span class="media-kind" aria-hidden="true">vidéo</span>
-                }
-                <button
-                  class="x"
-                  type="button"
-                  [attr.aria-label]="'Retirer ' + item.name"
-                  (click)="removeMedia(item.id)"
-                >
-                  <app-icon name="close" size="sm" />
-                </button>
-                <figcaption>
-                  <span class="media-name">{{ item.name }}</span>
-                  <span class="media-meta mono">
-                    {{ item.sizeLabel }}@if (item.durationLabel) { · {{ item.durationLabel }} }
-                  </span>
-                </figcaption>
-              </figure>
-            }
-
-            <button class="media-add" type="button" aria-label="Ajouter un média" (click)="fileInput.click()">
-              <app-icon name="plus" />
-            </button>
-          </div>
-        }
-      </section>
-
-      <!-- 2 · format -->
-      <section class="step">
-        <div class="step-head">
-          <span class="step-n"><b>2</b> Format</span>
-          @if (!hasMedia()) {
-            <span class="counter">en attente d'un média</span>
-          }
+          <span class="step-n"><b>1</b> Format</span>
+          <span class="counter">une publication, un seul format</span>
         </div>
 
         <div class="fmt-row">
@@ -123,46 +46,39 @@
               class="fmt"
               type="button"
               [class.is-on]="format() === option"
-              [disabled]="!isFormatAvailable(option)"
-              [attr.title]="isFormatAvailable(option) ? null : formatReason(option)"
-              (click)="format.set(option)"
+              (click)="chooseFormat(option)"
             >
               <b>{{ formatLabels[option] }}</b>
-              <span>{{ formatHints[option] }}</span>
+              <span>{{ bounds[option].hint }}</span>
             </button>
           }
         </div>
 
-        @if (!hasMedia()) {
-          <p class="fmt-note">Importez un média : les formats possibles en découlent.</p>
-        } @else if (videoCount()) {
-          <p class="fmt-note">Une vidéo est importée — le carrousel et l'image sont fermés.</p>
-        } @else if (imageCount() === 1) {
-          <p class="fmt-note">Une seule image — ajoutez-en une deuxième pour un carrousel.</p>
+        @if (!format()) {
+          <p class="fmt-note">
+            Un Reel et une vidéo de fil portent le même fichier : seul votre choix les
+            distingue. Rien n'est deviné à partir des médias.
+          </p>
+        } @else {
+          <p class="fmt-note">
+            Changer de format réinitialise les réseaux, les médias et les légendes :
+            un autre format fait une autre publication.
+          </p>
         }
       </section>
 
-      <!-- 3 · description -->
-      <section class="step">
+      <!-- 2 · réseaux -->
+      <section class="step" [class.is-locked]="!format()">
         <div class="step-head">
-          <span class="step-n"><b>3</b> Description</span>
-          <span class="counter" [class.is-over]="isOverLimit()">
-            {{ captionLength() }} / {{ captionLimit }}
-          </span>
+          <span class="step-n"><b>2</b> Réseaux</span>
+          @if (!format()) {
+            <span class="counter">en attente d'un format</span>
+          } @else if (selectedNetworks().size) {
+            <span class="counter">
+              1 publication, {{ selectedNetworks().size }} envoi{{ selectedNetworks().size > 1 ? 's' : '' }}
+            </span>
+          }
         </div>
-
-        <textarea
-          class="textarea"
-          rows="5"
-          placeholder="Écrivez la légende…  #hashtags  @mentions"
-          [ngModel]="caption()"
-          (ngModelChange)="caption.set($event)"
-        ></textarea>
-      </section>
-
-      <!-- 4 · plateformes -->
-      <section class="step">
-        <div class="step-head"><span class="step-n"><b>4</b> Plateformes</span></div>
 
         <div class="plat">
           @for (network of networks; track network.code) {
@@ -170,13 +86,18 @@
               class="plat-row"
               type="button"
               [class.is-on]="selectedNetworks().has(network.code)"
+              [disabled]="!isNetworkAvailable(network.code)"
               [attr.aria-pressed]="selectedNetworks().has(network.code)"
               (click)="toggleNetwork(network.code)"
             >
               <app-network-logo [network]="network.code" size="lg" />
               <span class="who">
                 <b>{{ network.label }}</b>
-                <span>{{ network.accountName }}</span>
+                @if (isNetworkAvailable(network.code)) {
+                  <span>{{ network.accountName }}</span>
+                } @else {
+                  <span class="why">{{ networkReason(network.code) }}</span>
+                }
               </span>
               <span class="switch" aria-hidden="true"></span>
             </button>
@@ -184,9 +105,244 @@
         </div>
       </section>
 
-      <!-- 5 · publication -->
+      <!-- 3 · médias -->
+      <section class="step" [class.is-locked]="!format()">
+        <div class="step-head">
+          <span class="step-n"><b>3</b> Médias</span>
+          @if (activeBounds(); as limits) {
+            <span class="counter" [class.is-over]="mediaCount() < limits.minMediaCount">
+              {{ mediaCount() }} / {{ limits.maxMediaCount }}
+              @if (limits.minMediaCount > 0) { · {{ limits.minMediaCount }} minimum }
+            </span>
+          }
+        </div>
+
+        @if (!format()) {
+          <p class="fmt-note">Choisissez un format : il fixe le nombre et la nature des médias.</p>
+        } @else if (!wantsMedia()) {
+          <p class="fmt-note">Ce format ne porte aucun média. Passez aux légendes.</p>
+        } @else {
+          <input
+            #fileInput
+            class="sr-only"
+            type="file"
+            [attr.accept]="acceptAttribute()"
+            multiple
+            (change)="onFilesSelected($event)"
+          />
+
+          <button
+            class="drop"
+            type="button"
+            [class.is-over]="isDragOver()"
+            [disabled]="remainingSlots() === 0"
+            (click)="fileInput.click()"
+            (dragover)="onDragOver($event)"
+            (dragleave)="onDragLeave()"
+            (drop)="onDrop($event)"
+          >
+            <app-icon name="image" size="lg" />
+            @if (remainingSlots() > 0) {
+              <b>Glissez vos fichiers ici</b>
+              <span>
+                {{ activeBounds()!.hint }} · encore {{ remainingSlots() }} possible{{ remainingSlots() > 1 ? 's' : '' }}
+              </span>
+            } @else {
+              <b>Plafond atteint</b>
+              <span>retirez un média pour en ajouter un autre</span>
+            }
+          </button>
+
+          @if (importError(); as error) {
+            <p class="import-error">
+              <app-icon name="warn" size="sm" />
+              {{ error }}
+            </p>
+          }
+
+          @if (hasMedia()) {
+            <div class="media-row">
+              @for (item of media(); track item.id; let i = $index; let last = $last) {
+                <figure
+                  class="media-tile"
+                  draggable="true"
+                  (dragstart)="onTileDragStart(i)"
+                  (dragover)="onTileDragOver($event)"
+                  (drop)="onTileDrop(i, $event)"
+                >
+                  @if (item.kind === 'image') {
+                    <img [src]="item.url" [alt]="item.name" />
+                  } @else if (item.kind === 'video') {
+                    <video [src]="item.url" muted playsinline preload="metadata"></video>
+                    <span class="media-kind" aria-hidden="true">vidéo</span>
+                  } @else {
+                    <span class="media-doc" aria-hidden="true">PDF</span>
+                  }
+
+                  <span class="media-pos mono" aria-hidden="true">{{ i + 1 }}</span>
+
+                  <button
+                    class="x"
+                    type="button"
+                    [attr.aria-label]="'Retirer ' + item.name"
+                    (click)="removeMedia(item.id)"
+                  >
+                    <app-icon name="close" size="sm" />
+                  </button>
+
+                  <figcaption>
+                    <span class="media-name">{{ item.name }}</span>
+                    <span class="media-meta mono">
+                      {{ item.sizeLabel }}@if (item.durationLabel) { · {{ item.durationLabel }} }
+                    </span>
+                    <span class="media-move">
+                      <button
+                        type="button"
+                        [disabled]="i === 0"
+                        [attr.aria-label]="'Avancer ' + item.name"
+                        (click)="moveMedia(i, i - 1)"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        [disabled]="last"
+                        [attr.aria-label]="'Reculer ' + item.name"
+                        (click)="moveMedia(i, i + 1)"
+                      >
+                        →
+                      </button>
+                    </span>
+                  </figcaption>
+                </figure>
+              }
+
+              @if (remainingSlots() > 0) {
+                <button
+                  class="media-add"
+                  type="button"
+                  aria-label="Ajouter un média"
+                  (click)="fileInput.click()"
+                >
+                  <app-icon name="plus" />
+                </button>
+              }
+            </div>
+
+            @if (format() === 'carousel') {
+              <p class="fmt-note">
+                L'ordre des vignettes est l'ordre de lecture du carrousel. Faites-les glisser,
+                ou utilisez les flèches. Un même média ne peut pas y figurer deux fois.
+              </p>
+            }
+          }
+        }
+      </section>
+
+      <!-- 4 · légendes -->
+      <section class="step" [class.is-locked]="selectedNetworks().size === 0">
+        <div class="step-head">
+          <span class="step-n"><b>4</b> Légendes</span>
+          @if (selectedNetworks().size) {
+            <span class="counter">une par réseau</span>
+          } @else {
+            <span class="counter">en attente d'un réseau</span>
+          }
+        </div>
+
+        @if (selectedNetworks().size === 0) {
+          <p class="fmt-note">
+            Choisissez vos réseaux : chacun porte sa propre légende, avec sa propre limite
+            de longueur.
+          </p>
+        } @else {
+          @for (network of selectedNetworkList(); track network.code; let first = $first) {
+            <div class="cap-block">
+              <div class="cap-head">
+                <span class="cap-who">
+                  <app-network-logo [network]="network.code" />
+                  <b>{{ network.label }}</b>
+                </span>
+                <span class="cap-tools">
+                  @if (!first && captionFor(network.code).length === 0) {
+                    <button class="cap-copy" type="button" (click)="copyCaptionToAll(selectedNetworkList()[0].code)">
+                      Recopier la première
+                    </button>
+                  }
+                  <span class="counter" [class.is-over]="isCaptionOverLimit(network.code)">
+                    {{ captionFor(network.code).length }} / {{ captionLimit(network.code) }}
+                  </span>
+                </span>
+              </div>
+              <textarea
+                class="textarea"
+                rows="4"
+                [attr.placeholder]="'Légende pour ' + network.label + '…  #hashtags'"
+                [ngModel]="captionFor(network.code)"
+                (ngModelChange)="setCaption(network.code, $event)"
+              ></textarea>
+            </div>
+          }
+        }
+      </section>
+
+      <!-- 5 · événement lié -->
       <section class="step">
-        <div class="step-head"><span class="step-n"><b>5</b> Publication</span></div>
+        <div class="step-head">
+          <span class="step-n"><b>5</b> Événement lié</span>
+          <span class="counter">facultatif</span>
+        </div>
+
+        <div class="link-grid">
+          <div class="field">
+            <label for="linked-webinar">Événement</label>
+            <select
+              class="select"
+              id="linked-webinar"
+              [ngModel]="linkedWebinarKey()"
+              (ngModelChange)="chooseWebinar($event)"
+            >
+              <option value="">Aucun événement</option>
+              @for (webinar of webinarOptions(); track webinar.id) {
+                <option [value]="webinar.id">{{ webinarOptionLabel(webinar) }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="linked-type">Type de publication</label>
+            <select
+              class="select"
+              id="linked-type"
+              [disabled]="linkedWebinar() === null"
+              [ngModel]="linkedType() ?? ''"
+              (ngModelChange)="chooseType($event)"
+            >
+              <option value="">
+                {{ linkedWebinar() ? 'Choisir un type' : "Choisissez d'abord un événement" }}
+              </option>
+              @for (type of availableTypes(); track type) {
+                <option [value]="type">{{ typeLabels[type] }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <p class="fmt-note">
+          @if (linkedType() === 'replay') {
+            Rediffusion : importez la vidéo de la séance à l'étape 3, dans le format Vidéo.
+          } @else if (linkedWebinar()) {
+            Avant la séance : promotion ou autre ; compte rendu et rediffusion s'ajoutent une
+            fois le webinaire passé.
+          } @else {
+            Sans événement lié, la publication reste indépendante.
+          }
+        </p>
+      </section>
+
+      <!-- 6 · programmation -->
+      <section class="step">
+        <div class="step-head"><span class="step-n"><b>6</b> Programmation</span></div>
 
         <div class="when">
           <button class="btn" type="button" [class.is-on]="timing() === 'now'" (click)="timing.set('now')">
@@ -232,50 +388,95 @@
           </p>
         }
       </section>
+
+      @if (blockers().length) {
+        <p class="fmt-note blockers">
+          Il manque encore {{ blockers().join(', ') }}.
+        </p>
+      }
     </div>
 
     <!-- ---------- aperçu ---------- -->
     <aside class="preview" aria-label="Aperçu">
-      <div class="chips">
-        @for (network of networks; track network.code) {
-          <button
-            class="chip"
-            type="button"
-            [class.is-on]="previewNetwork() === network.code"
-            (click)="previewNetwork.set(network.code)"
-          >
-            <app-network-logo [network]="network.code" />
-            {{ network.label }}
-          </button>
-        }
-      </div>
+      @if (selectedNetworkList().length) {
+        <div class="chips">
+          @for (network of selectedNetworkList(); track network.code) {
+            <button
+              class="chip"
+              type="button"
+              [class.is-on]="previewNetwork() === network.code"
+              (click)="previewNetwork.set(network.code)"
+            >
+              <app-network-logo [network]="network.code" />
+              {{ network.label }}
+            </button>
+          }
+        </div>
+      }
 
       <div class="pv-frame">
         <div class="pv-phone" [style.aspect-ratio]="previewRatio()">
           @if (previewMedia(); as item) {
             @if (item.kind === 'image') {
               <img [src]="item.url" [alt]="item.name" />
-            } @else {
+            } @else if (item.kind === 'video') {
               <video [src]="item.url" controls muted playsinline preload="metadata"></video>
+            } @else {
+              <span class="pv-ratio">{{ item.name }}</span>
             }
           } @else {
             <span class="pv-ratio">aucun média</span>
           }
         </div>
 
-        @if (format()) {
-          <p class="pv-dims mono">{{ formatLabels[format()!] }} · {{ previewRatio() }}</p>
+        @if (format(); as chosen) {
+          <p class="pv-dims mono">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
         }
 
-        @if (caption()) {
-          <p class="pv-caption">{{ caption() }}</p>
+        @if (previewCaption()) {
+          <p class="pv-caption">{{ previewCaption() }}</p>
         } @else {
-          <p class="pv-note">L'aperçu s'adapte au format et à la plateforme choisis.</p>
+          <p class="pv-note">L'aperçu suit le réseau choisi : chaque réseau a sa légende.</p>
         }
       </div>
     </aside>
   </div>
 </div>
+
+<!-- ============ changement de format ============ -->
+@if (pendingFormat(); as next) {
+  <div class="modal-back" (click)="cancelFormatChange()" (keydown.escape)="cancelFormatChange()" tabindex="-1">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Changer de format"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div>
+          <h2>Passer en « {{ formatLabels[next] }} » ?</h2>
+          <p class="modal-sub">Cette action efface ce que vous avez saisi.</p>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <p>
+          Les réseaux, les médias et les légendes dépendent du format : ils seront
+          réinitialisés. Une publication ne porte qu'un seul format — un autre format
+          fait une autre publication.
+        </p>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="cancelFormatChange()">Garder le format actuel</button>
+        <button class="btn btn-primary" type="button" (click)="confirmFormatChange()">
+          Changer et réinitialiser
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- ============ résumé avant envoi ============ -->
 @if (isSummaryOpen()) {
@@ -299,48 +500,46 @@
 
       <div class="modal-body">
         <div class="sum">
-          <!-- aperçu -->
           <div class="sum-visual">
             <div class="sum-frame" [style.aspect-ratio]="previewRatio()">
               @if (previewMedia(); as item) {
                 @if (item.kind === 'image') {
                   <img [src]="item.url" [alt]="item.name" />
-                } @else {
+                } @else if (item.kind === 'video') {
                   <video [src]="item.url" controls muted playsinline preload="metadata"></video>
                 }
               }
             </div>
-            <p class="sum-dims mono">{{ formatLabels[format()!] }} · {{ previewRatio() }}</p>
+            @if (format(); as chosen) {
+              <p class="sum-dims mono">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
+            }
           </div>
 
-          <!-- récapitulatif -->
           <div class="sum-meta">
             <div class="block">
-              <div class="label">Description</div>
-              <p class="sum-caption">{{ caption() }}</p>
-              <p class="cap">{{ captionLength() }} caractères sur {{ captionLimit }}</p>
+              <div class="label">Légendes</div>
+              @for (network of selectedNetworkList(); track network.code) {
+                <p class="sum-caption">
+                  <b>{{ network.label }}</b> — {{ captionFor(network.code) }}
+                </p>
+              }
             </div>
 
             <hr class="divider" />
 
             <div class="block">
-              <div class="label">Média</div>
+              <div class="label">Médias</div>
               <dl class="sum-list">
                 <div>
                   <dt>Format</dt>
-                  <dd>{{ formatLabels[format()!] }}</dd>
+                  <dd>{{ format() ? formatLabels[format()!] : '—' }}</dd>
                 </div>
-                @if (format() === 'carousel') {
-                  <div>
-                    <dt>Images</dt>
-                    <dd>{{ imageCount() }} dans le carrousel</dd>
-                  </div>
-                } @else {
-                  <div>
-                    <dt>Fichiers</dt>
-                    <dd>{{ media().length }} importé{{ media().length > 1 ? 's' : '' }}</dd>
-                  </div>
-                }
+                <div>
+                  <dt>Fichiers</dt>
+                  <dd>
+                    {{ mediaCount() }} dans l'ordre affiché
+                  </dd>
+                </div>
                 @if (firstVideo(); as video) {
                   <div>
                     <dt>Durée</dt>
@@ -353,17 +552,35 @@
             <hr class="divider" />
 
             <div class="block">
-              <div class="label">Plateformes</div>
+              <div class="label">Réseaux</div>
               <div class="sum-nets">
-                @for (network of networks; track network.code) {
-                  @if (selectedNetworks().has(network.code)) {
-                    <span class="sum-net">
-                      <app-network-logo [network]="network.code" />
-                      {{ network.label }}
-                    </span>
-                  }
+                @for (network of selectedNetworkList(); track network.code) {
+                  <span class="sum-net">
+                    <app-network-logo [network]="network.code" />
+                    {{ network.label }}
+                  </span>
                 }
               </div>
+            </div>
+
+            <hr class="divider" />
+
+            <div class="block">
+              <div class="label">Événement lié</div>
+              @if (linkedWebinar(); as webinar) {
+                <dl class="sum-list">
+                  <div>
+                    <dt>Événement</dt>
+                    <dd>{{ webinar.title }}</dd>
+                  </div>
+                  <div>
+                    <dt>Type</dt>
+                    <dd>{{ linkedType() ? typeLabels[linkedType()!] : '—' }}</dd>
+                  </div>
+                </dl>
+              } @else {
+                <p class="cap">Aucun événement lié.</p>
+              }
             </div>
 
             <hr class="divider" />
