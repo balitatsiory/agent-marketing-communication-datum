@@ -128,6 +128,35 @@ Il réutilise `<app-icon>` tel quel et n'ajoute que la pastille :
 toute icône ajoutée à `ICON_SET` y devient utilisable sans rien
 changer. Aucune dépendance d'icônes n'est installée.
 
+### La tuile de chiffre à icône
+
+Motif de la page CRM › Analytics de Phoenix : une icône de la couleur
+du rôle, un grand chiffre, sa légende. Pas de carte par cellule — un
+simple trait les sépare, et c'est le bloc qui porte le cadre.
+
+```html
+<div class="stat-figures">
+  <div class="stat-figure role-success">
+    <span class="stat-figure__icon"><app-icon name="check" /></span>
+    <span class="stat-figure__value">1 121</span>
+    <span class="stat-figure__label">Messages remis</span>
+    <span class="stat-figure__note">hors rejets</span>
+  </div>
+</div>
+```
+
+Les mesures de Phoenix tombent exactement sur l'échelle : son chiffre
+est à 31,25 px graisse 800 (`--t-2xl` + `--w-extra`), sa légende à
+12,8 px (`--t-xs`).
+
+Donnez un rôle **différent par chiffre** quand ils n'ont pas le même
+sens : un rejet n'est pas un envoi réussi, et la couleur doit le dire
+avant la lecture. En service sur `/newsletter/envois`.
+
+À distinguer de `.stats` / `.stat` (dans `_components.scss`), qui
+reste le motif par défaut : une carte par chiffre, libellé au-dessus,
+sans icône. `.stat-figures` est le motif « vitrine ».
+
 ### Les mixins, dans un SCSS de composant
 
 ```scss
@@ -219,6 +248,7 @@ src/styles/design-system/
   _type.scss       échelle, graisses, interlignes, mixins
   _roles.scss      les cinq rôles et leurs fonds doux
   _icon-chip.scss  la pastille
+  _stat-figure.scss la tuile de chiffre à icône
   README.md        ce document
 
 src/app/shared/
