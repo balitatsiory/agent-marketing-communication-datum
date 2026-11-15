@@ -1,4 +1,5 @@
 import { SocialNetworkCode } from './social-network';
+import { MeetingPublicationType } from './webinar';
 
 /**
  * Cycle de vie d'une publication, repris des filtres de la maquette 13b.
@@ -16,8 +17,31 @@ export type PublicationStatus =
   | 'failed'
   | 'withdrawn';
 
-/** Format du média porté par la publication. */
-export type PublicationFormat = 'reel' | 'video' | 'image' | 'carousel' | 'story';
+/**
+ * Format de la publication — table de référence `formats`.
+ *
+ * Une publication ne porte qu'un seul format, commun à tous les réseaux
+ * visés : deux formats différents font deux publications.
+ */
+export type PublicationFormat =
+  | 'reel'
+  | 'video'
+  | 'image'
+  | 'carousel'
+  | 'story'
+  | 'document'
+  | 'text';
+
+/**
+ * Lien d'une publication vers un événement (table `meeting_publications`).
+ *
+ * Une publication peut être liée à plusieurs événements, avec un type par
+ * couple : promotion avant la séance, compte rendu ou rediffusion après.
+ */
+export interface PublicationEventLink {
+  readonly webinarId: number;
+  readonly type: MeetingPublicationType;
+}
 
 /** Une publication, du brouillon jusqu'à son envoi sur les réseaux. */
 export interface Publication {
@@ -39,6 +63,8 @@ export interface Publication {
   readonly reactionCount: number;
   readonly commentCount: number;
   readonly hashtags: readonly string[];
+  /** Événements auxquels la publication est liée. Absent : publication indépendante. */
+  readonly eventLinks?: readonly PublicationEventLink[];
   /** Journal de la publication, du plus ancien au plus récent. */
   readonly history: readonly PublicationEvent[];
   /**
@@ -101,6 +127,8 @@ export const PUBLICATION_FORMAT_LABELS: Readonly<Record<PublicationFormat, strin
   image: 'Image',
   carousel: 'Carrousel',
   story: 'Story',
+  document: 'Document',
+  text: 'Texte seul',
 };
 
 /**

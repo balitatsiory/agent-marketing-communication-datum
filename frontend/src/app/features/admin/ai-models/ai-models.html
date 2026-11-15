@@ -1,0 +1,876 @@
+<app-topbar [trail]="['Administrer', 'Modèles IA']">
+  <span class="mono quota">{{ store.models().length }} modèles référencés</span>
+  <button
+    class="btn"
+    type="button"
+    [disabled]="store.isTesting()"
+    (click)="testAllProviders()"
+  >
+    <app-icon name="sparkle" size="sm" />
+    {{ store.isTesting() ? 'Test en cours…' : 'Tester toutes les connexions' }}
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Gestion des modèles IA</h1>
+      <p class="sub">
+        Supervision des modèles génératifs, affectation par tâche métier, suivi de consommation et paramètres d'accès.
+      </p>
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice" role="status">
+      <app-icon name="check" size="sm" />
+      {{ message }}
+    </p>
+  }
+
+  <!-- ============================================================
+       Bandeau Flash Synthèse (Toujours visible — Option A)
+       ============================================================ -->
+  @if (store.usageSummary(); as summary) {
+    <div class="flash-banner" role="region" aria-label="Synthèse temps réel des modèles IA">
+      <div class="flash-item" (click)="setMainTab('providers')" title="Voir les connexions fournisseurs">
+        <span class="flash-label">Santé des liaisons API</span>
+        <div class="flash-val-row">
+          <span class="status status-published">
+            ● {{ summary.connectedProvidersCount }}/{{ summary.totalProvidersCount }} opérationnelles
+          </span>
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setMainTab('stats')" title="Voir le détail des appels">
+        <span class="flash-label">Activité (30 jours)</span>
+        <div class="flash-val-row">
+          <b class="mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
+          <span class="flash-pill mono">{{ summary.avgSuccessRate }} % succès</span>
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setMainTab('stats')" title="Voir la consommation de tokens">
+        <span class="flash-label">Tokens restants ce mois</span>
+        <div class="flash-val-row">
+          <b class="mono text-ok">{{ formatTokens(summary.remainingTokens) }}</b>
+          <span class="flash-muted mono">/ {{ formatTokens(summary.totalTokenQuota) }} ({{ summary.tokenQuotaUsedPct }} % utilisé)</span>
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setMainTab('stats')" title="Voir le suivi budgétaire">
+        <span class="flash-label">Budget mensuel restant</span>
+        <div class="flash-val-row">
+          <b class="mono text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b>
+          <span class="flash-muted mono">/ {{ formatCurrency(summary.totalBudgetLimitUsd) }} ({{ formatCurrency(summary.totalCostUsd) }} dépensés)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Barre de Navigation des 3 Onglets Métier (Option A)
+         ============================================================ -->
+    <div class="main-tabs" role="tablist" aria-label="Sections de gestion des modèles IA">
+      <button
+        type="button"
+        role="tab"
+        class="main-tab"
+        [class.is-active]="activeTab() === 'models'"
+        [attr.aria-selected]="activeTab() === 'models'"
+        (click)="setMainTab('models')"
+      >
+        <app-icon name="sparkle" size="sm" />
+        <span>1. Catalogue &amp; Affectations</span>
+        <span class="tab-count mono">{{ store.models().length }}</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="main-tab"
+        [class.is-active]="activeTab() === 'stats'"
+        [attr.aria-selected]="activeTab() === 'stats'"
+        (click)="setMainTab('stats')"
+      >
+        <app-icon name="chart" size="sm" />
+        <span>2. Statistiques &amp; Consommation</span>
+        <span class="tab-badge mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</span>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="main-tab"
+        [class.is-active]="activeTab() === 'providers'"
+        [attr.aria-selected]="activeTab() === 'providers'"
+        (click)="setMainTab('providers')"
+      >
+        <app-icon name="sliders" size="sm" />
+        <span>3. Clés API &amp; Fournisseurs</span>
+        <span class="tab-count mono">{{ store.providerConfigs().length }}</span>
+      </button>
+    </div>
+
+    <!-- ========================================================================
+         ONGLET 1 : CATALOGUE & AFFECTATIONS PAR SPÉCIALITÉ
+         ======================================================================== -->
+    @if (activeTab() === 'models') {
+      <div class="tab-pane" role="tabpanel" aria-label="Catalogue et affectations">
+        <!-- 1A. Affectation des modèles actifs par tâche -->
+        <section class="task-grid" aria-label="Affectation des modèles par spécialité">
+          <!-- Tâche 1 : Texte -->
+          <div class="task-card">
+            <div class="task-head">
+              <span class="task-badge">Rédaction</span>
+              <span class="task-icon"><app-icon name="pencil" size="sm" /></span>
+            </div>
+            <h3>Génération de texte</h3>
+            <p class="task-desc">{{ specialtyHints['text-generation'] }}</p>
+
+            <div class="task-selector">
+              <label for="select-text-model" class="label">Modèle actif par défaut</label>
+              <select
+                id="select-text-model"
+                class="select"
+                [ngModel]="store.assignments().textModelId"
+                (ngModelChange)="onAssignmentChange('textModelId', $event)"
+              >
+                @for (m of textModels(); track m.id) {
+                  <option [value]="m.id">
+                    {{ m.name }} — {{ providerLabels[m.provider] }} ({{ m.latencyMs }} ms)
+                  </option>
+                }
+              </select>
+            </div>
+
+            @if (currentTextModel(); as m) {
+              <div class="task-foot">
+                <span class="mono">{{ m.technicalId }}</span>
+                <span class="status status-published">Actif</span>
+              </div>
+            }
+          </div>
+
+          <!-- Tâche 2 : Vision / Description d'image -->
+          <div class="task-card">
+            <div class="task-head">
+              <span class="task-badge">Vision</span>
+              <span class="task-icon"><app-icon name="image" size="sm" /></span>
+            </div>
+            <h3>Description d'image</h3>
+            <p class="task-desc">{{ specialtyHints['image-description'] }}</p>
+
+            <div class="task-selector">
+              <label for="select-vision-model" class="label">Modèle actif par défaut</label>
+              <select
+                id="select-vision-model"
+                class="select"
+                [ngModel]="store.assignments().visionModelId"
+                (ngModelChange)="onAssignmentChange('visionModelId', $event)"
+              >
+                @for (m of visionModels(); track m.id) {
+                  <option [value]="m.id">
+                    {{ m.name }} — {{ providerLabels[m.provider] }} ({{ m.latencyMs }} ms)
+                  </option>
+                }
+              </select>
+            </div>
+
+            @if (currentVisionModel(); as m) {
+              <div class="task-foot">
+                <span class="mono">{{ m.technicalId }}</span>
+                <span class="status status-published">Actif</span>
+              </div>
+            }
+          </div>
+
+          <!-- Tâche 3 : Génération d'image & retouche conversationnelle -->
+          <div class="task-card highlighted-card">
+            <div class="task-head">
+              <span class="task-badge badge-image">Création visuelle</span>
+              <span class="task-icon"><app-icon name="sparkle" size="sm" /></span>
+            </div>
+            <h3>Génération d'image</h3>
+            <p class="task-desc">
+              Création de visuels aux formats Meta.
+              <b class="retouch-highlight">Peut modifier par conversation avec les modèles</b> (retouche consigne par consigne).
+            </p>
+
+            <div class="task-selector">
+              <label for="select-image-model" class="label">Modèle actif par défaut</label>
+              <select
+                id="select-image-model"
+                class="select"
+                [ngModel]="store.assignments().imageModelId"
+                (ngModelChange)="onAssignmentChange('imageModelId', $event)"
+              >
+                @for (m of imageModels(); track m.id) {
+                  <option [value]="m.id">
+                    {{ m.name }} — {{ providerLabels[m.provider] }} ({{ m.costEstimate }})
+                  </option>
+                }
+              </select>
+            </div>
+
+            @if (currentImageModel(); as m) {
+              <div class="task-foot">
+                <span class="mono">{{ m.technicalId }}</span>
+                <span class="status status-published">Actif</span>
+              </div>
+            }
+          </div>
+
+          <!-- Tâche 4 : RAG / Embedding -->
+          <div class="task-card">
+            <div class="task-head">
+              <span class="task-badge">RAG</span>
+              <span class="task-icon"><app-icon name="files" size="sm" /></span>
+            </div>
+            <h3>RAG / Embedding</h3>
+            <p class="task-desc">{{ specialtyHints['rag-embedding'] }}</p>
+
+            <div class="task-selector">
+              <label for="select-rag-model" class="label">Modèle actif par défaut</label>
+              <select
+                id="select-rag-model"
+                class="select"
+                [ngModel]="store.assignments().ragModelId"
+                (ngModelChange)="onAssignmentChange('ragModelId', $event)"
+              >
+                @for (m of ragModels(); track m.id) {
+                  <option [value]="m.id">
+                    {{ m.name }} — {{ providerLabels[m.provider] }} ({{ m.latencyMs }} ms)
+                  </option>
+                }
+              </select>
+            </div>
+
+            @if (currentRagModel(); as m) {
+              <div class="task-foot">
+                <span class="mono">{{ m.technicalId }}</span>
+                <span class="status status-published">Actif</span>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- 1B. Tableau comparatif des modèles et leurs spécificités -->
+        <section class="models-section" aria-label="Tableau des modèles IA">
+          <div class="section-head">
+            <div>
+              <h2>Répertoire des modèles</h2>
+              <p class="sub">Spécificités techniques, latences observées, consommation 30 jours et capacités de retouche.</p>
+            </div>
+          </div>
+
+          <div class="toolbar" role="toolbar" aria-label="Filtrer les modèles">
+            <div class="searchbox">
+              <app-icon name="search" size="sm" />
+              <input
+                type="search"
+                placeholder="Rechercher un modèle, identifiant, fournisseur…"
+                aria-label="Rechercher un modèle"
+                [value]="searchTerm()"
+                (input)="searchTerm.set($any($event.target).value)"
+              />
+              @if (searchTerm()) {
+                <button
+                  class="btn-clear"
+                  type="button"
+                  (click)="searchTerm.set('')"
+                  aria-label="Effacer la recherche"
+                >
+                  <app-icon name="close" size="sm" />
+                </button>
+              }
+            </div>
+
+            <div class="chips" role="group" aria-label="Filtrer par spécialité">
+              <button
+                class="chip"
+                type="button"
+                [class.is-on]="filter() === 'all'"
+                (click)="filter.set('all')"
+              >
+                Tous <span class="n">{{ store.models().length }}</span>
+              </button>
+              @for (spec of specialties; track spec) {
+                <button
+                  class="chip"
+                  type="button"
+                  [class.is-on]="filter() === spec"
+                  (click)="filter.set(spec)"
+                >
+                  {{ specialtyLabels[spec] }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="tbl-wrap">
+              <table class="tbl">
+                <thead>
+                  <tr>
+                    <th>Modèle</th>
+                    <th>Fournisseur</th>
+                    <th>Spécificités &amp; Capacités</th>
+                    <th>Usage 30j (Appels &amp; Tokens)</th>
+                    <th>Latence &amp; Coût</th>
+                    <th>Rôle opérationnel</th>
+                    <th>Statut</th>
+                    <th class="num">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (model of filteredModels(); track model.id) {
+                    <tr>
+                      <td>
+                        <div class="model-name-cell">
+                          <b>{{ model.name }}</b>
+                          <span class="mono text-muted">{{ model.technicalId }}</span>
+                          <span class="model-desc">{{ model.description }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          class="provider-tag provider-tag-btn"
+                          title="Configurer ce fournisseur"
+                          (click)="openProviderConfig(model.provider)"
+                        >
+                          {{ providerLabels[model.provider] }}
+                        </button>
+                      </td>
+                      <td>
+                        <div class="specialties-cell">
+                          @for (s of model.specialties; track s) {
+                            <span class="spec-pill" [class.spec-image]="s === 'image-generation'">
+                              {{ specialtyLabels[s] }}
+                            </span>
+                          }
+                          @if (model.supportsConversationRetouch) {
+                            <span class="retouch-pill" title="Ce modèle supporte la modification itérative par consignes textuelles">
+                              <app-icon name="sparkle" size="sm" />
+                              Peut modifier par conversation
+                            </span>
+                          }
+                        </div>
+                      </td>
+                      <td>
+                        <div class="usage-cell">
+                          <div class="u-top">
+                            <b class="mono">{{ model.usage.callsCount }} appels</b>
+                            <span class="u-share mono">{{ model.usage.sharePct }} %</span>
+                          </div>
+                          <div class="u-bar">
+                            <div class="u-fill" [style.width.%]="model.usage.sharePct"></div>
+                          </div>
+                          <span class="u-sub mono">
+                            @if (model.usage.imagesGenerated) {
+                              {{ model.usage.imagesGenerated }} visuels · {{ formatCurrency(model.usage.costUsd) }}
+                            } @else {
+                              {{ formatTokens(model.usage.promptTokens + model.usage.completionTokens) }} tokens · {{ formatCurrency(model.usage.costUsd) }}
+                            }
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div class="metrics-cell">
+                          <span class="mono">{{ model.latencyMs }} ms</span>
+                          <span class="cost-note">{{ model.costEstimate }}</span>
+                        </div>
+                      </td>
+                      <td>
+                        @if (getModelRoleLabel(model.id); as roleLabel) {
+                          <span class="assigned-pill">
+                            <app-icon name="check" size="sm" />
+                            Actif : {{ roleLabel }}
+                          </span>
+                        } @else {
+                          <span class="text-muted">—</span>
+                        }
+                      </td>
+                      <td>
+                        @if (model.status === 'active') {
+                          <span class="status status-published">Opérationnel</span>
+                        } @else {
+                          <span class="status status-draft">Inactif</span>
+                        }
+                      </td>
+                      <td class="num">
+                        <button
+                          class="btn btn-sm"
+                          type="button"
+                          (click)="toggleModel(model)"
+                          [attr.aria-label]="model.status === 'active' ? 'Désactiver ' + model.name : 'Activer ' + model.name"
+                        >
+                          {{ model.status === 'active' ? 'Désactiver' : 'Activer' }}
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="8" class="empty-cell">
+                        Aucun modèle ne correspond au filtre ou à la recherche.
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    }
+
+    <!-- ========================================================================
+         ONGLET 2 : STATISTIQUES & CONSOMMATION (NOUVELLE VUE ANALYTIQUE DÉDIÉE)
+         ======================================================================== -->
+    @if (activeTab() === 'stats') {
+      <div class="tab-pane" role="tabpanel" aria-label="Statistiques d'usage et consommation">
+        <!-- Ligne 1 : 4 Cartes KPI -->
+        <div class="usage-kpi-grid">
+          <!-- KPI 1 : Tokens dépensés & restants -->
+          <div class="kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Tokens dépensés &amp; restants</span>
+              <span class="kpi-tag mono">{{ summary.tokenQuotaUsedPct }} % du quota</span>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value mono">{{ formatTokens(summary.totalTokensSpent) }} dépensés</b>
+              <span class="kpi-sub">
+                Restants : <b class="mono text-ok">{{ formatTokens(summary.remainingTokens) }}</b> sur {{ formatTokens(summary.totalTokenQuota) }}
+              </span>
+            </div>
+            <div class="quota-progress" role="progressbar" [attr.aria-valuenow]="summary.tokenQuotaUsedPct" aria-valuemin="0" aria-valuemax="100">
+              <div class="quota-fill" [style.width.%]="summary.tokenQuotaUsedPct"></div>
+            </div>
+            <div class="kpi-breakdown mono">
+              <span>Entrée : {{ formatTokens(summary.totalPromptTokens) }}</span>
+              <span>Sortie : {{ formatTokens(summary.totalCompletionTokens) }}</span>
+              <span class="cache-badge" title="Tokens lus depuis le cache de contexte (-90% coût)">
+                Cache : {{ formatTokens(summary.totalCachedTokens) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- KPI 2 : Coûts & Budget mensuel -->
+          <div class="kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Coût cumulé &amp; Budget</span>
+              <span class="kpi-tag mono" [class.tag-warn]="summary.budgetUsedPct >= 80">
+                {{ summary.budgetUsedPct }} % consommé
+              </span>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value mono">{{ formatCurrency(summary.totalCostUsd) }}</b>
+              <span class="kpi-sub">
+                Budget restant : <b class="mono text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b> / {{ formatCurrency(summary.totalBudgetLimitUsd) }}
+              </span>
+            </div>
+            <div class="quota-progress" role="progressbar" [attr.aria-valuenow]="summary.budgetUsedPct" aria-valuemin="0" aria-valuemax="100">
+              <div class="quota-fill fill-cost" [style.width.%]="summary.budgetUsedPct"></div>
+            </div>
+            <div class="kpi-breakdown mono">
+              <span>Coût moyen / appel : {{ (summary.totalCostUsd / summary.totalCalls).toFixed(4).replace('.', ',') }} $</span>
+              <span>Local (Ollama) : 0,00 $</span>
+            </div>
+          </div>
+
+          <!-- KPI 3 : Nombre d'appels & Fiabilité -->
+          <div class="kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Volume d'appels &amp; Fiabilité</span>
+              <span class="status status-published">{{ summary.avgSuccessRate }} % succès</span>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
+              <span class="kpi-sub">
+                Moyenne : <b class="mono">~{{ summary.dailyAvgCalls }} appels / jour</b> sur 30 jours
+              </span>
+            </div>
+            <div class="kpi-breakdown mono">
+              <span>Modèle n°1 : {{ summary.topModel.name }} ({{ summary.topModel.usage.sharePct }} %)</span>
+              <span>Taux d'erreur : {{ (100 - summary.avgSuccessRate).toFixed(1).replace('.', ',') }} %</span>
+            </div>
+          </div>
+
+          <!-- KPI 4 : Visuels créés & retouchés par conversation -->
+          <div class="kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Création &amp; Retouche d'image</span>
+              <span class="kpi-tag badge-image mono">Conversationnel</span>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value mono">{{ summary.totalImages }} visuels</b>
+              <span class="kpi-sub">
+                Générés ou retouchés consigne par consigne (Flux 1.1 Pro &amp; Ideogram v2)
+              </span>
+            </div>
+            <div class="kpi-breakdown mono">
+              <span>Coût visuels : 9,25 $ (26 % du budget)</span>
+              <span>Moyenne : 0,042 $ / image</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ligne 2 : Grille 2 Colonnes (Palmarès des Modèles vs Quotas par Fournisseur) -->
+        <div class="stats-two-cols">
+          <!-- Colonne Gauche : Palmarès complet des modèles les plus utilisés -->
+          <div class="panel stats-panel">
+            <div class="stats-panel-head">
+              <div>
+                <h3>Palmarès des modèles les plus utilisés</h3>
+                <p class="sub">Classement par nombre d'appels, volume de tokens/images et coût sur 30 jours.</p>
+              </div>
+              <span class="period-pill mono">Top {{ summary.sortedByCalls.length }} modèles</span>
+            </div>
+
+            <div class="ranking-list">
+              @for (m of summary.sortedByCalls; track m.id; let idx = $index) {
+                <div class="ranking-row">
+                  <div class="r-top">
+                    <div class="r-title">
+                      <span class="r-rank mono">#{{ idx + 1 }}</span>
+                      <b>{{ m.name }}</b>
+                      <span class="provider-tag">{{ providerLabels[m.provider] }}</span>
+                      @if (getModelRoleLabel(m.id); as role) {
+                        <span class="assigned-pill">Actif : {{ role }}</span>
+                      }
+                    </div>
+                    <div class="r-metrics mono">
+                      <b>{{ m.usage.callsCount.toLocaleString('fr-FR') }} appels ({{ m.usage.sharePct }} %)</b>
+                      <span class="r-cost">{{ formatCurrency(m.usage.costUsd) }}</span>
+                    </div>
+                  </div>
+
+                  <div class="r-bar-wrap">
+                    <div
+                      class="r-bar-fill"
+                      [class.fill-image]="m.specialties.includes('image-generation')"
+                      [style.width.%]="m.usage.sharePct"
+                    ></div>
+                  </div>
+
+                  <div class="r-foot mono">
+                    @if (m.usage.imagesGenerated) {
+                      <span>Visuels générés/retouchés : {{ m.usage.imagesGenerated }}</span>
+                      <span>Entrée prompt : {{ formatTokens(m.usage.promptTokens) }} tok.</span>
+                    } @else {
+                      <span>Entrée : {{ formatTokens(m.usage.promptTokens) }} tok.</span>
+                      <span>Sortie : {{ formatTokens(m.usage.completionTokens) }} tok.</span>
+                      @if (m.usage.cachedTokens) {
+                        <span class="text-ok">Cache : {{ formatTokens(m.usage.cachedTokens) }} tok.</span>
+                      }
+                    }
+                    <span>Succès : {{ m.usage.successRatePct }} %</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Colonne Droite : Quotas & Consommation par Fournisseur -->
+          <div class="panel stats-panel">
+            <div class="stats-panel-head">
+              <div>
+                <h3>Quotas &amp; Budget par fournisseur</h3>
+                <p class="sub">Suivi des plafonds mensuels ($ USD) et des quotas de tokens par fournisseur.</p>
+              </div>
+              <button class="btn btn-sm" type="button" (click)="setMainTab('providers')">
+                Ajuster les plafonds
+              </button>
+            </div>
+
+            <div class="provider-quotas-list">
+              @for (cfg of store.providerConfigs(); track cfg.provider) {
+                <div class="pq-card">
+                  <div class="pq-head">
+                    <div class="pq-title">
+                      <b>{{ providerLabels[cfg.provider] }}</b>
+                      <span class="status status-published">● {{ cfg.lastPingMs }} ms</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn-text mono"
+                      (click)="openProviderConfig(cfg.provider)"
+                    >
+                      Configurer →
+                    </button>
+                  </div>
+
+                  @if (cfg.provider === 'local') {
+                    <div class="pq-local mono">
+                      <span>Exécution locale sur serveur interne (aucun coût API ni limite de facturation)</span>
+                      <b>{{ formatTokens(cfg.tokensUsedThisMonth) }} tokens traités · 0,00 $</b>
+                    </div>
+                  } @else {
+                    <div class="pq-meters">
+                      <!-- Jauge Budget $ -->
+                      <div class="pq-meter">
+                        <div class="pq-meter-row mono">
+                          <span>Budget : <b>{{ formatCurrency(cfg.spentUsdThisMonth) }}</b> / {{ formatCurrency(cfg.monthlyBudgetLimitUsd) }}</span>
+                          <span class="text-ok">
+                            Restant : {{ formatCurrency(cfg.monthlyBudgetLimitUsd - cfg.spentUsdThisMonth) }} ({{ getProviderBudgetPct(cfg) }} %)
+                          </span>
+                        </div>
+                        <div class="u-bar">
+                          <div class="u-fill fill-cost" [style.width.%]="getProviderBudgetPct(cfg)"></div>
+                        </div>
+                      </div>
+
+                      <!-- Jauge Quota Tokens -->
+                      <div class="pq-meter">
+                        <div class="pq-meter-row mono">
+                          <span>Tokens : <b>{{ formatTokens(cfg.tokensUsedThisMonth) }}</b> / {{ formatTokens(cfg.monthlyTokenQuota) }}</span>
+                          <span>
+                            Restants : {{ formatTokens(cfg.monthlyTokenQuota - cfg.tokensUsedThisMonth) }} ({{ getProviderTokenPct(cfg) }} %)
+                          </span>
+                        </div>
+                        <div class="u-bar">
+                          <div class="u-fill" [style.width.%]="getProviderTokenPct(cfg)"></div>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Ligne 3 : Répartition de l'usage par Spécialité Métier IAGORA -->
+        <div class="panel stats-panel">
+          <div class="stats-panel-head">
+            <div>
+              <h3>Répartition de la consommation par spécialité métier IAGORA</h3>
+              <p class="sub">Ventilation des 4 385 appels et des coûts selon les 4 pôles d'usage de la plateforme.</p>
+            </div>
+          </div>
+
+          <div class="specialty-breakdown-grid">
+            @for (item of summary.specialtyBreakdown; track item.key) {
+              <div class="sb-card" [class.sb-image]="item.key === 'image-generation'">
+                <div class="sb-top">
+                  <b>{{ item.label }}</b>
+                  <span class="u-share mono">{{ item.sharePct }} % des appels</span>
+                </div>
+                <p class="sb-hint">{{ item.hint }}</p>
+                <div class="u-bar">
+                  <div class="u-fill" [style.width.%]="item.sharePct"></div>
+                </div>
+                <div class="sb-foot mono">
+                  <span><b>{{ item.calls.toLocaleString('fr-FR') }}</b> appels</span>
+                  <span>{{ item.tokensOrUnits }}</span>
+                  <b>{{ formatCurrency(item.costUsd) }}</b>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ========================================================================
+         ONGLET 3 : CLÉS API, QUOTAS & CONFIGURATION DES FOURNISSEURS
+         ======================================================================== -->
+    @if (activeTab() === 'providers') {
+      <div class="tab-pane" role="tabpanel" aria-label="Configuration des fournisseurs d'IA">
+        <section class="config-section">
+          <div class="section-head">
+            <div>
+              <h2>Champs d'accès, quotas et paramètres d'utilisation</h2>
+              <p class="sub">
+                Renseignez vos clés d'API, URLs de points de terminaison, plafonds budgétaires et paramètres d'échantillonnage par fournisseur.
+              </p>
+            </div>
+          </div>
+
+          <!-- Sélecteur de fournisseur sous forme d'onglets horizontaux -->
+          <div class="provider-tabs" role="tablist" aria-label="Fournisseurs d'IA">
+            @for (p of providers; track p) {
+              <button
+                class="provider-tab"
+                type="button"
+                role="tab"
+                [class.is-active]="store.selectedProvider() === p"
+                [attr.aria-selected]="store.selectedProvider() === p"
+                (click)="selectProvider(p)"
+              >
+                <span class="p-name">{{ providerLabels[p] }}</span>
+                @if (p === 'local') {
+                  <span class="badge-local">Local</span>
+                }
+              </button>
+            }
+          </div>
+
+          <!-- Boîte de configuration du fournisseur actif -->
+          <div class="panel config-panel">
+            <div class="config-header">
+              <div class="ch-left">
+                <h3>Paramètres pour {{ providerLabels[store.selectedProvider()] }}</h3>
+                <span class="status status-published">
+                  ● Connecté &amp; Valide ({{ store.currentProviderConfig().lastPingMs }} ms)
+                </span>
+                <span class="provider-usage-pill mono">
+                  Consommé ce mois : {{ formatCurrency(store.currentProviderConfig().spentUsdThisMonth) }}
+                  @if (store.currentProviderConfig().monthlyBudgetLimitUsd > 0) {
+                    / {{ formatCurrency(store.currentProviderConfig().monthlyBudgetLimitUsd) }}
+                  }
+                </span>
+              </div>
+              <div class="ch-right">
+                <span class="mono last-check text-muted">
+                  Dernière vérification : {{ store.currentProviderConfig().lastTestedAt }}
+                </span>
+                <button
+                  class="btn btn-sm"
+                  type="button"
+                  [disabled]="store.isTesting()"
+                  (click)="testCurrentProvider()"
+                >
+                  <app-icon name="sparkle" size="sm" />
+                  {{ store.isTesting() ? 'Test en cours…' : 'Tester la connexion' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="config-body">
+              <div class="cfg-grid">
+                <!-- Point de terminaison (Endpoint URL) -->
+                <div class="field">
+                  <label for="cfg-endpoint">Point de terminaison (Endpoint API)</label>
+                  <input
+                    id="cfg-endpoint"
+                    type="url"
+                    class="input mono"
+                    [ngModel]="editEndpoint()"
+                    (ngModelChange)="editEndpoint.set($event)"
+                    placeholder="https://api.example.com/v1"
+                  />
+                  <p class="note">URL du serveur ou proxy d'entreprise. Pour Ollama local : http://localhost:11434/api</p>
+                </div>
+
+                <!-- Clé API avec bouton Afficher/Masquer -->
+                <div class="field">
+                  <div class="field-head">
+                    <label for="cfg-key">Clé d'API secrète</label>
+                    @if (store.selectedProvider() !== 'local') {
+                      <button
+                        class="btn-text"
+                        type="button"
+                        (click)="showApiKey.set(!showApiKey())"
+                      >
+                        {{ showApiKey() ? 'Masquer' : 'Afficher la clé' }}
+                      </button>
+                    }
+                  </div>
+                  <div class="key-input-wrap">
+                    <input
+                      id="cfg-key"
+                      [type]="showApiKey() ? 'text' : 'password'"
+                      class="input mono"
+                      [ngModel]="editApiKey()"
+                      (ngModelChange)="editApiKey.set($event)"
+                      [disabled]="store.selectedProvider() === 'local'"
+                      placeholder="sk-••••••••••••••••"
+                    />
+                  </div>
+                  <p class="note">Stockée de manière chiffrée (Fernet AES-128). Jamais exposée côté client.</p>
+                </div>
+
+                <!-- Température (créativité vs précision) -->
+                <div class="field">
+                  <div class="field-head">
+                    <label for="cfg-temp">Température d'échantillonnage</label>
+                    <span class="mono temp-val">{{ editTemperature() }}</span>
+                  </div>
+                  <div class="range-wrap">
+                    <input
+                      id="cfg-temp"
+                      type="range"
+                      min="0"
+                      max="1.5"
+                      step="0.05"
+                      class="slider"
+                      [ngModel]="editTemperature()"
+                      (ngModelChange)="editTemperature.set(+$event)"
+                    />
+                  </div>
+                  <p class="note">0.2 pour du factuel / RAG strict · 0.7 pour des accroches créatives.</p>
+                </div>
+
+                <!-- Nombre de tokens max -->
+                <div class="field">
+                  <label for="cfg-tokens">Nombre maximum de tokens par réponse (max_tokens)</label>
+                  <input
+                    id="cfg-tokens"
+                    type="number"
+                    min="128"
+                    max="32768"
+                    step="128"
+                    class="input mono"
+                    [ngModel]="editMaxTokens()"
+                    (ngModelChange)="editMaxTokens.set(+$event)"
+                  />
+                  <p class="note">Limite la longueur maximale de chaque génération produite par le modèle.</p>
+                </div>
+
+                <!-- Plafond budgétaire mensuel ($) -->
+                <div class="field">
+                  <label for="cfg-budget">Plafond budgétaire mensuel ($ USD)</label>
+                  <input
+                    id="cfg-budget"
+                    type="number"
+                    min="0"
+                    max="5000"
+                    step="5"
+                    class="input mono"
+                    [ngModel]="editMonthlyBudget()"
+                    (ngModelChange)="editMonthlyBudget.set(+$event)"
+                    [disabled]="store.selectedProvider() === 'local'"
+                  />
+                  <p class="note">
+                    Déclenche une alerte à 80 % du budget. Restant :
+                    <b class="mono">{{ formatCurrency(editMonthlyBudget() > store.currentProviderConfig().spentUsdThisMonth ? editMonthlyBudget() - store.currentProviderConfig().spentUsdThisMonth : 0) }}</b>
+                  </p>
+                </div>
+
+                <!-- Quota mensuel de tokens -->
+                <div class="field">
+                  <label for="cfg-token-quota">Quota mensuel de tokens</label>
+                  <input
+                    id="cfg-token-quota"
+                    type="number"
+                    min="0"
+                    max="100000000"
+                    step="100000"
+                    class="input mono"
+                    [ngModel]="editMonthlyTokenQuota()"
+                    (ngModelChange)="editMonthlyTokenQuota.set(+$event)"
+                    [disabled]="store.selectedProvider() === 'local'"
+                  />
+                  <p class="note">
+                    Utilisés ce mois : <b class="mono">{{ formatTokens(store.currentProviderConfig().tokensUsedThisMonth) }}</b> tokens.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-foot">
+              <span class="text-muted text-sm">
+                Modifications appliquées immédiatement aux futures générations, quotas et requêtes RAG.
+              </span>
+              <button class="btn btn-primary" type="button" (click)="saveProviderConfig()">
+                <app-icon name="check" size="sm" />
+                Enregistrer la configuration
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    }
+  }
+</div>

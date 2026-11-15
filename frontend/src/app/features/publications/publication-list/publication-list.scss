@@ -504,3 +504,8 @@
   border-color: var(--err);
   color: var(--err);
 }
+
+/* Type sans aucune publication : grisé, jamais masqué. */
+.fopt.is-empty {
+  opacity: 0.55;
+}

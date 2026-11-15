@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MAIL_TEMPLATES } from '../../../core/data/mail-templates.data';
 import {
@@ -48,6 +48,8 @@ export class MailTemplates {
   protected readonly selectedId = signal(MAIL_TEMPLATES[0].id);
   /** Version affichée dans l'aperçu : index dans `versions`. */
   protected readonly versionIndex = signal(0);
+  /** Ouverture de la pop-up d'aperçu agrandi. */
+  protected readonly isPreviewModalOpen = signal(false);
 
   protected readonly everything = this.all.asReadonly();
 
@@ -128,5 +130,20 @@ export class MailTemplates {
 
   protected showVersion(index: number): void {
     this.versionIndex.set(index);
+  }
+
+  protected openPreviewModal(): void {
+    this.isPreviewModalOpen.set(true);
+  }
+
+  protected closePreviewModal(): void {
+    this.isPreviewModalOpen.set(false);
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  protected onKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.isPreviewModalOpen()) {
+      this.closePreviewModal();
+    }
   }
 }

@@ -27,6 +27,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
       { kind: 'link', key: 'compose', label: 'Créer une publication', icon: 'pencil', route: '/publications/nouvelle' },
       { kind: 'link', key: 'generate', label: 'Générer une publication', icon: 'sparkle', route: '/publications/generer' },
       { kind: 'link', key: 'publications', label: 'Publications', icon: 'files', route: '/publications', count: '24' },
+      { kind: 'link', key: 'media-references', label: 'Médias de référence', icon: 'image', route: '/medias-de-reference', count: '8' },
     ],
   },
   {
@@ -53,7 +54,16 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     label: 'Événements',
     icon: 'cap',
     items: [
-      { kind: 'link', key: 'webinars', label: 'Webinaires', icon: 'video', route: '/webinaires', count: '6' },
+      {
+        kind: 'subgroup',
+        key: 'Webinaires',
+        label: 'Webinaires',
+        icon: 'video',
+        items: [
+          { key: 'sends', label: "Voir les webinaires", icon: 'files', route: '/webinaires' },
+          { key: 'templates', label: 'Créer un webinaire', icon: 'pencil', route: '/webinaires/nouveau'},
+        ],
+      },
       {
         kind: 'subgroup',
         key: 'newsletter',
@@ -91,8 +101,20 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     label: 'Administrer',
     icon: 'sliders',
     items: [
+      {
+        kind: 'subgroup',
+        key: 'Inteligence artificielle',
+        label: 'Intelligence artificielle',
+        icon: 'sparkle',
+        items: [
+          {  key: 'ai-models', label: 'Modèles IA', icon: 'sparkle', route: '/modeles-ia', count: '8' },
+          {  key: 'prompt-system', label: 'Prompt système', icon: 'pencil', route: '/admin/prompts/system' },
+          {  key: 'prompt-templates', label: 'Prompt templates', icon: 'files', route: '/admin/prompts/templates' },
+            ],
+      },
       { kind: 'link', key: 'users', label: 'Utilisateurs', icon: 'users', route: '/utilisateurs', count: '6' },
       { kind: 'link', key: 'settings', label: 'Paramètres', icon: 'gear', route: '/parametres', isPending: true },
+      { kind: 'link', key: 'integrations', label: 'Gestion outils tierces', icon: 'sliders', route: '/admin/outils-tierces' },
     ],
   },
 ];

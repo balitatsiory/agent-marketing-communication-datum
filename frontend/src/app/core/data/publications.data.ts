@@ -132,6 +132,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 318,
     commentCount: 37,
     hashtags: ['#SEO', '#Webinaire'],
+    eventLinks: [{ webinarId: 4, type: 'promotion' }],
     history: [
       {
         kind: 'created',
@@ -330,6 +331,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 0,
     commentCount: 0,
     hashtags: ['#IA', '#RAG', '#Pédagogie'],
+    eventLinks: [{ webinarId: 1, type: 'promotion' }],
     history: [
       {
         kind: 'created',
@@ -409,6 +411,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 0,
     commentCount: 0,
     hashtags: ['#Kubernetes', '#DevOps'],
+    eventLinks: [{ webinarId: 2, type: 'promotion' }],
     history: [
       {
         kind: 'created',
@@ -555,6 +558,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 0,
     commentCount: 0,
     hashtags: ['#Inscriptions'],
+    eventLinks: [{ webinarId: 2, type: 'other' }],
     history: [
       {
         kind: 'created',
@@ -601,6 +605,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 143,
     commentCount: 19,
     hashtags: ['#IA', '#Éthique', '#Conférence'],
+    eventLinks: [{ webinarId: 5, type: 'promotion' }],
     history: [
       {
         kind: 'created',
@@ -790,6 +795,7 @@ export const PUBLICATIONS: readonly Publication[] = [
     reactionCount: 389,
     commentCount: 61,
     hashtags: ['#Data', '#Formateurs'],
+    eventLinks: [{ webinarId: 5, type: 'summary' }],
     history: [
       {
         kind: 'created',

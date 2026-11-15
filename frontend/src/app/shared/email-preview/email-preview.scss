@@ -33,6 +33,43 @@
   color: var(--ink);
 }
 
+.mail.is-expanded {
+  max-width: 740px;
+  box-shadow: 0 8px 28px rgba(7, 60, 78, 0.1);
+}
+.mail.is-expanded .mail-banner {
+  padding: 22px 32px;
+}
+.mail.is-expanded .mail-brand b {
+  font-size: 22px;
+}
+.mail.is-expanded .mail-body {
+  padding: 32px;
+  gap: 18px;
+}
+.mail.is-expanded .mail-greeting {
+  font-size: 18px;
+}
+.mail.is-expanded .mail-p {
+  font-size: 15px;
+  line-height: 1.7;
+}
+.mail.is-expanded .mail-details th,
+.mail.is-expanded .mail-details td {
+  padding: 11px 16px;
+  font-size: 14px;
+}
+.mail.is-expanded .mail-button {
+  padding: 14px 26px;
+  font-size: 15px;
+}
+.mail.is-expanded .mail-sign {
+  padding: 20px 32px;
+}
+.mail.is-expanded .mail-legal {
+  padding: 14px 32px 18px;
+}
+
 .mail-banner {
   display: flex;
   align-items: center;

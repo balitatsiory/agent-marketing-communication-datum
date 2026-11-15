@@ -6,7 +6,11 @@
   </div>
 }
 
-<article class="mail" [attr.aria-label]="'Aperçu du courriel : ' + content().subject">
+<article
+  class="mail"
+  [class.is-expanded]="expanded()"
+  [attr.aria-label]="'Aperçu du courriel : ' + content().subject"
+>
   <!-- bandeau de marque -->
   <header class="mail-banner">
     <app-brand-logo variant="mark" />

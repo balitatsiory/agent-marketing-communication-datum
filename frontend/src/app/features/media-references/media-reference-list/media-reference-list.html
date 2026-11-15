@@ -1,0 +1,536 @@
+<app-topbar [trail]="['Publier', 'Médias de référence']" />
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Médias de référence</h1>
+      <p class="sub">
+        Logos, portraits, ambiances et gabarits que l'IA consulte avant de produire un visuel ·
+        {{ toReviewCount() }} à relire
+        @if (missingConsentCount()) {
+          · {{ missingConsentCount() }} sans consentement
+        }
+      </p>
+    </div>
+    <button class="btn btn-primary" type="button" (click)="openImport()">
+      <app-icon name="plus" size="sm" />
+      Importer un média
+    </button>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice" role="status"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+
+  <!-- ---------- barre d'outils : recherche & filtre par rôle ---------- -->
+  <div class="toolbar" role="toolbar" aria-label="Recherche et filtres">
+    <div class="searchbox">
+      <app-icon name="search" size="sm" />
+      <input
+        type="search"
+        placeholder="Rechercher par nom de fichier ou description…"
+        aria-label="Rechercher dans les médias"
+        [value]="searchTerm()"
+        (input)="onSearch($any($event.target).value)"
+      />
+      @if (searchTerm()) {
+        <button
+          class="btn-clear"
+          type="button"
+          (click)="clearSearch()"
+          aria-label="Effacer la recherche"
+          title="Effacer"
+        >
+          <app-icon name="close" size="sm" />
+        </button>
+      }
+    </div>
+
+    <!-- Filtre par rôle : pastilles Tous · Actif · Style · Gabarit -->
+    <div class="chips" role="group" aria-label="Filtrer par rôle">
+      @for (option of filters(); track option.key) {
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="filter() === option.key"
+          [attr.aria-pressed]="filter() === option.key"
+          (click)="setFilter(option.key)"
+        >
+          {{ option.label }}
+          <span class="n">{{ option.count }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ---------- ligne d'information & réglage de pagination ---------- -->
+  <div class="resline">
+    <span class="count">
+      {{ filteredResults().length }}
+      {{ filteredResults().length > 1 ? 'médias' : 'média' }}
+      @if (searchTerm()) {
+        pour «&nbsp;<b>{{ searchTerm() }}</b>&nbsp;»
+      }
+    </span>
+    <span class="grow"></span>
+    @if (filteredResults().length > 0) {
+      <label class="per-page">
+        Par page
+        <select
+          class="select select-sm"
+          [ngModel]="pageSize()"
+          (ngModelChange)="setPageSize($event)"
+          aria-label="Nombre de médias affichés par page"
+        >
+          <option [ngValue]="6">6</option>
+          <option [ngValue]="12">12</option>
+          <option [ngValue]="24">24</option>
+        </select>
+      </label>
+    }
+  </div>
+
+  <!-- ---------- grille de cartes ---------- -->
+  @if (filteredResults().length === 0) {
+    <div class="empty">
+      <h2>Aucun média trouvé</h2>
+      @if (searchTerm()) {
+        <p>Aucun média de référence ne correspond à votre recherche « {{ searchTerm() }} ».</p>
+        <button class="btn" type="button" (click)="clearSearch()">Effacer la recherche</button>
+      } @else {
+        <p>Aucun média de référence ne porte ce rôle pour l'instant.</p>
+        <button class="btn" type="button" (click)="setFilter('all')">Voir tous les médias</button>
+      }
+    </div>
+  } @else {
+    <div class="grid">
+      @for (media of paginatedResults(); track media.id) {
+        <article class="mcard" (click)="openViewer(media)">
+          <div
+            class="mcard-media"
+            tabindex="0"
+            role="button"
+            [attr.aria-label]="'Visualiser ' + media.fileName"
+            (keydown.enter)="openViewer(media)"
+          >
+            @if (media.previewUrl) {
+              <img [src]="media.previewUrl" [alt]="media.fileName" loading="lazy" />
+            }
+            <span class="role-tag">{{ roleLabels[media.role] }}</span>
+            <span class="zoom-pill" aria-hidden="true">
+              <app-icon name="image" size="sm" />
+              Aperçu
+            </span>
+          </div>
+
+          <div class="mcard-body">
+            <h3 class="mcard-name" [attr.title]="media.fileName">{{ media.fileName }}</h3>
+            <p class="mcard-desc" [attr.title]="media.description">{{ media.description }}</p>
+
+            <div class="mcard-badges">
+              <span
+                class="status"
+                [class.st-todo]="media.descriptionStatus === 'ai-proposal'"
+                [class.st-done]="media.descriptionStatus === 'reviewed'"
+              >
+                {{ statusLabels[media.descriptionStatus] }}
+              </span>
+              @if (media.depictsPerson) {
+                @if (media.consentCollected) {
+                  <span class="status st-done">Consentement IA recueilli</span>
+                } @else {
+                  <span class="status st-alert">Consentement manquant</span>
+                }
+              }
+            </div>
+
+            <div class="mcard-foot">
+              <button
+                class="btn btn-sm"
+                type="button"
+                (click)="openEdit(media); $event.stopPropagation()"
+                aria-label="Modifier les métadonnées du média"
+              >
+                <app-icon name="pencil" size="sm" />
+                Modifier
+              </button>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+
+    <!-- ---------- barre de pagination ---------- -->
+    @if (totalPages() > 1) {
+      <nav class="pagination-bar" aria-label="Pagination des médias">
+        <span class="page-range mono">
+          Affichage de {{ pageStart() }} à {{ pageEnd() }} sur {{ filteredResults().length }}
+        </span>
+
+        <div class="page-controls">
+          <button
+            class="btn btn-sm btn-icon"
+            type="button"
+            [disabled]="currentPage() === 1"
+            (click)="prevPage()"
+            aria-label="Page précédente"
+            title="Page précédente"
+          >
+            <app-icon name="chevron" size="sm" class="chev-prev" />
+          </button>
+
+          <div class="page-numbers">
+            @for (p of pageNumbers(); track p) {
+              <button
+                class="page-btn"
+                type="button"
+                [class.is-active]="p === currentPage()"
+                [attr.aria-current]="p === currentPage() ? 'page' : null"
+                (click)="goToPage(p)"
+              >
+                {{ p }}
+              </button>
+            }
+          </div>
+
+          <button
+            class="btn btn-sm btn-icon"
+            type="button"
+            [disabled]="currentPage() === totalPages()"
+            (click)="nextPage()"
+            aria-label="Page suivante"
+            title="Page suivante"
+          >
+            <app-icon name="chevron" size="sm" class="chev-next" />
+          </button>
+        </div>
+      </nav>
+    }
+  }
+</div>
+
+<!-- ============================================================
+     Visionneuse photo avec informations & défilement (Lightbox)
+     ============================================================ -->
+@if (viewingMedia(); as media) {
+  <div
+    class="modal-back viewer-back"
+    (click)="closeViewer()"
+    tabindex="-1"
+  >
+    <div
+      class="modal viewer-modal"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="media.fileName"
+      (click)="$event.stopPropagation()"
+    >
+      <!-- En-tête de la visionneuse -->
+      <div class="modal-head">
+        <div class="vm-head-t">
+          <div class="vm-kicker">
+            <span class="role-tag">{{ roleLabels[media.role] }}</span>
+            <span class="vm-counter mono">{{ viewingIndex() + 1 }} / {{ filteredResults().length }}</span>
+          </div>
+          <h2>{{ media.fileName }}</h2>
+        </div>
+
+        <div class="vm-head-actions">
+          <button class="btn btn-sm" type="button" (click)="openEditFromViewer(media)">
+            <app-icon name="pencil" size="sm" />
+            Modifier
+          </button>
+          <button class="btn btn-icon btn-ghost" type="button" (click)="closeViewer()" aria-label="Fermer la vue">
+            <app-icon name="close" size="sm" />
+          </button>
+        </div>
+      </div>
+
+      <!-- Corps : Image avec boutons de défilement + Panneau d'informations -->
+      <div class="modal-body vm-body">
+        <!-- Zone photo avec défilement -->
+        <div class="vm-media-stage">
+          <button
+            class="vm-arrow vm-arrow-left"
+            type="button"
+            [disabled]="!hasPrevViewer()"
+            (click)="prevViewer()"
+            aria-label="Média précédent"
+            title="Média précédent (Flèche gauche ←)"
+          >
+            <app-icon name="chevron" class="chev-prev" />
+          </button>
+
+          <div class="vm-frame">
+            @if (media.previewUrl) {
+              <img [src]="media.previewUrl" [alt]="media.fileName" class="vm-photo" />
+            } @else {
+              <div class="vm-placeholder">
+                <app-icon name="image" size="lg" />
+                <span class="vm-ph-name mono">{{ media.fileName }}</span>
+                <span class="vm-ph-sub">Aperçu direct indisponible</span>
+              </div>
+            }
+          </div>
+
+          <button
+            class="vm-arrow vm-arrow-right"
+            type="button"
+            [disabled]="!hasNextViewer()"
+            (click)="nextViewer()"
+            aria-label="Média suivant"
+            title="Média suivant (Flèche droite →)"
+          >
+            <app-icon name="chevron" class="chev-next" />
+          </button>
+        </div>
+
+        <!-- Panneau d'informations du média -->
+        <aside class="vm-sidebar" aria-label="Informations du média">
+          <!-- Section Rôle -->
+          <div class="vm-sec">
+            <span class="label">Rôle d'usage IA</span>
+            <div class="vm-role-card">
+              <span class="role-tag">{{ roleLabels[media.role] }}</span>
+              <p class="vm-role-hint">{{ roleHints[media.role] }}</p>
+            </div>
+          </div>
+
+          <!-- Section Description -->
+          <div class="vm-sec">
+            <div class="field-head">
+              <span class="label">Description analysée</span>
+              <span
+                class="status"
+                [class.st-todo]="media.descriptionStatus === 'ai-proposal'"
+                [class.st-done]="media.descriptionStatus === 'reviewed'"
+              >
+                {{ statusLabels[media.descriptionStatus] }}
+              </span>
+            </div>
+            <p class="vm-desc">{{ media.description }}</p>
+          </div>
+
+          <!-- Section Personne & Consentement -->
+          <div class="vm-sec">
+            <span class="label">Personne &amp; Droit à l'image</span>
+            @if (media.depictsPerson) {
+              <div
+                class="vm-consent-banner"
+                [class.is-ok]="media.consentCollected"
+                [class.is-alert]="!media.consentCollected"
+              >
+                @if (media.consentCollected) {
+                  <span class="status st-done">Consentement IA recueilli</span>
+                  <p class="vm-consent-text">
+                    Une personne est identifiable. Le consentement écrit spécifique à la génération IA a été recueilli et archivé.
+                  </p>
+                } @else {
+                  <span class="status st-alert">Consentement manquant</span>
+                  <p class="vm-consent-text">
+                    Attention : une personne est représentée mais le consentement écrit spécifique n'a pas encore été validé.
+                  </p>
+                }
+              </div>
+            } @else {
+              <p class="vm-no-person">Aucune personne identifiable n'est représentée.</p>
+            }
+          </div>
+
+          <!-- Raccourcis clavier -->
+          <div class="vm-kbd-hint">
+            <span><kbd>←</kbd> <kbd>→</kbd> Défiler les photos</span>
+            <span><kbd>Échap</kbd> Fermer</span>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Pied de la visionneuse avec boutons Défiler -->
+      <div class="modal-foot vm-foot">
+        <button
+          class="btn"
+          type="button"
+          [disabled]="!hasPrevViewer()"
+          (click)="prevViewer()"
+        >
+          <app-icon name="chevron" size="sm" class="chev-prev" />
+          Précédent
+        </button>
+
+        <span class="vm-page-indicator mono">
+          {{ viewingIndex() + 1 }} sur {{ filteredResults().length }}
+        </span>
+
+        <button
+          class="btn"
+          type="button"
+          [disabled]="!hasNextViewer()"
+          (click)="nextViewer()"
+        >
+          Suivant
+          <app-icon name="chevron" size="sm" class="chev-next" />
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ============================================================
+     Fenêtre Importer / Modifier (formulaire complet)
+     ============================================================ -->
+@if (editor(); as state) {
+  <div class="modal-back" (click)="close()" tabindex="-1">
+    <div
+      class="modal media-editor"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="media-editor-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div class="me-head-t">
+          <h2 id="media-editor-title">
+            {{ state.mode === 'import' ? 'Importer un média' : 'Modifier le média' }}
+          </h2>
+          @if (state.mode === 'edit') {
+            <span class="me-sub">{{ state.media.fileName }}</span>
+          }
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="close()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="me-body">
+          <!-- 1 · fichier, à l'import seulement -->
+          @if (isImport()) {
+            <div class="field">
+              <span class="label">Fichier <span class="req">obligatoire</span></span>
+              <input
+                #fileInput
+                class="sr-only"
+                type="file"
+                accept="image/*"
+                tabindex="-1"
+                aria-hidden="true"
+                (change)="onFileSelected($event)"
+              />
+              <button
+                class="drop"
+                type="button"
+                [class.is-over]="isDragOver()"
+                [class.has-file]="file() !== null"
+                (click)="fileInput.click()"
+                (dragover)="onDragOver($event)"
+                (dragleave)="isDragOver.set(false)"
+                (drop)="onDrop($event)"
+              >
+                @if (file(); as chosen) {
+                  <app-icon name="image" />
+                  <b>{{ chosen.name }}</b>
+                  <span>{{ formatSize(chosen.size) }} · cliquer ou déposer pour remplacer</span>
+                } @else {
+                  <app-icon name="plus" />
+                  <b>Déposer une image ici</b>
+                  <span>ou cliquer pour la choisir · PNG, JPG, WebP, SVG</span>
+                }
+              </button>
+              @if (fileError(); as error) {
+                <p class="error" role="alert"><app-icon name="warn" size="sm" />{{ error }}</p>
+              }
+            </div>
+          }
+
+          <!-- 2 · rôle, sans valeur par défaut -->
+          <fieldset class="field roles">
+            <legend class="label">Rôle <span class="req">obligatoire</span></legend>
+            @for (option of roles; track option) {
+              <label class="role-opt" [class.is-on]="role() === option">
+                <input
+                  type="radio"
+                  name="media-role"
+                  required
+                  [value]="option"
+                  [checked]="role() === option"
+                  (change)="role.set(option)"
+                />
+                <span class="role-txt">
+                  <b>{{ roleLabels[option] }}</b>
+                  <span>{{ roleHints[option] }}</span>
+                </span>
+              </label>
+            }
+          </fieldset>
+
+          <!-- 3 · description proposée par l'IA -->
+          <div class="field">
+            <div class="field-head">
+              <label class="label" for="media-description">Description</label>
+              @if (!isImport() || file()) {
+                <span class="status" [class]="descriptionTone()">{{ descriptionLabel() }}</span>
+              }
+            </div>
+            <textarea
+              class="textarea"
+              id="media-description"
+              rows="4"
+              [value]="description()"
+              [disabled]="isImport() && !file()"
+              [attr.placeholder]="isImport() && !file() ? waitingPlaceholder : null"
+              (input)="description.set($any($event.target).value)"
+            ></textarea>
+            <p class="note">
+              L'IA la relit à chaque génération : décrivez ce que l'image montre, pas ce qu'elle
+              doit devenir.
+            </p>
+          </div>
+
+          <!-- 4 · relecture et consentement -->
+          <div class="checks">
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="hasReviewed()"
+                (change)="hasReviewed.set($any($event.target).checked)"
+              />
+              J'ai relu cette description
+              <span class="req">obligatoire</span>
+            </label>
+
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="depictsPerson()"
+                (change)="setDepictsPerson($any($event.target).checked)"
+              />
+              Une personne est représentée
+            </label>
+
+            @if (depictsPerson()) {
+              <label class="check consent" [class.is-missing]="!consentCollected()">
+                <input
+                  type="checkbox"
+                  [checked]="consentCollected()"
+                  (change)="consentCollected.set($any($event.target).checked)"
+                />
+                J'ai recueilli le consentement écrit spécifique à l'usage IA
+                <span class="req">obligatoire</span>
+              </label>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        @if (!canSave()) {
+          <span class="foot-note">Manque : {{ missing().join(', ') }}</span>
+        }
+        <button class="btn" type="button" (click)="close()">Annuler</button>
+        <button class="btn btn-primary" type="button" [disabled]="!canSave()" (click)="save()">
+          Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+}

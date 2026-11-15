@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
-import { WEBINARS } from '../../../core/data/webinars.data';
+import { WebinarStore } from '../../../core/services/webinar-store';
 import { SOCIAL_NETWORKS } from '../../../core/data/social-networks.data';
 import { SocialNetworkCode } from '../../../core/models/social-network';
 import {
@@ -57,7 +58,21 @@ export class WebinarList {
   protected readonly filters: readonly WebinarFilter[] = ['all', 'scheduled', 'draft', 'past'];
   protected readonly allNetworks = SOCIAL_NETWORKS;
 
-  private readonly webinars = signal<readonly Webinar[]>(WEBINARS);
+  private readonly store = inject(WebinarStore);
+  private readonly router = inject(Router);
+  private readonly webinars = this.store.everything;
+
+  /** Message laissé par le formulaire (brouillon enregistré, webinaire programmé). */
+  protected readonly notice = this.store.notice;
+
+  constructor() {
+    // Le message ne vaut que pour l'arrivée sur la liste : on l'efface en la quittant.
+    inject(DestroyRef).onDestroy(() => this.store.notice.set(null));
+  }
+
+  protected newWebinar(): void {
+    void this.router.navigateByUrl('/webinaires/nouveau');
+  }
 
   protected readonly filter = signal<WebinarFilter>('all');
   protected readonly isPastExpanded = signal(false);
@@ -173,6 +188,11 @@ export class WebinarList {
   }
 
   protected open(webinar: Webinar): void {
+    // Un brouillon se reprend dans le formulaire ; il n'a rien à montrer dans la pop-up.
+    if (webinar.status === 'draft') {
+      void this.router.navigate(['/webinaires', webinar.id, 'modifier']);
+      return;
+    }
     this.opened.set(webinar);
     this.tab.set('detail');
     this.visualIndex.set(0);

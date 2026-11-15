@@ -27,6 +27,8 @@ export class EmailPreview {
   readonly showHeader = input(true);
   /** Souligne les `{{variables}}` non substituées. */
   readonly showVariables = input(false);
+  /** Affiche le courriel en format agrandi (pop-up plein écran). */
+  readonly expanded = input(false);
 
   /**
    * Découpe un paragraphe en segments, en isolant les variables.

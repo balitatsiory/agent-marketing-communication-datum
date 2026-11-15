@@ -24,7 +24,7 @@ export const WEBINARS: readonly Webinar[] = [
     subtitle: 'Animé par Yann Ravelo · LinkedIn Live + Zoom',
     flags: [
       { label: 'Inscriptions ouvertes', modifier: 'status-published' },
-      { label: '3 rappels programmés', modifier: 'status-scheduled' },
+      { label: '2 rappels programmés', modifier: 'status-scheduled' },
     ],
     description:
       "Une heure de démonstration sur un corpus réel, puis trente minutes de questions. On montre surtout les cas où la recherche augmentée échoue, et pourquoi : découpage trop fin, requêtes ambiguës, documents contradictoires.",
@@ -45,9 +45,8 @@ export const WEBINARS: readonly Webinar[] = [
       { name: 'Soa Ranaivo', initials: 'SR', source: 'Instagram', when: 'hier' },
     ],
     reminders: [
-      { label: 'J-7 · e-mail + LinkedIn', when: '1er oct.' },
-      { label: 'J-1 · e-mail', when: '7 oct.' },
-      { label: 'H-2 · Story Instagram', when: '8 oct.' },
+      { label: '24 h avant · e-mail', when: '7 oct. · 20:00' },
+      { label: '1 h avant · e-mail', when: '8 oct. · 19:00' },
     ],
     registrationSeries: [0, 1, 0, 2, 1, 0, 0, 3, 7, 5, 2, 1, 0, 1, 2, 1, 0, 0, 1, 4, 9, 6, 3, 2, 1, 0, 2, 3, 5, 4],
     promoVisuals: [],
@@ -79,8 +78,8 @@ export const WEBINARS: readonly Webinar[] = [
       { name: 'Rivo Andriana', initials: 'RA', source: 'Formulaire', when: 'hier' },
     ],
     reminders: [
-      { label: 'J-7 · e-mail', when: '8 oct.' },
-      { label: 'J-1 · e-mail', when: '14 oct.' },
+      { label: '24 h avant · e-mail', when: '14 oct. · 18:30' },
+      { label: '1 h avant · e-mail', when: '15 oct. · 17:30' },
     ],
     registrationSeries: [0, 0, 1, 0, 0, 2, 1, 0, 1, 0, 0, 1, 2, 0, 1, 1, 0, 0, 2, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0],
     promoVisuals: [],
@@ -140,9 +139,8 @@ export const WEBINARS: readonly Webinar[] = [
       { name: 'Tiana Randria', initials: 'TR', source: 'Facebook', when: '12 sept.' },
     ],
     reminders: [
-      { label: 'J-7 · e-mail + LinkedIn', when: '8 sept.' },
-      { label: 'J-1 · e-mail', when: '14 sept.' },
-      { label: 'H-2 · Story Instagram', when: '15 sept.' },
+      { label: '24 h avant · e-mail', when: '14 sept. · 20:00' },
+      { label: '1 h avant · e-mail', when: '15 sept. · 19:00' },
     ],
     registrationSeries: [1, 2, 1, 3, 2, 1, 1, 4, 9, 7, 4, 2, 1, 2, 3, 2, 1, 1, 2, 6, 10, 8, 5, 3, 2, 1, 3, 5, 8, 6],
     promoVisuals: [
@@ -221,7 +219,10 @@ export const WEBINARS: readonly Webinar[] = [
     recentRegistrants: [
       { name: 'Rivo Andriana', initials: 'RA', source: 'LinkedIn', when: '29 sept.' },
     ],
-    reminders: [{ label: 'J-1 · e-mail', when: '29 sept.' }],
+    reminders: [
+      { label: '24 h avant · e-mail', when: '29 sept. · 18:00' },
+      { label: '1 h avant · e-mail', when: '30 sept. · 17:00' },
+    ],
     registrationSeries: [0, 1, 2, 1, 0, 3, 5, 4, 2, 1, 0, 1, 3, 2, 1, 0, 2, 4, 6, 3, 2, 1, 1, 0, 2, 3, 1, 0, 1, 2],
     promoVisuals: [],
     replay: null,

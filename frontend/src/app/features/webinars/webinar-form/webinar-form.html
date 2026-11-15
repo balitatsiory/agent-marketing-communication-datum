@@ -1,0 +1,383 @@
+<app-topbar [trail]="trail()">
+  <button class="btn" type="button" [disabled]="!canSaveDraft()" (click)="saveDraft()">
+    <app-icon name="files" size="sm" />
+    Enregistrer le brouillon
+  </button>
+  <button class="btn btn-primary" type="button" [disabled]="!canContinue()" (click)="openSummary()">
+    <app-icon name="check" size="sm" />
+    Récapitulatif
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>{{ isEditing() ? 'Reprendre le brouillon' : 'Nouveau webinaire' }}</h1>
+      <p class="sub">
+        Un brouillon ne demande que le titre. Pour valider : titre, catégorie, date, heure et
+        lien de visioconférence.
+      </p>
+    </div>
+  </div>
+
+  <div class="form">
+    <!-- ---------- 1 · informations ---------- -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-n"><b>1</b> Informations</span></div>
+
+      <div class="field">
+        <label for="wf-title">Titre · obligatoire</label>
+        <input
+          class="input"
+          id="wf-title"
+          type="text"
+          placeholder="Le RAG en pratique : quand ça marche, quand ça casse"
+          [ngModel]="title()"
+          (ngModelChange)="title.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="wf-description">Description · facultative</label>
+        <textarea
+          class="textarea"
+          id="wf-description"
+          rows="3"
+          placeholder="Ce que les inscrits vont y trouver"
+          [ngModel]="description()"
+          (ngModelChange)="description.set($event)"
+        ></textarea>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="wf-type">Type de réunion</label>
+          <select class="select" id="wf-type" disabled>
+            <option>Webinaire</option>
+          </select>
+        </div>
+
+        <div class="field grow">
+          <span class="lab">Catégories · au moins une pour valider</span>
+          <div class="chips">
+            @for (category of categoriesList; track category) {
+              <button
+                class="chip"
+                type="button"
+                [class.is-on]="categories().has(category)"
+                [attr.aria-pressed]="categories().has(category)"
+                (click)="toggleCategory(category)"
+              >
+                {{ category }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- 2 · date et durée ---------- -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-n"><b>2</b> Date et durée</span></div>
+
+      <div class="row">
+        <div class="field">
+          <label for="wf-date">Date</label>
+          <input
+            class="input"
+            id="wf-date"
+            type="date"
+            [ngModel]="date()"
+            (ngModelChange)="date.set($event)"
+          />
+        </div>
+        <div class="field narrow">
+          <label for="wf-time">Heure</label>
+          <input
+            class="input"
+            id="wf-time"
+            type="time"
+            [ngModel]="time()"
+            (ngModelChange)="time.set($event)"
+          />
+        </div>
+        <div class="field narrow">
+          <label for="wf-zone">Fuseau</label>
+          <input class="input" id="wf-zone" type="text" value="GMT" disabled />
+        </div>
+      </div>
+
+      <p class="hint" [class.is-muted]="!startsAt()">
+        L'heure se saisit en GMT.
+        @if (localLabel(); as local) {
+          Chez vous : <b>{{ local }}</b>.
+        } @else {
+          La conversion dans votre fuseau s'affichera ici.
+        }
+      </p>
+
+      <p class="hint" [class.is-muted]="!date()">
+        {{ calendarHint() }}
+        <a class="link" routerLink="/calendrier">Ouvrir le Calendrier</a>
+      </p>
+
+      <div class="field">
+        <span class="lab">Durée · facultative</span>
+        <div class="row tight">
+          <div class="chips">
+            @for (minutes of durationPresets; track minutes) {
+              <button
+                class="chip"
+                type="button"
+                [class.is-on]="duration() === minutes"
+                [attr.aria-pressed]="duration() === minutes"
+                (click)="choosePreset(minutes)"
+              >
+                {{ minutes }} min
+              </button>
+            }
+          </div>
+          <input
+            class="input narrow"
+            type="number"
+            min="1"
+            aria-label="Durée en minutes"
+            placeholder="non renseignée"
+            [ngModel]="duration()"
+            (ngModelChange)="setDuration($event)"
+          />
+        </div>
+        <p class="hint is-muted">
+          Sans durée, l'heure de fin reste vide dans le Calendrier.
+        </p>
+      </div>
+    </section>
+
+    <!-- ---------- 3 · visioconférence et inscription ---------- -->
+    <section class="sec">
+      <div class="sec-head"><span class="sec-n"><b>3</b> Visioconférence et inscription</span></div>
+
+      <div class="field">
+        <span class="lab">Lien de visioconférence</span>
+        <div class="segmented seg" role="group" aria-label="Origine du lien">
+          <button
+            type="button"
+            [class.is-on]="linkMode() === 'zoom_auto'"
+            [attr.aria-pressed]="linkMode() === 'zoom_auto'"
+            (click)="linkMode.set('zoom_auto')"
+          >
+            <app-icon name="video" size="sm" />
+            Créer automatiquement sur Zoom
+          </button>
+          <button
+            type="button"
+            [class.is-on]="linkMode() === 'manual'"
+            [attr.aria-pressed]="linkMode() === 'manual'"
+            (click)="linkMode.set('manual')"
+          >
+            J'ai déjà un lien
+          </button>
+        </div>
+        <input
+          class="input"
+          type="url"
+          aria-label="Lien de visioconférence"
+          [disabled]="linkMode() === 'zoom_auto'"
+          [attr.placeholder]="
+            linkMode() === 'zoom_auto'
+              ? 'Le lien sera créé sur Zoom à la validation, pas à l’enregistrement du brouillon'
+              : 'https://…'
+          "
+          [ngModel]="manualUrl()"
+          (ngModelChange)="manualUrl.set($event)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="wf-registration">Lien d'inscription · facultatif</label>
+        <input
+          class="input"
+          id="wf-registration"
+          type="text"
+          placeholder="datumacademy.com/fr/webinar/…"
+          [ngModel]="registrationUrl()"
+          (ngModelChange)="registrationUrl.set($event)"
+        />
+      </div>
+    </section>
+
+    <!-- ---------- 4 · rappels (lecture seule) ---------- -->
+    <section class="sec" [class.is-locked]="!startsAt()">
+      <div class="sec-head">
+        <span class="sec-n"><b>4</b> Rappels</span>
+        <span class="counter">paramètre global · lecture seule</span>
+      </div>
+
+      <ul class="rem">
+        @for (reminder of reminders(); track reminder.label) {
+          <li [class.is-skipped]="reminder.isSkipped">
+            <span>{{ reminder.label }} · e-mail</span>
+            <span class="mono">
+              @if (reminder.when === null) {
+                dès que la date est connue
+              } @else if (reminder.isSkipped) {
+                ignoré, échéance déjà passée ({{ reminder.when }})
+              } @else {
+                {{ reminder.when }}
+              }
+            </span>
+          </li>
+        }
+      </ul>
+      <p class="hint is-muted">
+        Les délais se règlent une fois pour tous les webinaires. Si le webinaire est reporté, les
+        échéances suivent la nouvelle date.
+      </p>
+    </section>
+
+    <!-- ---------- 5 · publications associées ---------- -->
+    <section class="sec">
+      <div class="sec-head">
+        <span class="sec-n"><b>5</b> Associer des publications</span>
+        <span class="counter">facultatif · {{ linkedIds().size }} choisie{{ linkedIds().size > 1 ? 's' : '' }}</span>
+      </div>
+
+      <ul class="pubs">
+        @for (publication of publications(); track publication.id) {
+          <li>
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="linkedIds().has(publication.id)"
+                (change)="toggleLinked(publication.id)"
+              />
+              <span class="pub-title">{{ publication.title }}</span>
+            </label>
+            <app-status-badge [status]="publication.status" />
+            <select class="select pub-type" disabled [attr.aria-label]="'Type pour ' + publication.title">
+              <option>{{ typeLabels.promotion }}</option>
+            </select>
+          </li>
+        }
+      </ul>
+      <p class="hint is-muted">
+        Avant la séance, seule la « promotion » est proposée. Le compte rendu et la rediffusion
+        s'associent après l'événement, depuis la publication (« Lier à un événement »).
+      </p>
+    </section>
+
+    @if (missing().length) {
+      <p class="blockers">Pour valider, il manque encore {{ missing().join(', ') }}.</p>
+    }
+  </div>
+</div>
+
+<!-- ============ récapitulatif avant validation ============ -->
+@if (isSummaryOpen()) {
+  <div class="modal-back" (click)="closeSummary()" (keydown.escape)="closeSummary()" tabindex="-1">
+    <div
+      class="modal summary"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Récapitulatif du webinaire"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div>
+          <h2>Avant de valider</h2>
+          <p class="modal-sub">
+            Valider programme le webinaire : le lien Zoom est créé à cet instant.
+          </p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="closeSummary()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <dl class="sum">
+          <div>
+            <dt>Titre</dt>
+            <dd>{{ title() }}</dd>
+          </div>
+          <div>
+            <dt>Description</dt>
+            <dd [class.is-muted]="!description().trim()">{{ description().trim() || 'non renseignée' }}</dd>
+          </div>
+          <div>
+            <dt>Type</dt>
+            <dd>Webinaire</dd>
+          </div>
+          <div>
+            <dt>Catégories</dt>
+            <dd>{{ categoriesText() }}</dd>
+          </div>
+          <div>
+            <dt>Date (GMT)</dt>
+            <dd>{{ gmtLabel() }}</dd>
+          </div>
+          <div>
+            <dt>Chez vous</dt>
+            <dd>{{ localLabel() }}</dd>
+          </div>
+          <div>
+            <dt>Durée</dt>
+            <dd [class.is-muted]="!duration()">
+              {{ duration() ? duration() + ' min' : 'non renseignée' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Visioconférence</dt>
+            <dd>
+              {{ linkMode() === 'zoom_auto' ? 'Créée sur Zoom à la validation' : manualUrl() }}
+            </dd>
+          </div>
+          <div>
+            <dt>Inscription</dt>
+            <dd [class.is-muted]="!registrationUrl().trim()">
+              {{ registrationUrl().trim() || 'lien non renseigné' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Rappels</dt>
+            <dd>
+              @for (reminder of reminders(); track reminder.label) {
+                <span class="rline" [class.is-muted]="reminder.isSkipped">
+                  {{ reminder.label }} — {{ reminder.isSkipped ? 'ignoré, échéance déjà passée' : reminder.when }}
+                </span>
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Publications</dt>
+            <dd [class.is-muted]="!linkedPublications().length">
+              @if (linkedPublications().length) {
+                @for (publication of linkedPublications(); track publication.id) {
+                  <span class="rline">{{ publication.title }} — {{ typeLabels.promotion }}</span>
+                }
+              } @else {
+                aucune
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Statut</dt>
+            <dd><span class="status status-scheduled">Programmé</span></dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="modal-foot">
+        <span class="mono foot-note">Simulation : rien n'est créé sur Zoom.</span>
+        <button class="btn" type="button" (click)="closeSummary()">Revenir à l'édition</button>
+        <button class="btn" type="button" [disabled]="!canSaveDraft()" (click)="saveDraft()">
+          Enregistrer comme brouillon
+        </button>
+        <button class="btn btn-primary" type="button" (click)="validate()">
+          <app-icon name="check" size="sm" />
+          Valider
+        </button>
+      </div>
+    </div>
+  </div>
+}
