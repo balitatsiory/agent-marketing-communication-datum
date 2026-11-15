@@ -26,55 +26,30 @@ export const IAGORA_CHART_THEME_NAME = 'iagora';
 /**
  * Couleurs de série par réseau, résolues en valeurs littérales.
  *
- * ⚠ Ces cinq teintes sont celles de `_tokens.scss`. Passées au
- * contrôle de lisibilité, deux d'entre elles ne se séparent pas :
- * `--series-linkedin` (#8a6d1f) et `--series-tiktok` (#157347)
- * n'ont que 5,0 d'écart perceptuel en vision protanope, et 13,2 en
- * vision normale — sous le seuil de 15 en dessous duquel deux
- * séries voisines deviennent difficiles à distinguer. Le doré
- * LinkedIn tombe en plus sous le plancher de saturation : il est lu
- * comme un gris.
+ * Les valeurs vivent dans `_tokens.scss` ; ce sont elles qui font
+ * foi. Les valeurs de repli ci-dessous ne servent qu'au rendu hors
+ * navigateur, où aucun jeton n'est lisible.
  *
- * `ACCESSIBLE_NETWORK_SERIES` plus bas corrige cela. Le choix entre
- * les deux appartient à l'équipe : il touche à la charte, pas au
- * code. En attendant, toute légende doit nommer le réseau — la
- * couleur ne porte jamais seule l'information.
+ * Elles ont été vérifiées : bande de luminosité, plancher de
+ * saturation, séparation en protanopie, deutéranopie et tritanopie,
+ * contraste sur le fond. Le pire écart entre deux séries voisines
+ * vaut 8,7 en protanopie.
+ *
+ * Une réserve subsiste : l'orange YouTube reste sous 3:1 de
+ * contraste sur fond blanc. Partout où il sert, la valeur doit être
+ * écrite à côté de la marque ou reprise dans un tableau. Et comme
+ * toujours, la couleur ne porte jamais seule l'information : la
+ * légende nomme le réseau.
  */
 export function networkSeriesColors(): Record<SocialNetworkCode, string> {
   return {
-    instagram: cssToken('--series-instagram', '#167fa4'),
-    facebook: cssToken('--series-facebook', '#5b4b8a'),
-    linkedin: cssToken('--series-linkedin', '#8a6d1f'),
-    tiktok: cssToken('--series-tiktok', '#157347'),
-    youtube: cssToken('--series-youtube', '#a8432c'),
+    linkedin: cssToken('--series-linkedin', '#3874ff'),
+    facebook: cssToken('--series-facebook', '#a855f7'),
+    instagram: cssToken('--series-instagram', '#d6336c'),
+    tiktok: cssToken('--series-tiktok', '#1c7c3c'),
+    youtube: cssToken('--series-youtube', '#e5780b'),
   };
 }
-
-/**
- * Variante validée des couleurs de série.
- *
- * Mêmes familles de teintes que ci-dessus — Facebook reste violet,
- * TikTok reste vert — poussées dans un registre plus lumineux. Le
- * pire écart entre deux séries voisines remonte à 8,7 en vision
- * protanope et 22,6 en vision normale ; la saturation et la bande
- * de luminosité passent sur les cinq.
- *
- * L'orange YouTube reste sous 3:1 de contraste sur fond blanc :
- * partout où il sert, la valeur doit être écrite à côté de la barre
- * ou reprise dans un tableau. C'est ce que fait `barChartOption`.
- *
- * Pour l'adopter : remplacer l'appel à `networkSeriesColors()` par
- * celui-ci dans les composants de graphique, puis reporter les
- * valeurs dans `_tokens.scss` pour que le reste de l'interface
- * suive.
- */
-export const ACCESSIBLE_NETWORK_SERIES: Readonly<Record<SocialNetworkCode, string>> = {
-  linkedin: '#3874ff',
-  facebook: '#a855f7',
-  instagram: '#d6336c',
-  tiktok: '#1c7c3c',
-  youtube: '#e5780b',
-};
 
 /**
  * Construit le thème. À appeler une fois, après que la feuille de
@@ -106,7 +81,7 @@ export function buildIagoraChartTheme(): Record<string, unknown> {
     /* L'ordre compte : une série garde sa couleur quel que soit son
        rang. Ne jamais recycler au-delà de la cinquième — au-delà,
        regrouper en « Autres » ou faire plusieurs graphiques. */
-    color: Object.values(ACCESSIBLE_NETWORK_SERIES),
+    color: Object.values(networkSeriesColors()),
     backgroundColor: 'transparent',
     textStyle: { fontFamily: family, fontSize: labelSize, color: ink },
 

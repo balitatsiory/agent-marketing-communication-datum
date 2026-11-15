@@ -83,7 +83,16 @@
           <span class="chart-note">tous comptes raccordés, sur {{ window() }} jours</span>
         </div>
 
-        <app-multi-line-chart [series]="followerSeries()" [labels]="dayLabels()">
+        <div class="plot" [appChart]="followerChartOption()"></div>
+
+        <p class="chart-scale">
+          échelle de {{ followerScale().min.toLocaleString('fr-FR') }} à
+          {{ followerScale().max.toLocaleString('fr-FR') }} — elle ne part pas de zéro
+        </p>
+
+        <!-- La légende donne aussi le gain : elle en dit plus que celle
+             d'ECharts, qui ne sait afficher qu'un nom. -->
+        <div class="legend">
           @for (row of gainByNetwork(); track row.network.code) {
             <span class="gain">
               <span class="swatch" [style.background]="colorOf(row.network.code)"></span>
@@ -94,7 +103,7 @@
               </span>
             </span>
           }
-        </app-multi-line-chart>
+        </div>
 
       </div>
     </section>
@@ -137,11 +146,11 @@
           <span class="label">Prochaines séances</span>
           @for (webinar of nextWebinars(); track webinar.id) {
             <a class="next-row" routerLink="/webinaires">
-              <span class="next-date mono">
+              <span class="next-date num">
                 {{ webinar.date?.day }} {{ webinar.date?.month }}
               </span>
               <span class="next-title">{{ webinar.title }}</span>
-              <span class="next-n mono">{{ webinar.registrationCount }}</span>
+              <span class="next-n num">{{ webinar.registrationCount }}</span>
             </a>
           } @empty {
             <p class="muted-note">Aucune séance programmée.</p>
@@ -194,7 +203,7 @@
                 <td><app-status-badge [status]="publication.status" /></td>
                 <td class="num strong">{{ metricOf(publication).toLocaleString('fr-FR') }}</td>
                 <td class="num">{{ publication.commentCount }}</td>
-                <td class="mono when">{{ displayDate(publication) }}</td>
+                <td class="num when">{{ displayDate(publication) }}</td>
               </tr>
             }
           </tbody>
@@ -215,7 +224,7 @@
             <div class="channel-top">
               <app-network-logo [network]="row.network.code" />
               <b>{{ row.network.label }}</b>
-              <span class="channel-n mono">
+              <span class="channel-n num">
                 {{ row.publications }} {{ row.publications > 1 ? 'publications' : 'publication' }}
               </span>
             </div>

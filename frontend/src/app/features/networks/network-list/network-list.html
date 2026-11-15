@@ -77,11 +77,11 @@
         <!-- pied : fraîcheur de la collecte, ou adresse manquante -->
         <div class="net-foot">
           @if (network.profileUrl; as url) {
-            <span class="net-host mono">{{ hostOf(url) }}</span>
+            <span class="net-host num">{{ hostOf(url) }}</span>
           } @else {
-            <span class="net-host mono is-missing">adresse de profil à renseigner</span>
+            <span class="net-host num is-missing">adresse de profil à renseigner</span>
           }
-          <span class="net-sync mono">statistiques du {{ network.lastSyncLabel }}</span>
+          <span class="net-sync num">statistiques du {{ network.lastSyncLabel }}</span>
         </div>
 
         @if (network.connectionNote; as note) {

@@ -94,7 +94,7 @@
   background: var(--border);
 }
 .login-sep span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -114,7 +114,7 @@
   align-items: center;
   justify-content: center;
   gap: 18px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }

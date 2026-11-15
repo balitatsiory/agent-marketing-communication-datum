@@ -57,7 +57,7 @@ a { color: inherit; }
 /* Vraie monospace : identifiants, extraits de code, gabarits de
    prompt — ce qui doit garder une chasse fixe caractère par
    caractère. */
-.mono { font-family: var(--f-mono), var(--f-emoji); font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--f-code), var(--f-emoji); font-variant-numeric: tabular-nums; }
 
 /* Un nombre n'a pas besoin d'une monospace pour s'aligner en
    colonne : les chiffres à chasse fixe suffisent, et le nombre

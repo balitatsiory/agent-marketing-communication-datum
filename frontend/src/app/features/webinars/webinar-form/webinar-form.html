@@ -217,7 +217,7 @@
         @for (reminder of reminders(); track reminder.label) {
           <li [class.is-skipped]="reminder.isSkipped">
             <span>{{ reminder.label }} · e-mail</span>
-            <span class="mono">
+            <span class="num">
               @if (reminder.when === null) {
                 dès que la date est connue
               } @else if (reminder.isSkipped) {
@@ -368,7 +368,7 @@
       </div>
 
       <div class="modal-foot">
-        <span class="mono foot-note">Simulation : rien n'est créé sur Zoom.</span>
+        <span class="num foot-note">Simulation : rien n'est créé sur Zoom.</span>
         <button class="btn" type="button" (click)="closeSummary()">Revenir à l'édition</button>
         <button class="btn" type="button" [disabled]="!canSaveDraft()" (click)="saveDraft()">
           Enregistrer comme brouillon

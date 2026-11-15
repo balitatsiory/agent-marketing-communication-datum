@@ -27,7 +27,7 @@
 }
 
 .quota {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -93,7 +93,7 @@
   font-size: 13.5px;
 }
 .toggle-row .n {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -244,7 +244,7 @@
 }
 
 .prop-visual .cap {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   text-align: center;
@@ -269,7 +269,7 @@
   font-size: 14px;
 }
 .prop-head .kind {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -277,7 +277,7 @@
 }
 .prop-head .len {
   margin-left: auto;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -297,7 +297,7 @@
   gap: 5px;
 }
 .tag {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--ink-2);
   background: var(--surface-2);
@@ -350,7 +350,7 @@
 }
 
 .modal-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
   margin-top: 3px;
@@ -420,7 +420,7 @@
 .versions .chip {
   height: 26px;
   padding: 0 10px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
 }
 .versions .btn-icon {
@@ -470,7 +470,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -503,7 +503,7 @@
   max-width: none;
   background: transparent;
   color: var(--muted);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -537,7 +537,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -587,7 +587,7 @@
 }
 
 .chat-hint {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }

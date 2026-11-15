@@ -17,11 +17,17 @@ Datum dans ses cinq cases.
 `--f-display` et `--f-body` pointent sur la même police. Ce qui
 distingue un titre d'un paragraphe, c'est la graisse, pas la famille.
 
-`--f-mono` (IBM Plex Mono) survit pour ce qui a réellement besoin
-d'une chasse fixe caractère par caractère : identifiants, extraits de
-code, gabarits de prompt. **Pas pour les nombres** : `.num` leur donne
-`font-variant-numeric: tabular-nums`, ce qui les aligne en colonne
-sans changer de police.
+`--f-code` (IBM Plex Mono) survit pour ce qui a réellement besoin
+d'une chasse fixe caractère par caractère : variable de gabarit
+`{{prenom}}`, URL brute, touche de raccourci. **Pas pour les
+nombres** : la classe `.num` leur donne `font-variant-numeric:
+tabular-nums`, ce qui les aligne en colonne sans changer de police.
+
+Le jeton s'appelait `--f-mono` et servait partout. 134 déclarations
+dans les écrans et 97 classes `mono` dans les gabarits l'utilisaient
+pour des dates, des durées, des compteurs et des libellés — rien qui
+soit du code. Toutes sont passées à `.num` ou à `tabular-nums`. Il
+reste six déclarations en vraie monospace dans toute l'application.
 
 `--f-emoji` ferme chaque pile, pour qu'un emoji d'aperçu de
 publication ne tombe jamais sur un carré vide.
@@ -248,6 +254,24 @@ ne sert qu'à les régénérer (montée de version, nouveau
 sous-ensemble).
 
 ---
+
+## Les couleurs de série
+
+Les cinq `--series-*` de `_tokens.scss` ne servent **que** les
+graphiques et leurs pastilles de légende. Elles sont dans le registre
+lumineux de Phoenix, pas dans la charte Datum : un graphique bleu dans
+une application teal, c'est voulu — l'accent de l'interface reste le
+teal Datum.
+
+Les cinq teintes précédentes venaient de la palette de l'interface, et
+deux d'entre elles ne se séparaient pas : le doré LinkedIn et le vert
+TikTok n'avaient que 5,0 d'écart perceptuel en vision protanope, et
+13,2 en vision normale, sous le seuil de 15. Les teintes actuelles
+gardent les mêmes familles et remontent le pire écart à 8,7.
+
+Réserve : l'orange YouTube reste sous 3:1 de contraste sur fond blanc.
+Partout où il sert, la valeur doit être écrite à côté de la marque ou
+reprise dans un tableau.
 
 ## Licences
 

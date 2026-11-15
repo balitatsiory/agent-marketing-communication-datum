@@ -261,7 +261,7 @@
               />
             </div>
 
-            <p class="rt-dims mono">
+            <p class="rt-dims num">
               {{ currentVersion().visual.dimensions }} · 9:16
             </p>
 
@@ -316,7 +316,7 @@
                   <span class="swatch" [style.background]="color" [title]="color"></span>
                 }
               </div>
-              <p class="mono tiny">
+              <p class="num tiny">
                 palette de marque · <a class="link" href="#" (click)="$event.preventDefault()">enregistrer</a>
               </p>
             </div>
@@ -403,7 +403,7 @@
       </div>
 
       <div class="modal-foot">
-        <span class="mono foot-note">
+        <span class="num foot-note">
           Visuel {{ currentVersion().label }} · légende éditée · prêt pour Instagram {{ formatLabels[format()] }}
         </span>
         <button class="btn" type="button" (click)="closeRetouch()">Annuler</button>

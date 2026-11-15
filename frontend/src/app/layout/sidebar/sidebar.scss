@@ -72,7 +72,7 @@
 }
 .sb-search .k {
   margin-left: auto;
-  font-family: var(--f-mono);
+  font-family: var(--f-code);
   font-size: 9.5px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -126,7 +126,6 @@
 }
 
 .sb-count {
-  font-family: var(--f-mono);
   font-size: 10.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -141,7 +140,6 @@
   color: var(--accent-ink);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
   font-size: 10.5px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -283,7 +281,7 @@
   color: var(--accent-deep);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   line-height: 1;
 }
@@ -299,7 +297,7 @@
   font-weight: 500;
 }
 .sb-who span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }

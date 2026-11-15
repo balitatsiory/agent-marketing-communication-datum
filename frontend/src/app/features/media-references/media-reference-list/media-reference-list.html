@@ -163,7 +163,7 @@
     <!-- ---------- barre de pagination ---------- -->
     @if (totalPages() > 1) {
       <nav class="pagination-bar" aria-label="Pagination des médias">
-        <span class="page-range mono">
+        <span class="page-range num">
           Affichage de {{ pageStart() }} à {{ pageEnd() }} sur {{ filteredResults().length }}
         </span>
 
@@ -230,7 +230,7 @@
         <div class="vm-head-t">
           <div class="vm-kicker">
             <span class="role-tag">{{ roleLabels[media.role] }}</span>
-            <span class="vm-counter mono">{{ viewingIndex() + 1 }} / {{ filteredResults().length }}</span>
+            <span class="vm-counter num">{{ viewingIndex() + 1 }} / {{ filteredResults().length }}</span>
           </div>
           <h2>{{ media.fileName }}</h2>
         </div>
@@ -267,7 +267,7 @@
             } @else {
               <div class="vm-placeholder">
                 <app-icon name="image" size="lg" />
-                <span class="vm-ph-name mono">{{ media.fileName }}</span>
+                <span class="vm-ph-name num">{{ media.fileName }}</span>
                 <span class="vm-ph-sub">Aperçu direct indisponible</span>
               </div>
             }
@@ -357,7 +357,7 @@
           Précédent
         </button>
 
-        <span class="vm-page-indicator mono">
+        <span class="vm-page-indicator num">
           {{ viewingIndex() + 1 }} sur {{ filteredResults().length }}
         </span>
 

@@ -84,7 +84,7 @@
 }
 .fopt .n {
   margin-left: auto;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -188,7 +188,7 @@
   border-radius: 11px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -222,7 +222,6 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--f-mono);
   font-size: 11px;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
@@ -231,7 +230,7 @@
   color: var(--muted);
 }
 .pcard-foot {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -261,7 +260,7 @@
   gap: 9px;
 }
 .pd-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -297,7 +296,7 @@
   text-transform: capitalize;
 }
 .pd-net .who span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -367,7 +366,7 @@
   flex: 1;
 }
 .cap {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   line-height: 1.5;
@@ -401,7 +400,7 @@
   border-radius: 11px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -473,7 +472,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }

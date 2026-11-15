@@ -72,7 +72,7 @@
   color: var(--ink-2);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
 }
 .av-lg {
@@ -164,7 +164,7 @@
   white-space: nowrap;
 }
 .person-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   overflow: hidden;
@@ -182,7 +182,7 @@
   flex: none;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -216,7 +216,7 @@
   line-height: 1.1;
 }
 .detail-who > span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -250,7 +250,7 @@
   flex: 1;
 }
 .cap {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }
@@ -304,7 +304,7 @@
 .rights th {
   text-align: left;
   padding: 9px 14px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -343,7 +343,7 @@
 }
 
 .pending-tag {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -465,7 +465,7 @@
   gap: 8px;
 }
 .change .kind {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -493,7 +493,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   margin-top: 2px;

@@ -370,7 +370,7 @@
               <div class="block">
                 <div class="label">{{ webinar.status === 'past' ? 'Lien de la page' : "Lien d'inscription" }}</div>
                 <div class="linkrow">
-                  <code class="mono">{{ webinar.registrationUrl }}</code>
+                  <code class="num">{{ webinar.registrationUrl }}</code>
                   <button class="btn btn-sm" type="button">Copier</button>
                 </div>
                 @if (webinar.status !== 'past') {
@@ -389,7 +389,7 @@
                 <div class="visual-frame" [style.aspect-ratio]="visual.ratio">
                   <img [src]="visual.source" [alt]="visual.alt" />
                 </div>
-                <p class="visual-dims mono">{{ visual.label }} · {{ visual.dimensions }}</p>
+                <p class="visual-dims num">{{ visual.label }} · {{ visual.dimensions }}</p>
               }
 
               <div class="format-row">
@@ -478,11 +478,11 @@
                 <span class="play" aria-hidden="true">
                   <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" /></svg>
                 </span>
-                <span class="duration mono" aria-hidden="true">{{ webinar.replay.durationLabel }}</span>
+                <span class="duration num" aria-hidden="true">{{ webinar.replay.durationLabel }}</span>
                 <span class="scrub" aria-hidden="true"><span></span></span>
               </div>
 
-              <p class="visual-dims mono">
+              <p class="visual-dims num">
                 Aperçu de la publication · {{ webinar.replay.viewCount }} vues ·
                 le bouton de lecture est figuratif
               </p>
@@ -538,7 +538,7 @@
               <div class="block">
                 <div class="label">Lien de la rediffusion</div>
                 <div class="linkrow">
-                  <code class="mono">{{ webinar.replay.url }}</code>
+                  <code class="num">{{ webinar.replay.url }}</code>
                   <button class="btn btn-sm" type="button">Copier</button>
                 </div>
                 <p class="hint">Accessible sans inscription, les deux audits en direct compris.</p>

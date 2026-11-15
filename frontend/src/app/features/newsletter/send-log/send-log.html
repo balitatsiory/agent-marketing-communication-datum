@@ -145,7 +145,7 @@
                       </td>
                       <td>
                         <span class="tpl">{{ send.templateName }}</span>
-                        <span class="ver mono">{{ send.templateVersion }}</span>
+                        <span class="ver num">{{ send.templateVersion }}</span>
                       </td>
                       <td class="num">{{ send.recipientCount }}</td>
                       <td class="num">
@@ -164,7 +164,7 @@
                           0
                         }
                       </td>
-                      <td class="mono when">{{ send.sentAtLabel }}</td>
+                      <td class="num when">{{ send.sentAtLabel }}</td>
                       <td>
                         <span class="status" [class]="modifierFor(send.status)">
                           {{ statusLabels[send.status] }}
@@ -270,7 +270,7 @@
               <div class="label">Modèle utilisé</div>
               <p class="sd-tpl">
                 {{ send.templateName }}
-                <span class="mono">{{ send.templateVersion }}</span>
+                <span class="num">{{ send.templateVersion }}</span>
               </p>
               <a class="btn btn-sm self-start" routerLink="/newsletter/modeles">
                 Ouvrir le modèle
@@ -282,7 +282,7 @@
       </div>
 
       <div class="modal-foot">
-        <span class="mono foot-note">
+        <span class="num foot-note">
           Signé par {{ send.content.signature.signedBy }} · empreinte
           {{ send.content.signature.fingerprint }}
         </span>
