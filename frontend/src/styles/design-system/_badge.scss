@@ -1,0 +1,70 @@
+/* ============================================================
+   Badge d'état
+   ------------------------------------------------------------
+   Un seul motif, relevé sur la page Badges de Phoenix v1.24.0 :
+
+     fond    la variante douce du rôle      --tint
+     trait   1 px de la teinte médiane      --line
+     texte   une teinte foncée du rôle      --deep
+     forme   angle de 4 px, pas une pilule
+     texte   10,24 px, graisse 700, capitales
+
+   Trois tons de la même couleur, jamais un contour transparent.
+   C'est ce qui rend quinze badges différents lisibles comme une
+   seule famille.
+
+   Avant : sur les cinq apparences de l'application, trois étaient
+   remplies et deux étaient des contours transparents, en pilule,
+   en police monospace. Après : une recette, cinq rôles.
+
+   Le badge ne connaît pas son rôle. Il lit `--tint`, `--line` et
+   `--deep`, qu'une classe `.role-*` pose (voir `_roles.scss`).
+
+     <span class="badge role-success">publiée</span>
+     <span class="badge role-danger">échec</span>
+
+   Dans l'application, les gabarits existants utilisent plutôt
+   `.status` et ses variantes nommées par métier
+   (`.status-published`…), définies dans `_components.scss` à
+   partir de ce même mixin : une seule recette pour les deux.
+   ============================================================ */
+
+@use 'roles';
+
+@mixin subtle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line, var(--border));
+  background: var(--tint, var(--ground-2));
+  color: var(--deep, var(--ink-2));
+
+  font-size: var(--t-2xs);
+  font-weight: var(--w-bold);
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.badge {
+  @include subtle;
+
+  /* Sans rôle posé, le badge est neutre plutôt qu'invisible. */
+  @include roles.role('primary');
+}
+
+.badge.role-primary { @include roles.role('primary'); }
+.badge.role-success { @include roles.role('success'); }
+.badge.role-warning { @include roles.role('warning'); }
+.badge.role-danger  { @include roles.role('danger'); }
+.badge.role-info    { @include roles.role('info'); }
+
+/* Variante lisible de loin : en-tête de fiche, titre de panneau. */
+.badge--lg {
+  padding: 3px 10px;
+  font-size: var(--t-xs);
+  letter-spacing: 0.03em;
+}

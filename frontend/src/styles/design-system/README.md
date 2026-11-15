@@ -82,18 +82,26 @@ qui dit l'importance : on garde la densité sans perdre la lecture.
 
 `info` est nouveau : il manquait à l'application.
 
-Chaque rôle expose trois variables : `--role-X`, `--role-X-soft`
-(le fond doux) et `--role-X-line` (le trait).
+Chaque rôle expose quatre variables : `--role-X` (la couleur
+pleine), `--role-X-soft` (le fond doux), `--role-X-line` (le trait)
+et `--role-X-deep` (le texte posé sur le fond doux).
+
+`--role-X-deep` existe parce que la couleur pleine ne tient pas
+toujours le contraste sur son propre fond doux. Le mixin
+`roles.role('<nom>')` pose les quatre d'un coup.
 
 **Contrastes mesurés** (rapport WCAG) :
 
-| Rôle    | sur blanc | sur son fond doux |
-|---------|-----------|-------------------|
-| primary | 4,56      | **3,50**          |
-| success | 5,87      | 5,04              |
-| warning | 4,90      | 4,27              |
-| danger  | 5,74      | 4,70              |
-| info    | 7,45      | 6,21              |
+| Rôle    | pleine sur blanc | pleine sur fond doux | `-deep` sur fond doux |
+|---------|------------------|----------------------|------------------------|
+| primary | 4,56             | **3,50**             | 4,95                   |
+| success | 5,87             | 5,04                 | 5,04                   |
+| warning | 4,90             | **4,27**             | 5,05                   |
+| danger  | 5,74             | 4,70                 | 4,70                   |
+| info    | 7,45             | 6,21                 | 6,21                   |
+
+Seuls `primary` et `warning` ont eu besoin d'une teinte plus foncée :
+les trois autres passent déjà, et `-deep` y vaut la couleur pleine.
 
 > ⚠ `primary` sur `primary-soft` ne vaut que **3,50:1**. Suffisant
 > pour un glyphe d'icône (seuil 3:1 pour le non-texte), insuffisant
@@ -127,6 +135,36 @@ En Angular, passez par le composant, qui type le rôle :
 Il réutilise `<app-icon>` tel quel et n'ajoute que la pastille :
 toute icône ajoutée à `ICON_SET` y devient utilisable sans rien
 changer. Aucune dépendance d'icônes n'est installée.
+
+### Le badge d'état
+
+Une seule recette, celle de la page Badges de Phoenix : **fond doux,
+trait de la teinte médiane, texte dans la teinte foncée**, angle de
+4 px, 10,24 px en graisse 700, capitales. Jamais de contour
+transparent.
+
+```html
+<span class="badge role-success">publiée</span>
+<span class="badge role-danger badge--lg">échec</span>
+```
+
+Les gabarits existants utilisent `.status` et ses variantes nommées
+par métier — `.status-published`, `.status-scheduled`,
+`.status-review`, `.status-failed`, `.status-draft` — définies dans
+`_components.scss` **à partir du même mixin**. Les 26 badges de
+l'application y passent sans qu'un seul gabarit ait été modifié.
+
+Avant : sur cinq apparences, trois étaient remplies et deux étaient
+des contours transparents, le tout en pilule et en police monospace.
+Les teintes par statut, elles, n'ont pas bougé : une publication
+programmée reste dorée, un échec reste rouge. Seul le dessin est
+unifié.
+
+Les points décoratifs (`::before`) ont disparu avec la pilule :
+Phoenix n'en a pas, et le libellé porte déjà le sens.
+
+> Les `.chip` de filtre ne sont pas des badges : ce sont des
+> contrôles, ils gardent leur apparence propre.
 
 ### La tuile de chiffre à icône
 
@@ -245,6 +283,7 @@ src/styles/design-system/
   _roles.scss      les cinq rôles et leurs fonds doux
   _icon-chip.scss  la pastille
   _stat-figure.scss la tuile de chiffre à icône
+  _badge.scss      le badge d'état
   README.md        ce document
 
 src/app/shared/
