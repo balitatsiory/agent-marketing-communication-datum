@@ -49,8 +49,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     }
 
     .crumb {
-      font-family: var(--f-mono);
-      font-size: 11px;
+      font-size: var(--t-2xs);
+      font-weight: var(--w-semi);
       letter-spacing: 0.04em;
       color: var(--muted);
       display: flex;

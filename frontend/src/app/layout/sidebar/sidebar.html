@@ -110,7 +110,39 @@
   }
 
   <div class="sb-foot">
-    <button class="sb-user" type="button">
+    <!-- Le menu s'ouvre vers le haut : le pied de barre touche le bas
+         de l'écran, il n'y a pas la place en dessous. -->
+    @if (menuOuvert()) {
+      <div class="sb-menu" role="menu" aria-label="Mon compte">
+        <a
+          class="sb-menu-item"
+          role="menuitem"
+          routerLink="/profil"
+          (click)="fermerMenu()"
+        >
+          <app-icon name="users" size="sm" />
+          Profil
+        </a>
+        <button
+          class="sb-menu-item is-leave"
+          role="menuitem"
+          type="button"
+          (click)="seDeconnecter()"
+        >
+          <app-icon name="external" size="sm" />
+          Se déconnecter
+        </button>
+      </div>
+    }
+
+    <button
+      class="sb-user"
+      type="button"
+      [class.is-open]="menuOuvert()"
+      [attr.aria-expanded]="menuOuvert()"
+      aria-haspopup="menu"
+      (click)="basculerMenu()"
+    >
       <span class="sb-av">{{ user.initials }}</span>
       <span class="sb-who">
         <b>{{ user.fullName }}</b>
