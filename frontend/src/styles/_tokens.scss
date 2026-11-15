@@ -67,10 +67,28 @@
   --series-tiktok:    #157347;
   --series-youtube:   #a8432c;
 
-  /* --- typographie ---------------------------------------- */
-  --f-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --f-body:    'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* --- typographie -----------------------------------------
+     Une seule famille porte l'interface, conformément à la
+     première décision du design system (voir
+     `design-system/_type.scss`). `--f-display` et `--f-body`
+     pointent volontairement sur la même police : ce qui
+     distingue un titre d'un paragraphe, c'est la graisse, pas
+     la famille.
+
+     La monospace est conservée pour ce qui en a réellement
+     besoin — identifiants, extraits de code, gabarits de
+     prompt. Les chiffres, eux, n'en ont plus besoin :
+     `font-variant-numeric: tabular-nums` suffit à les aligner
+     en colonne, et ils gardent la police du reste du texte.
+
+     `--f-emoji` ferme chaque pile. Sans elle, le rendu d'un
+     emoji dans un aperçu de publication dépend du dernier
+     recours du navigateur, et un poste sans police emoji
+     installée affiche un carré vide. */
+  --f-display: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-body:    'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --f-emoji:   'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
   /* --- structure ------------------------------------------ */
   --sidebar-w:      272px;

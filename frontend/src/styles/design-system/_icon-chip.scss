@@ -1,0 +1,53 @@
+/* ============================================================
+   Pastille d'icône colorée
+   ------------------------------------------------------------
+   Le motif qui fait la signature visuelle de Phoenix : un glyphe
+   de la couleur du rôle, posé sur un carré arrondi de sa teinte
+   douce. Phoenix l'obtient en empilant deux glyphes Font Awesome
+   (`fa-stack`) ; on l'obtient ici avec un conteneur et une règle,
+   sans dépendance et sans second glyphe.
+
+   La couleur ne vient pas d'ici : elle vient des variables
+   `--hue` et `--tint` posées par une classe `.role-*`
+   (voir `_roles.scss`). La pastille ne sait pas quel rôle elle
+   porte, ce qui permet de la réutiliser partout.
+
+     <span class="icon-chip role-success">
+       <app-icon name="check" />
+     </span>
+
+   En Angular, préférer le composant `<app-icon-chip>`, qui fait
+   exactement cela avec un `role` typé.
+   ============================================================ */
+
+.icon-chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: var(--tint, var(--ground-2));
+  color: var(--hue, var(--muted));
+}
+
+/* L'icône hérite de `color` : le socle `.ico` est déjà en
+   `stroke: currentColor`, il n'y a rien à redéclarer. */
+.icon-chip .ico { width: 19px; height: 19px; }
+
+.icon-chip--sm { width: 30px; height: 30px; border-radius: 6px; }
+.icon-chip--sm .ico { width: 16px; height: 16px; }
+
+.icon-chip--lg { width: 46px; height: 46px; border-radius: var(--radius-lg); }
+.icon-chip--lg .ico { width: 23px; height: 23px; }
+
+/* Variante ronde, pour un repère de section plutôt qu'une tuile. */
+.icon-chip--round { border-radius: 50%; }
+
+/* Variante pleine : le rôle en aplat, le glyphe en négatif.
+   À réserver à l'élément le plus important d'un écran — au-delà
+   d'un par vue, l'aplat cesse d'attirer l'œil. */
+.icon-chip--solid {
+  background: var(--hue, var(--muted));
+  color: var(--surface);
+}

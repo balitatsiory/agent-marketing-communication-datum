@@ -117,3 +117,51 @@
   src: url('/fonts/karla-700-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+
+/* ============================================================
+   Nunito Sans — police unique du design system
+   ------------------------------------------------------------
+   Première décision relevée chez Phoenix : une seule famille
+   pour toute l'interface, dans toute l'étendue de ses graisses.
+   Ici en fichier variable : un seul .woff2 par sous-ensemble
+   couvre 300 à 900, au lieu de six fichiers statiques.
+
+   Licence SIL Open Font License 1.1 — usage commercial libre,
+   auto-hébergement autorisé. Comme les trois familles déjà en
+   place, elle est servie depuis `public/fonts/` et non depuis
+   un CDN : aucune requête vers un tiers, aucun suivi.
+
+   ⚠ Les deux .woff2 ne sont pas dans le dépôt : ce sont des
+   binaires, et le poste de développement n'a pas accès au
+   réseau de Google. Récupérez-les une fois avec :
+
+       npm run fonts:nunito
+
+   Tant qu'ils manquent, le navigateur ignore silencieusement ces
+   deux règles et retombe sur `system-ui` : l'application reste
+   parfaitement utilisable, seul le dessin des lettres diffère.
+   ============================================================ */
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/fonts/nunito-sans-variable-latin-ext.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Nunito Sans';
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/fonts/nunito-sans-variable-latin.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Instrument Serif et Karla restent déclarées plus haut mais ne
+   sont plus référencées par aucun jeton. Une règle `@font-face`
+   qu'aucune règle n'utilise ne déclenche aucun téléchargement :
+   elles ne coûtent rien et restent disponibles si vous décidez
+   de réintroduire la serif sur les titres. */

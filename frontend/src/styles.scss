@@ -8,5 +8,13 @@
 
 @use 'styles/fonts';
 @use 'styles/tokens';
+
+/* Le design system vient après les jetons de marque, parce qu'il
+   s'appuie dessus, et avant le socle et les composants, qui le
+   consomment. Voir `styles/design-system/README.md`. */
+@use 'styles/design-system/type';
+@use 'styles/design-system/roles';
+@use 'styles/design-system/icon-chip';
+
 @use 'styles/base';
 @use 'styles/components';
