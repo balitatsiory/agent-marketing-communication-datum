@@ -125,8 +125,7 @@
   flex-wrap: wrap;
 }
 .cat-head h2 {
-  font-size: 15px;
-  font-weight: 700;
+  @include type.card-title;
 }
 .cat-n {
   font-variant-numeric: tabular-nums;

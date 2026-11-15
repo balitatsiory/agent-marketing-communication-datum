@@ -201,6 +201,29 @@ avant la lecture. En service sur `/newsletter/envois`.
 reste le motif par défaut : une carte par chiffre, libellé au-dessus,
 sans icône. `.stat-figures` est le motif « vitrine ».
 
+### Les quatre niveaux de titre
+
+Un titre n'écrit jamais sa taille ni sa graisse : il prend un niveau.
+
+| Mixin                  | Taille   | Graisse | Pour quoi                                   |
+|------------------------|----------|---------|---------------------------------------------|
+| `type.page-title`      | 31,25 px | 800     | le titre de la page, un seul par écran      |
+| `type.section-title`   | 20 px    | 700     | modale, volet, fiche détaillée, état vide   |
+| `type.card-title`      | 16 px    | 700     | titre de carte, en-tête de groupe de liste  |
+| `type.compact-title`   | 12,8 px  | 700     | vignette de calendrier, carte dense         |
+
+```scss
+@use '../../../../styles/design-system/type' as type;
+
+.page-head h1 { @include type.page-title; }
+.modal-head h2 { @include type.section-title; }
+.pcard-title { @include type.compact-title; }
+```
+
+Il n'y a **pas d'exception** : les 17 routes de l'application ont été
+parcourues, et tout `h1` à `h4` visible tombe sur l'un de ces quatre
+niveaux, en graisse 700 au minimum.
+
 ### Les mixins, dans un SCSS de composant
 
 ```scss
@@ -260,9 +283,11 @@ sous-ensemble).
 Dire la vérité sur ce document vaut mieux que de le laisser promettre
 ce qui n'est pas fait.
 
-**Terminé — la couche des titres.** Les 16 titres de page passent par
-`type.page-title`, les sous-titres par `--t-xs`, les titres de panneau
-et de section par l'échelle. Avant, chacun des 16 écrans redéfinissait
+**Terminé — la couche des titres, entièrement.** Les 16 titres de
+page passent par `type.page-title`, les sous-titres par `--t-xs`, et
+les 16 autres titres — modale, volet, fiche, état vide, carte,
+en-tête de groupe — par l'un des trois autres niveaux. Vérifié dans
+le navigateur sur les 17 routes : aucun titre hors échelle. Avant, chacun des 16 écrans redéfinissait
 `.page-head h1` avec `font-weight: 400` et `font-size: 30px` écrits à
 la main — une spécificité supérieure à la règle `h1` du socle, qui
 était donc sans effet. Résultat : les titres restaient en graisse 400

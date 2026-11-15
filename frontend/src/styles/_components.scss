@@ -221,7 +221,9 @@
   flex: none; padding: 14px 18px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
 }
-.modal-head h2 { font-family: var(--f-display); font-weight: 400; font-size: 21px; }
+.modal-head h2 {
+  @include type.section-title;
+}
 .modal-body { flex: 1; min-height: 0; overflow-y: auto; }
 .modal-foot {
   flex: none; padding: 13px 18px; border-top: 1px solid var(--border);
@@ -234,5 +236,7 @@
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; text-align: center; color: var(--muted); padding: 60px 20px;
 }
-.empty h2 { font-family: var(--f-display); font-weight: 400; font-size: 26px; color: var(--ink); }
+.empty h2 {
+  @include type.section-title;
+}
 .empty p { max-width: 46ch; font-size: 13.5px; }

@@ -207,8 +207,7 @@
   flex: 1;
 }
 .pcard-title {
-  font-size: 13.5px;
-  font-weight: 700;
+  @include type.compact-title;
   line-height: 1.35;
 }
 .pcard-metrics {

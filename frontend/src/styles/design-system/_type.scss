@@ -88,6 +88,28 @@
   letter-spacing: -0.01em;
 }
 
+/* Titre de deuxième niveau : en-tête de modale, de panneau large,
+   de volet, de fiche détaillée. Un cran sous le titre de page. */
+@mixin section-title {
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-tight);
+}
+
+/* Titre de carte ou de groupe dans une liste. */
+@mixin card-title {
+  font-size: var(--t-md);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-snug);
+}
+
+/* Titre d'une carte compacte : vignette de calendrier, tuile dense. */
+@mixin compact-title {
+  font-size: var(--t-xs);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-snug);
+}
+
 /* Chiffre clé d'une tuile de statistique. */
 @mixin key-figure {
   font-size: var(--t-xl);
