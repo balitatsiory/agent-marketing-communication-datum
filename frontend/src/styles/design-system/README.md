@@ -198,20 +198,16 @@ ECharts.**
 
 ---
 
-## Ce qu'il reste à faire après un `git pull`
-
-Deux étapes ont besoin du réseau et n'ont pas pu être exécutées
-depuis le poste où cette branche a été écrite (proxy filtrant).
+## Après un `git pull`
 
 ```bash
-npm install            # installe echarts, ajouté aux dépendances
-npm run fonts:nunito   # télécharge les deux .woff2 dans public/fonts/
+npm install   # echarts, ajouté aux dépendances
 ```
 
-Tant que la police manque, l'application retombe sur `system-ui` et
-reste parfaitement utilisable : seul le dessin des lettres diffère.
-Tant qu'`echarts` n'est pas installé, la compilation échoue sur
-`src/app/shared/chart/chart.ts`.
+Les polices sont versionnées dans `public/fonts/`, comme les trois
+autres familles du projet : rien à télécharger. `npm run fonts:nunito`
+ne sert qu'à les régénérer (montée de version, nouveau
+sous-ensemble).
 
 ---
 
@@ -221,7 +217,7 @@ Ce qui est repris ici, et à quelles conditions.
 
 | Élément | Licence | Ce que ça implique |
 |---|---|---|
-| **Nunito Sans** | SIL OFL 1.1 | Libre, usage commercial et auto-hébergement compris. Le texte de la licence doit accompagner les fichiers redistribués : `npm run fonts:nunito` enregistre `OFL.txt` à côté des `.woff2`. |
+| **Nunito Sans** | SIL OFL 1.1 | Libre, usage commercial et auto-hébergement compris. Le texte de la licence doit accompagner les fichiers redistribués : il est versionné dans `public/fonts/nunito-sans-OFL.txt`. |
 | **Apache ECharts** | Apache 2.0 | Libre, y compris en production commerciale. |
 | **Les icônes** | — | Celles d'`ICON_SET`, déjà dans le dépôt. Aucune dépendance d'icônes n'a été ajoutée. |
 | **Font Awesome** | — | **Non utilisé.** Phoenix s'en sert ; nous non. À titre indicatif : sur sa page widgets, 479 icônes sont en style Solid et 8 en Brands, tous deux gratuits, mais 7 sont en style Regular, réservé à l'abonnement Pro payant. |

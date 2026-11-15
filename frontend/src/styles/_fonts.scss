@@ -131,15 +131,13 @@
    place, elle est servie depuis `public/fonts/` et non depuis
    un CDN : aucune requête vers un tiers, aucun suivi.
 
-   ⚠ Les deux .woff2 ne sont pas dans le dépôt : ce sont des
-   binaires, et le poste de développement n'a pas accès au
-   réseau de Google. Récupérez-les une fois avec :
+   Les deux .woff2 sont versionnés dans `public/fonts/`, comme les
+   douze fichiers des trois autres familles : un clone suffit, il
+   n'y a aucune étape d'installation. Le texte de la licence les
+   accompagne dans `nunito-sans-OFL.txt`, comme l'OFL l'exige.
 
-       npm run fonts:nunito
-
-   Tant qu'ils manquent, le navigateur ignore silencieusement ces
-   deux règles et retombe sur `system-ui` : l'application reste
-   parfaitement utilisable, seul le dessin des lettres diffère.
+   Pour les régénérer — montée de version de la police, ajout d'un
+   sous-ensemble — `npm run fonts:nunito` les retélécharge.
    ============================================================ */
 
 @font-face {
