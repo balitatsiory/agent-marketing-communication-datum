@@ -1,6 +1,8 @@
 /* Générer une publication — version 2, parcours en cinq étapes.
    Toute couleur passe par un jeton de `styles/_tokens.scss`. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -28,14 +30,11 @@
 }
 
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 

@@ -255,6 +255,39 @@ sous-ensemble).
 
 ---
 
+## État réel de la migration vers l'échelle
+
+Dire la vérité sur ce document vaut mieux que de le laisser promettre
+ce qui n'est pas fait.
+
+**Terminé — la couche des titres.** Les 16 titres de page passent par
+`type.page-title`, les sous-titres par `--t-xs`, les titres de panneau
+et de section par l'échelle. Avant, chacun des 16 écrans redéfinissait
+`.page-head h1` avec `font-weight: 400` et `font-size: 30px` écrits à
+la main — une spécificité supérieure à la règle `h1` du socle, qui
+était donc sans effet. Résultat : les titres restaient en graisse 400
+alors que la décision « hiérarchie par la graisse » voulait 800.
+Quinze écrans à 30 px, la connexion à 34 px, et les sous-titres entre
+12,5 et 13 px.
+
+**Reste à faire — la couche du texte courant.** 449 déclarations
+`font-size` en px subsistent dans les SCSS d'écran.
+
+**Et une difficulté réelle à trancher avant de continuer.** L'échelle
+1.25 saute de 12,8 px à 16 px. Or 144 de ces 449 déclarations valent
+13, 13,5, 14 ou 15 px — elles tombent précisément dans ce trou. Les
+ramener à 12,8 rétrécit beaucoup de texte dense ; les pousser à 16
+l'agrandit encore plus. Trois options, à décider en équipe :
+
+- ajouter un cran à 14 px (0,875 rem) et assumer une échelle qui n'est
+  plus strictement 1.25 ;
+- mapper vers le bas, en acceptant une interface plus compacte ;
+- garder ces valeurs telles quelles et restreindre l'échelle aux
+  titres, aux libellés et aux chiffres.
+
+Tant que ce point n'est pas tranché, mieux vaut ne pas lancer de
+conversion mécanique : elle toucherait tous les écrans d'un coup.
+
 ## Les couleurs de série
 
 Les cinq `--series-*` de `_tokens.scss` ne servent **que** les
@@ -291,8 +324,10 @@ Ce qui est repris ici, et à quelles conditions.
 
 1. **Aucune valeur hexadécimale hors `_tokens.scss`.** Règle déjà en
    vigueur dans le projet ; elle s'étend aux options ECharts.
-2. **Aucune taille de police hors de l'échelle.** Pas de `font-size`
-   en px dans un composant, pas de `em` imbriqués.
+2. **Aucune taille de police hors de l'échelle** dans le code
+   nouveau. Pas de `font-size` en px dans un composant, pas de `em`
+   imbriqués. Voir l'état réel ci-dessous : la règle n'est pas encore
+   tenue partout.
 3. **Un rôle, pas une couleur.** Un composant demande `warning`, pas
    `#8a6d1f`.
 4. **La couleur ne porte jamais seule l'information.** Un badge

@@ -1,5 +1,7 @@
 /* Écran de connexion — maquette 2a : carte centrée sur fond rayé. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -54,10 +56,7 @@
   text-align: center;
 }
 .login-title h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 34px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .login-title p {
   color: var(--muted);

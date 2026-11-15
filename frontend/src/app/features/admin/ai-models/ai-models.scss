@@ -1,5 +1,7 @@
 /* Gestion des modèles IA — Option A : Bandeau Flash + 3 Onglets Métier */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -25,9 +27,7 @@
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
+  @include type.page-title;
 }
 .page-head .sub,
 .section-head .sub,
@@ -266,8 +266,8 @@
   margin-bottom: 12px;
 }
 .section-head h2 {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
   color: var(--ink);
 }
 .toolbar {

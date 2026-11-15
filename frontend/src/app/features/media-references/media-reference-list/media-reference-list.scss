@@ -1,5 +1,7 @@
 /* Médias de référence — grille, recherche, pagination et visionneuse détaillée. */
 
+@use '../../../../styles/design-system/type' as type;
+
 @use '../../../../styles/design-system/roles' as roles;
 
 :host {
@@ -24,14 +26,11 @@
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
