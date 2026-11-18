@@ -23,37 +23,34 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DESCRIPTION = """
-API de la plateforme **IAGORA** — agent IA de marketing et communication digitale
-de DATUM Academy.
+API de la plateforme **IAGORA** — agent IA de marketing et communication
+digitale de DATUM Academy.
 
-### Comment tester depuis cette page
+### Tester depuis cette page
 
-1. Appeler `POST /api/v1/auth/login` avec un email et un mot de passe.
+1. Appeler `POST /api/v1/auth/login` avec une adresse et un mot de passe.
 2. Copier le champ `access_token` de la réponse.
 3. Cliquer sur **Authorize**, en haut à droite, et le coller.
-4. Les endpoints marqués d'un cadenas deviennent utilisables.
+4. Les points d'entrée marqués d'un cadenas deviennent utilisables.
 
 Le jeton d'accès dure 15 minutes. Passé ce délai, `POST /api/v1/auth/refresh`
-en fournit un nouveau à partir du `refresh_token`.
+en fournit un nouveau à partir du jeton de renouvellement.
+
+### Tester depuis EchoAPI ou Postman
+
+Importer la spécification : `/openapi.json`.
 
 ### Conventions
 
-* Les dates sont en **UTC**, au format ISO 8601.
+* Les dates sont en **UTC**, au format ISO 8601, avec le `Z` final.
+* Les listes sont paginées : `?page=1&size=50`, et la réponse porte
+  `items`, `total`, `page`, `size`, `pages`.
 * Les erreurs ont toutes la même forme :
-  `{"error": {"code": "not_found", "message": "…"}}` — `code` est stable, `message`
-  est en français et destiné à l'affichage.
+  `{"error": {"code": "not_found", "message": "…"}}` — `code` est stable et en
+  anglais, `message` est en français et destiné à l'affichage.
 """
 
 TAGS = [
-    {
-        "name": "authentification",
-        "description": "Connexion, renouvellement du jeton, déconnexion, profil courant.",
-    },
-    {
-        "name": "utilisateurs",
-        "description": "Comptes de l'équipe et attribution des droits. Réservé aux "
-        "administrateurs, sauf le changement de son propre mot de passe.",
-    },
     {
         "name": "technique",
         "description": "Points de contrôle de l'API.",
@@ -85,7 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None if settings.is_production else "/redoc",
         swagger_ui_parameters={
             # Les sections restent repliées : la liste reste lisible quand les
-            # modules se multiplieront.
+            # seize modules seront là.
             "docExpansion": "none",
             "filter": True,
             "persistAuthorization": True,
@@ -109,14 +106,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def racine() -> Response:
         """Redirige vers la documentation.
 
-        Sans cela, ouvrir http://localhost:8000 renvoie « 404 Not Found » et laisse
-        croire que l'API n'a pas démarré. En production, où /docs est désactivé,
-        on renvoie les informations utiles en JSON.
+        Sans cela, ouvrir http://localhost:8000 renvoie « 404 Not Found » et
+        laisse croire que l'API n'a pas démarré. En production, où /docs est
+        désactivé, on renvoie les informations utiles en JSON.
         """
         if settings.is_production:
-            return JSONResponse(
-                {"name": "IAGORA API", "version": app.version, "health": "/health"}
-            )
+            return JSONResponse({"name": "IAGORA API", "version": app.version, "health": "/health"})
         return RedirectResponse("/docs")
 
     @app.get(
@@ -141,11 +136,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         code = status.HTTP_200_OK if base_ok else status.HTTP_503_SERVICE_UNAVAILABLE
         return JSONResponse(status_code=code, content=corps.model_dump())
 
-    logger.info(
-        "API IAGORA démarrée · environnement=%s · passerelle sociale=%s",
-        settings.ENVIRONMENT,
-        settings.SOCIAL_GATEWAY,
-    )
+    _ = (racine, health)
+
+    logger.info("API IAGORA démarrée · environnement=%s", settings.ENVIRONMENT)
     return app
 
 

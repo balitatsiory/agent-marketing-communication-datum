@@ -1,0 +1,70 @@
+[project]
+name = "iagora-backend"
+version = "0.1.0"
+description = "API de la plateforme IAGORA — agent IA de marketing et communication digitale"
+requires-python = ">=3.12"
+
+# Les dépendances sont listées dans requirements.txt et requirements-dev.txt.
+# Ce fichier ne sert qu'à décrire le projet et à configurer les outils.
+
+# ----------------------------------------------------------------------------
+# ruff — mise en forme et analyse statique
+# ----------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # tri des imports
+    "N",        # conventions de nommage
+    "UP",       # tournures modernes de Python
+    "B",        # pièges courants (bugbear)
+    "SIM",      # simplifications
+    "C4",       # compréhensions
+    "PTH",      # pathlib plutôt que os.path
+    "RUF",      # règles propres à ruff
+]
+ignore = [
+    "B008",  # FastAPI utilise des appels dans les valeurs par défaut : Depends(...)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert autorisé dans les tests
+# __table_args__ est un dictionnaire de classe : c'est la forme imposée par SQLAlchemy.
+"**/models.py" = ["RUF012"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ----------------------------------------------------------------------------
+# mypy — vérification des types
+# ----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+strict = true
+warn_unreachable = true
+show_error_codes = true
+# Les migrations sont générées : on ne les type pas.
+exclude = ["alembic/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["asyncpg.*"]
+ignore_missing_imports = true
+
+# ----------------------------------------------------------------------------
+# pytest
+# ----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# --import-mode=importlib : chaque fichier de test est chargé par son chemin, avec un nom
+# unique. Deux fichiers peuvent ainsi porter le même nom (tests/modules/auth/test_router.py
+# et tests/modules/users/test_router.py) sans __init__.py dans les dossiers de tests.
+addopts = "-q --import-mode=importlib"
+# Le dossier backend/ est ajouté au chemin de recherche, pour que les tests importent `app`.
+pythonpath = ["."]

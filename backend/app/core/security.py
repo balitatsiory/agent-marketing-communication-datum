@@ -1,139 +1,108 @@
-"""Mots de passe, jetons de session, chiffrement des jetons Meta.
+"""Empreintes de mots de passe, jetons d'accès et de renouvellement.
 
-Trois opérations à ne pas confondre :
+Deux fonctions de hachage, pour deux usages qu'il ne faut pas confondre :
 
-* **mot de passe** — haché avec bcrypt, donc irréversible : on vérifie seulement
-  qu'un mot de passe correspond ;
-* **jeton de renouvellement** — haché avec SHA-256 : c'est une valeur aléatoire de
-  grande entropie, qu'on doit pouvoir retrouver en base à partir du jeton présenté ;
-* **jeton Meta** — chiffré avec Fernet, donc réversible : il faut le renvoyer à Meta
-  à chaque appel.
+- **bcrypt** pour les mots de passe. Un mot de passe humain est court et
+  devinable : il faut un hachage volontairement LENT, qui rende une attaque par
+  force brute coûteuse.
+- **SHA-256** pour les jetons de renouvellement. Un jeton est une valeur
+  aléatoire de 64 caractères, impossible à deviner, et il est vérifié à CHAQUE
+  renouvellement : un hachage lent y serait un coût sans contrepartie.
 """
 
 import hashlib
 import secrets
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
-from typing import Any, Final
+from typing import Any
 
 import bcrypt
 import jwt
-from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import get_settings
-from app.core.errors import AuthenticationError
+from app.core.errors import ApiError, NotAuthenticatedError
 
-ALGORITHM: Final = "HS256"
-# bcrypt ne prend en compte que les 72 premiers octets : au-delà, la fin du mot de
-# passe serait ignorée sans prévenir. On refuse plutôt que de tronquer en silence.
-MAX_PASSWORD_BYTES: Final = 72
+ALGORITHME = "HS256"
 
-settings = get_settings()
-
-
-# ---------------------------------------------------------------------------
-# Mots de passe
-# ---------------------------------------------------------------------------
-def hash_password(password: str) -> str:
-    """Hache un mot de passe. Le résultat contient le sel et le coût."""
-    octets = password.encode("utf-8")
-    if len(octets) > MAX_PASSWORD_BYTES:
-        raise ValueError(f"Le mot de passe dépasse {MAX_PASSWORD_BYTES} octets.")
-    return bcrypt.hashpw(octets, bcrypt.gensalt()).decode("utf-8")
+# bcrypt tronque silencieusement au-delà de 72 octets : les caractères suivants
+# ne comptent pas. On refuse explicitement plutôt que d'accepter un mot de passe
+# dont la fin serait ignorée.
+MOT_DE_PASSE_OCTETS_MAX = 72
 
 
-def verify_password(password: str, password_hash: str) -> bool:
-    """Vérifie un mot de passe face à son empreinte."""
+def hash_password(mot_de_passe: str) -> str:
+    """Calcule l'empreinte bcrypt d'un mot de passe."""
+    brut = mot_de_passe.encode("utf-8")
+    if len(brut) > MOT_DE_PASSE_OCTETS_MAX:
+        raise ApiError(
+            "password_too_long",
+            f"Le mot de passe ne doit pas dépasser {MOT_DE_PASSE_OCTETS_MAX} octets "
+            "(les caractères accentués en comptent deux).",
+        )
+    return bcrypt.hashpw(brut, bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(mot_de_passe: str, empreinte: str) -> bool:
+    """Vérifie un mot de passe contre son empreinte."""
+    brut = mot_de_passe.encode("utf-8")
+    if len(brut) > MOT_DE_PASSE_OCTETS_MAX:
+        return False
     try:
-        return bcrypt.checkpw(password.encode("utf-8")[:MAX_PASSWORD_BYTES], password_hash.encode())
+        return bcrypt.checkpw(brut, empreinte.encode("utf-8"))
     except ValueError:
-        # Empreinte illisible : on refuse, sans faire échouer la requête.
+        # Empreinte illisible en base : on refuse, sans faire échouer la requête.
         return False
 
 
-# ---------------------------------------------------------------------------
-# Jetons d'accès (JWT)
-# ---------------------------------------------------------------------------
-@dataclass(frozen=True)
-class TokenPayload:
-    """Contenu utile d'un jeton d'accès."""
-
-    id_users: int
-    permissions: list[str]
-
-
-def create_access_token(id_users: int, permissions: list[str]) -> str:
-    """Crée un jeton d'accès de courte durée."""
-    maintenant = datetime.now(UTC)
-    contenu: dict[str, Any] = {
-        "sub": str(id_users),
-        "perms": permissions,
-        "type": "access",
-        "iat": maintenant,
-        "exp": maintenant + timedelta(minutes=settings.ACCESS_TOKEN_MINUTES),
-    }
-    return jwt.encode(contenu, settings.JWT_SECRET_KEY.get_secret_value(), algorithm=ALGORITHM)
-
-
-def decode_access_token(token: str) -> TokenPayload:
-    """Lit un jeton d'accès. Lève AuthenticationError s'il est expiré ou falsifié."""
-    try:
-        contenu = jwt.decode(
-            token, settings.JWT_SECRET_KEY.get_secret_value(), algorithms=[ALGORITHM]
-        )
-    except jwt.ExpiredSignatureError as erreur:
-        raise AuthenticationError("Votre session a expiré, reconnectez-vous.") from erreur
-    except jwt.PyJWTError as erreur:
-        raise AuthenticationError("Jeton d'authentification invalide.") from erreur
-
-    if contenu.get("type") != "access":
-        raise AuthenticationError("Jeton d'authentification invalide.")
-
-    return TokenPayload(id_users=int(contenu["sub"]), permissions=list(contenu.get("perms", [])))
-
-
-# ---------------------------------------------------------------------------
-# Jetons de renouvellement
-# ---------------------------------------------------------------------------
-def generate_refresh_token() -> str:
-    """Valeur aléatoire remise au client. Elle n'est jamais stockée telle quelle."""
+def new_refresh_token() -> str:
+    """Produit un jeton de renouvellement : 64 caractères aléatoires."""
     return secrets.token_urlsafe(48)
 
 
-def hash_refresh_token(token: str) -> str:
-    """Empreinte du jeton, stockée en base.
+def hash_token(jeton: str) -> str:
+    """Empreinte SHA-256 d'un jeton, en hexadécimal (64 caractères).
 
-    SHA-256 et non bcrypt : l'empreinte doit être déterministe pour retrouver la
-    session à partir du jeton présenté, et la valeur est déjà imprévisible.
+    C'est cette empreinte qui est stockée. Le jeton lui-même ne l'est jamais :
+    une base volée ne doit pas livrer de sessions utilisables.
     """
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return hashlib.sha256(jeton.encode("utf-8")).hexdigest()
 
 
-def refresh_token_expiry() -> datetime:
-    """Date d'expiration d'un nouveau jeton de renouvellement."""
-    return datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_DAYS)
+def create_access_token(id_users: int) -> str:
+    """Émet un jeton d'accès pour un utilisateur."""
+    reglages = get_settings()
+    maintenant = datetime.now(UTC)
+    charge: dict[str, Any] = {
+        "sub": str(id_users),
+        "iat": int(maintenant.timestamp()),
+        "exp": int((maintenant + timedelta(minutes=reglages.ACCESS_TOKEN_MINUTES)).timestamp()),
+    }
+    return jwt.encode(charge, reglages.JWT_SECRET_KEY.get_secret_value(), algorithm=ALGORITHME)
 
 
-# ---------------------------------------------------------------------------
-# Chiffrement des jetons de plateformes (Meta)
-# ---------------------------------------------------------------------------
-@lru_cache
-def _fernet() -> Fernet:
-    """Construit l'outil de chiffrement au premier usage, pas au démarrage."""
-    return Fernet(settings.TOKEN_ENCRYPTION_KEY.get_secret_value().encode("utf-8"))
+def decode_access_token(jeton: str) -> int:
+    """Lit un jeton d'accès et renvoie l'identifiant de son porteur.
 
-
-def encrypt_token(clair: str) -> str:
-    """Chiffre un jeton de plateforme avant de le stocker."""
-    return _fernet().encrypt(clair.encode("utf-8")).decode("utf-8")
-
-
-def decrypt_token(chiffre: str) -> str:
-    """Déchiffre un jeton de plateforme pour appeler l'API."""
+    Lève `NotAuthenticatedError` si le jeton est expiré, mal signé ou mal formé — le
+    client n'a pas à savoir laquelle des trois.
+    """
+    reglages = get_settings()
     try:
-        return _fernet().decrypt(chiffre.encode("utf-8")).decode("utf-8")
-    except InvalidToken as erreur:
-        raise ValueError(
-            "Jeton illisible : la clé de chiffrement a changé ou la valeur est corrompue."
-        ) from erreur
+        charge = jwt.decode(
+            jeton,
+            reglages.JWT_SECRET_KEY.get_secret_value(),
+            algorithms=[ALGORITHME],
+        )
+    except jwt.ExpiredSignatureError as erreur:
+        raise NotAuthenticatedError("Session expirée. Se reconnecter.") from erreur
+    except jwt.PyJWTError as erreur:
+        raise NotAuthenticatedError("Jeton d'accès invalide.") from erreur
+
+    sujet = charge.get("sub")
+    if not isinstance(sujet, str) or not sujet.isdigit():
+        raise NotAuthenticatedError("Jeton d'accès invalide.")
+    return int(sujet)
+
+
+def refresh_expiry() -> datetime:
+    """Date d'expiration d'un jeton de renouvellement émis maintenant."""
+    return datetime.now(UTC) + timedelta(days=get_settings().REFRESH_TOKEN_DAYS)

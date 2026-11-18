@@ -1,7 +1,7 @@
 """Accès à PostgreSQL : moteur, session par requête, classe de base des modèles.
 
-La convention de nommage des contraintes est déclarée ici, une fois pour toutes :
-sans elle, PostgreSQL invente des noms qui changent d'une base à l'autre, et les
+La convention de nommage des contraintes est déclarée ici, une fois pour toutes.
+Sans elle, PostgreSQL invente des noms qui changent d'une base à l'autre, et les
 migrations Alembic deviennent impossibles à écrire proprement.
 """
 
@@ -16,8 +16,9 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# pk_publications · fk_publications_id_users_author_users · uq_users_email
-# ix_publications_scheduled_at · ck_publications_status
+# Exemples de noms produits :
+#   pk_users · fk_refresh_tokens_id_users_users · uq_permissions_code
+#   ix_refresh_tokens_family_id · ck_refresh_tokens_revoked_reason
 NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
@@ -33,12 +34,12 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-settings = get_settings()
+_settings = get_settings()
 
 engine = create_async_engine(
-    str(settings.DATABASE_URL),
-    # Vérifie que la connexion est vivante avant de la réutiliser : évite les erreurs
-    # après une coupure réseau ou un redémarrage de la base.
+    str(_settings.DATABASE_URL),
+    # Vérifie que la connexion est vivante avant de la réutiliser : évite les
+    # erreurs après une coupure réseau ou un redémarrage de la base.
     pool_pre_ping=True,
 )
 
@@ -48,9 +49,9 @@ SessionFactory = async_sessionmaker(engine, expire_on_commit=False)
 async def get_session() -> AsyncIterator[AsyncSession]:
     """Ouvre une session pour la durée d'une requête.
 
-    Une requête HTTP = une transaction : tout est validé à la fin, ou rien ne l'est.
-    C'est ce qui garantit qu'un changement de statut et sa ligne d'historique sont
-    écrits ensemble, ou pas du tout.
+    Une requête HTTP vaut une transaction : tout est validé à la fin, ou rien ne
+    l'est. C'est ce qui garantit qu'un changement d'état et sa ligne d'historique
+    sont écrits ensemble, ou pas du tout.
     """
     async with SessionFactory() as session:
         try:

@@ -1,9 +1,7 @@
-# Outils de développement et de test.
-# Installation : pip install -r requirements.txt -r requirements-dev.txt
-
+# Outillage de développement. Absent de l'image de production.
 -r requirements.txt
 
-ruff>=0.5              # mise en forme et analyse statique
-mypy>=1.10             # vérification des types
-pytest>=8.2
-pytest-asyncio>=0.23   # tests des fonctions async
+ruff>=0.6
+mypy>=1.11
+pytest>=8.0
+pytest-asyncio>=0.24
