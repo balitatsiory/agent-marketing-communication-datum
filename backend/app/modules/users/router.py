@@ -1,5 +1,6 @@
 """Routes du module Utilisateurs et droits. Aucune règle métier ici."""
 
+from collections.abc import Sequence
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -26,6 +27,18 @@ GestionnaireUtilisateurs = Annotated[User, Depends(require(MANAGE_USERS))]
 GestionnaireDroits = Annotated[User, Depends(require(MANAGE_PERMISSIONS))]
 
 
+async def _avec_droits(session: SessionDep, utilisateurs: Sequence[User]) -> list[UserRead]:
+    """Compose la lecture d'un ou plusieurs comptes avec leurs droits.
+
+    Une seule requête quel que soit le nombre de comptes.
+    """
+    codes = await service.droits_par_utilisateur(session, [u.id_users for u in utilisateurs])
+    return [
+        UserRead.model_validate(u).model_copy(update={"permissions": codes[u.id_users]})
+        for u in utilisateurs
+    ]
+
+
 @router.get("/users", response_model=Page[UserRead], summary="Lister les utilisateurs")
 async def lister(
     session: SessionDep,
@@ -36,7 +49,7 @@ async def lister(
     ),
 ) -> Page[UserRead]:
     utilisateurs, total = await service.lister(session, params, inclure_archives)
-    return Page[UserRead].build([UserRead.model_validate(u) for u in utilisateurs], total, params)
+    return Page[UserRead].build(await _avec_droits(session, utilisateurs), total, params)
 
 
 @router.post(
@@ -51,19 +64,21 @@ async def creer(
 ) -> UserRead:
     utilisateur = await service.creer(session, corps, par)
     reponse.headers["Location"] = f"/api/v1/users/{utilisateur.id_users}"
-    return UserRead.model_validate(utilisateur)
+    return (await _avec_droits(session, [utilisateur]))[0]
 
 
 @router.get("/users/{id_users}", response_model=UserRead, summary="Lire un utilisateur")
 async def obtenir(id_users: int, session: SessionDep, _: GestionnaireUtilisateurs) -> UserRead:
-    return UserRead.model_validate(await service.obtenir(session, id_users))
+    utilisateur = await service.obtenir(session, id_users)
+    return (await _avec_droits(session, [utilisateur]))[0]
 
 
 @router.patch("/users/{id_users}", response_model=UserRead, summary="Modifier un utilisateur")
 async def modifier(
     id_users: int, corps: UserUpdate, session: SessionDep, par: GestionnaireUtilisateurs
 ) -> UserRead:
-    return UserRead.model_validate(await service.modifier(session, id_users, corps, par))
+    utilisateur = await service.modifier(session, id_users, corps, par)
+    return (await _avec_droits(session, [utilisateur]))[0]
 
 
 @router.patch(

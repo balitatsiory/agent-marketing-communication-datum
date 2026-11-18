@@ -12,6 +12,13 @@ MotDePasse = Field(min_length=10, max_length=MOT_DE_PASSE_OCTETS_MAX)
 
 
 class UserRead(BaseModel):
+    """Compte, avec les codes des droits qu'il detient.
+
+    Les droits voyagent AVEC l'utilisateur et non derriere une route separee :
+    l'ecran des habilitations affiche un resume des droits sous chaque nom, et
+    les reclamer compte par compte reviendrait a une requete par ligne.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id_users: int
@@ -22,6 +29,9 @@ class UserRead(BaseModel):
     last_login_at: datetime | None
     created_at: datetime
     deleted_at: datetime | None
+    permissions: list[str] = Field(
+        default_factory=list, description="Codes des droits actifs, dans l'ordre d'affichage."
+    )
 
 
 class UserCreate(BaseModel):

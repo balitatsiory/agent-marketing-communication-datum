@@ -326,3 +326,77 @@ class TestMotDePasseParAdministrateur:
             json={"email": cible.email, "password": "Impose-Par-Admin-2026"},
         )
         assert nouvelle.status_code == 200
+
+
+class TestDroitsPortesParLaLecture:
+    """`UserRead` porte les droits du compte.
+
+    L'écran des habilitations affiche un résumé des droits sous chaque nom.
+    Les réclamer compte par compte reviendrait à une requête par ligne, d'où
+    leur présence dans la lecture elle-même.
+    """
+
+    async def test_la_liste_porte_les_droits_de_chaque_compte(
+        self, client: AsyncClient, fabrique_utilisateur, connexion
+    ) -> None:
+        admin = await fabrique_utilisateur(droits=["manage_users", "manage_permissions"])
+        simple = await fabrique_utilisateur()
+        jetons = await connexion(admin.email)
+
+        reponse = await client.get("/api/v1/users", headers=entete(jetons))
+        assert reponse.status_code == 200
+
+        par_identifiant = {u["id_users"]: u["permissions"] for u in reponse.json()["items"]}
+        assert par_identifiant[admin.id_users] == ["manage_users", "manage_permissions"]
+        assert par_identifiant[simple.id_users] == []
+
+    async def test_les_droits_suivent_l_ordre_d_affichage(
+        self, client: AsyncClient, fabrique_utilisateur, connexion
+    ) -> None:
+        """`sort_order` et non l'ordre d'attribution : l'écran coche des cases
+        dans un ordre stable, qui ne doit pas dépendre de l'historique."""
+        admin = await fabrique_utilisateur(droits=["manage_permissions", "manage_users"])
+        jetons = await connexion(admin.email)
+
+        reponse = await client.get(f"/api/v1/users/{admin.id_users}", headers=entete(jetons))
+        assert reponse.status_code == 200
+        assert reponse.json()["permissions"] == ["manage_users", "manage_permissions"]
+
+    async def test_un_droit_revoque_disparait_de_la_lecture(
+        self, client: AsyncClient, fabrique_utilisateur, connexion
+    ) -> None:
+        """La ligne reste archivée en base ; elle ne doit plus paraître ici."""
+        admin = await fabrique_utilisateur(droits=["manage_users", "manage_permissions"])
+        cible = await fabrique_utilisateur(droits=["manage_users"])
+        jetons = await connexion(admin.email)
+
+        retrait = await client.put(
+            f"/api/v1/users/{cible.id_users}/permissions",
+            headers=entete(jetons),
+            json={"codes": []},
+        )
+        assert retrait.status_code == 200
+
+        reponse = await client.get(f"/api/v1/users/{cible.id_users}", headers=entete(jetons))
+        assert reponse.json()["permissions"] == []
+
+    async def test_un_compte_cree_part_sans_aucun_droit(
+        self, client: AsyncClient, fabrique_utilisateur, connexion
+    ) -> None:
+        """Aucun droit par défaut : un compte neuf ne peut rien, et c'est
+        l'administrateur qui ouvre les accès un par un."""
+        admin = await fabrique_utilisateur(droits=["manage_users"])
+        jetons = await connexion(admin.email)
+
+        reponse = await client.post(
+            "/api/v1/users",
+            headers=entete(jetons),
+            json={
+                "email": "nouveau.sans.droit@iagora.example.com",
+                "password": MOT_DE_PASSE,
+                "first_name": "Nouveau",
+                "last_name": "Compte",
+            },
+        )
+        assert reponse.status_code == 201
+        assert reponse.json()["permissions"] == []

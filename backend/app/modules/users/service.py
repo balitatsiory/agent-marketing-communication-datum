@@ -1,5 +1,6 @@
 """Règles métier du module Utilisateurs et droits."""
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -149,6 +150,34 @@ async def archiver(session: AsyncSession, id_users: int, par: User) -> None:
     await session.flush()
 
 
+async def droits_par_utilisateur(
+    session: AsyncSession, id_utilisateurs: Sequence[int]
+) -> dict[int, list[str]]:
+    """Codes des droits actifs, pour plusieurs utilisateurs en UNE requête.
+
+    L'écran des habilitations affiche un résumé des droits sous chaque nom :
+    sans cette lecture groupée, afficher une page de cinquante comptes
+    demanderait cinquante requêtes.
+    """
+    if not id_utilisateurs:
+        return {}
+
+    requete = (
+        select(UserPermission.id_users, Permission.code)
+        .join(Permission, Permission.id_permissions == UserPermission.id_permissions)
+        .where(
+            UserPermission.id_users.in_(id_utilisateurs),
+            UserPermission.deleted_at.is_(None),
+        )
+        .order_by(UserPermission.id_users, Permission.sort_order)
+    )
+
+    par_utilisateur: dict[int, list[str]] = {id_users: [] for id_users in id_utilisateurs}
+    for id_users, code in (await session.execute(requete)).all():
+        par_utilisateur[id_users].append(code)
+    return par_utilisateur
+
+
 async def lister_droits(session: AsyncSession) -> list[Permission]:
     requete = select(Permission).order_by(Permission.sort_order)
     return list((await session.execute(requete)).scalars().all())
@@ -207,10 +236,4 @@ async def definir_droits(
         )
 
     await session.flush()
-    requete = (
-        select(Permission.code)
-        .join(UserPermission, UserPermission.id_permissions == Permission.id_permissions)
-        .where(UserPermission.id_users == id_users, UserPermission.deleted_at.is_(None))
-        .order_by(Permission.sort_order)
-    )
-    return list((await session.execute(requete)).scalars().all())
+    return (await droits_par_utilisateur(session, [id_users]))[id_users]
