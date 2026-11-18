@@ -4,9 +4,14 @@ Ce script n'est PAS une migration, et c'est volontaire : une migration part en
 production, et cinq faux comptes arriveraient sur la base de DATUM Academy. Il
 refuse donc de s'exécuter si ENVIRONMENT n'est pas « local ».
 
-Les adresses utilisent le domaine `.test`, réservé par la norme et qui ne peut
-exister sur Internet. Aucun courriel d'essai ne peut donc atteindre une vraie
-personne — ce qui comptera dès que le module Newsletters enverra des lots.
+Les adresses sont sous `iagora.example.com`. Le domaine `example.com` est
+réservé par l'IANA et ne porte aucune boîte : aucun courriel d'essai ne peut
+atteindre une vraie personne — ce qui comptera dès que le module Newsletters
+enverra des lots.
+
+Le domaine `.test`, d'abord retenu, a dû être abandonné : la validation
+d'adresses de Pydantic refuse les noms à usage réservé, et les comptes fictifs
+n'auraient pas pu se connecter par l'API.
 
     python -m scripts.seed_dev
 """
@@ -24,7 +29,7 @@ from app.core.security import hash_password
 # sur une base locale, et les connaître est le but du script.
 COMPTES = [
     {
-        "email": "admin@iagora.test",
+        "email": "admin@iagora.example.com",
         "mot_de_passe": "Dev-Admin-2026",
         "first_name": "Ana",
         "last_name": "Administratrice",
@@ -34,7 +39,7 @@ COMPTES = [
         "sert_a": "le parcours administrateur",
     },
     {
-        "email": "simple@iagora.test",
+        "email": "simple@iagora.example.com",
         "mot_de_passe": "Dev-Simple-2026",
         "first_name": "Simon",
         "last_name": "Sansdroit",
@@ -44,7 +49,7 @@ COMPTES = [
         "sert_a": "le refus 403 : authentifié mais sans droit",
     },
     {
-        "email": "desactive@iagora.test",
+        "email": "desactive@iagora.example.com",
         "mot_de_passe": "Dev-Desac-2026",
         "first_name": "Denise",
         "last_name": "Suspendue",
@@ -54,7 +59,7 @@ COMPTES = [
         "sert_a": "le refus de connexion d'un compte suspendu",
     },
     {
-        "email": "archive@iagora.test",
+        "email": "archive@iagora.example.com",
         "mot_de_passe": "Dev-Archi-2026",
         "first_name": "Arnaud",
         "last_name": "Archive",

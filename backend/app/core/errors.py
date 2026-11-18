@@ -76,7 +76,10 @@ def register_error_handlers(app: FastAPI) -> None:
         return _enveloppe(
             "validation_error",
             "Les données envoyées sont incomplètes ou mal formées.",
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            # 422 en clair : Starlette a deprecie HTTP_422_UNPROCESSABLE_ENTITY
+            # au profit de HTTP_422_UNPROCESSABLE_CONTENT, et le nom changera
+            # encore. Le code numerique, lui, est fixe par la norme HTTP.
+            422,
         )
 
     @app.exception_handler(StarletteHTTPException)

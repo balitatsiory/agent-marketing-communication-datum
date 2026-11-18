@@ -18,7 +18,8 @@ from app.core.database import Base
 # --- Les modèles doivent être importés pour que leurs tables soient connues ---
 # Une ligne par module, ajoutée au fur et à mesure. Sans cet import, Alembic ne
 # voit pas la table et l'autogénération proposerait de la supprimer.
-# (aucun module pour l'instant)
+from app.modules.auth import models as auth_models  # noqa: F401
+from app.modules.users import models as users_models  # noqa: F401
 
 config = context.config
 

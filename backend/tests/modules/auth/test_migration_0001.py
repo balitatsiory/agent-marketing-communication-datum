@@ -82,19 +82,19 @@ class TestUniciteDeLEmail:
     async def test_l_email_est_unique_a_la_casse_pres(self, session: AsyncSession) -> None:
         """Sans index sur lower(email), deux comptes existeraient pour la même
         personne, et elle ne se connecterait qu'une fois sur deux."""
-        await creer_utilisateur(session, "balita@iagora.test")
+        await creer_utilisateur(session, "balita@iagora.example.com")
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
-                await creer_utilisateur(session, "Balita@IAGORA.test")
+                await creer_utilisateur(session, "Balita@IAGORA.EXAMPLE.COM")
 
     async def test_un_compte_archive_libere_son_email(self, session: AsyncSession) -> None:
         """L'index est PARTIEL : sinon un départ interdirait définitivement de
         recréer un compte à la même adresse."""
-        id_users = await creer_utilisateur(session, "repris@iagora.test")
+        id_users = await creer_utilisateur(session, "repris@iagora.example.com")
         await session.execute(
             text("UPDATE users SET deleted_at = now() WHERE id_users = :i"), {"i": id_users}
         )
-        nouveau = await creer_utilisateur(session, "repris@iagora.test")
+        nouveau = await creer_utilisateur(session, "repris@iagora.example.com")
         assert nouveau != id_users
 
 
@@ -111,7 +111,7 @@ class TestDeclencheurUpdatedAt:
     """
 
     async def test_le_declencheur_rajeunit_une_valeur_vieillie(self, session: AsyncSession) -> None:
-        id_users = await creer_utilisateur(session, "declencheur@iagora.test")
+        id_users = await creer_utilisateur(session, "declencheur@iagora.example.com")
         await session.execute(
             text("UPDATE users SET updated_at = '2020-01-01T00:00:00Z' WHERE id_users = :i"),
             {"i": id_users},
@@ -131,7 +131,7 @@ class TestDeclencheurUpdatedAt:
         """Ecrire updated_at a la main ne doit servir a rien : c'est ce qui rend
         la colonne digne de confiance, quelle que soit l'origine de l'ecriture.
         """
-        id_users = await creer_utilisateur(session, "impose@iagora.test")
+        id_users = await creer_utilisateur(session, "impose@iagora.example.com")
         await session.execute(
             text(
                 "UPDATE users SET first_name = 'X', updated_at = '2019-06-01T00:00:00Z' "
@@ -172,13 +172,13 @@ class TestContraintesDesJetons:
         )
 
     async def test_un_jeton_valide_s_insere(self, session: AsyncSession) -> None:
-        id_users = await creer_utilisateur(session, "jeton@iagora.test")
+        id_users = await creer_utilisateur(session, "jeton@iagora.example.com")
         await self._inserer_jeton(session, id_users)
 
     async def test_une_raison_de_revocation_inconnue_est_refusee(
         self, session: AsyncSession
     ) -> None:
-        id_users = await creer_utilisateur(session, "raison@iagora.test")
+        id_users = await creer_utilisateur(session, "raison@iagora.example.com")
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
                 await self._inserer_jeton(
@@ -188,7 +188,7 @@ class TestContraintesDesJetons:
     async def test_une_revocation_sans_raison_est_refusee(self, session: AsyncSession) -> None:
         """Une ligne révoquée sans raison serait impossible à interpréter le jour
         où quelqu'un demande pourquoi il a été déconnecté."""
-        id_users = await creer_utilisateur(session, "sansraison@iagora.test")
+        id_users = await creer_utilisateur(session, "sansraison@iagora.example.com")
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
                 await session.execute(
@@ -203,7 +203,7 @@ class TestContraintesDesJetons:
                 )
 
     async def test_une_raison_sans_revocation_est_refusee(self, session: AsyncSession) -> None:
-        id_users = await creer_utilisateur(session, "inverse@iagora.test")
+        id_users = await creer_utilisateur(session, "inverse@iagora.example.com")
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
                 await self._inserer_jeton(session, id_users, revoked_reason="logout")
@@ -222,7 +222,7 @@ class TestAttributionDesDroits:
         )
 
     async def test_un_droit_ne_peut_etre_attribue_deux_fois(self, session: AsyncSession) -> None:
-        id_users = await creer_utilisateur(session, "doublon@iagora.test")
+        id_users = await creer_utilisateur(session, "doublon@iagora.example.com")
         await self._attribuer(session, id_users, "manage_users")
         with pytest.raises(IntegrityError):
             async with session.begin_nested():
@@ -231,7 +231,7 @@ class TestAttributionDesDroits:
     async def test_un_droit_revoque_peut_etre_reattribue(self, session: AsyncSession) -> None:
         """L'unicité est partielle : réattribuer crée une NOUVELLE ligne, et
         l'historique garde la trace du droit passé."""
-        id_users = await creer_utilisateur(session, "reattribue@iagora.test")
+        id_users = await creer_utilisateur(session, "reattribue@iagora.example.com")
         await self._attribuer(session, id_users, "manage_users")
         await session.execute(
             text("UPDATE user_permissions SET deleted_at = now() WHERE id_users = :i"),

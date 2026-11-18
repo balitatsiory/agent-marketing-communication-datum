@@ -1,0 +1,29 @@
+"""Formats d'entrée et de sortie du module Authentification."""
+
+from pydantic import BaseModel, EmailStr, Field
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1)
+
+
+class TokenPair(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class MeRead(BaseModel):
+    """Profil courant, avec les droits dont dépend l'affichage des écrans."""
+
+    id_users: int
+    email: EmailStr
+    first_name: str
+    last_name: str
+    permissions: list[str]

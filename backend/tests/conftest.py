@@ -9,11 +9,12 @@ reste fiable :
 """
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 import pytest
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import NullPool
+from sqlalchemy import NullPool, select
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -87,3 +88,74 @@ async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
         yield client_de_test
 
     application.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# Fabriques pour les tests d'API
+# ---------------------------------------------------------------------------
+# Déclarées en fixtures plutôt qu'en module importable : avec
+# --import-mode=importlib et sans __init__.py dans les dossiers de tests, une
+# fixture est le moyen le plus simple de partager un outil entre fichiers.
+
+
+@pytest.fixture
+def fabrique_utilisateur(session: AsyncSession):  # type: ignore[no-untyped-def]
+    """Crée un utilisateur en base, avec ses droits, son état et son mot de passe."""
+    from app.core.security import hash_password
+    from app.modules.users.models import Permission, User, UserPermission
+
+    compteur = {"n": 0}
+
+    async def fabriquer(
+        mot_de_passe: str = "Dev-Mot-De-Passe-2026",
+        droits: list[str] | None = None,
+        is_active: bool = True,
+        archive: bool = False,
+        email: str | None = None,
+    ) -> User:
+        compteur["n"] += 1
+        utilisateur = User(
+            email=email or f"essai{compteur['n']}@iagora.example.com",
+            password_hash=hash_password(mot_de_passe),
+            first_name="Essai",
+            last_name=f"Numero{compteur['n']}",
+            is_active=is_active,
+            deleted_at=datetime.now(UTC) if archive else None,
+        )
+        session.add(utilisateur)
+        await session.flush()
+
+        for code in droits or []:
+            id_permissions = (
+                await session.execute(
+                    select(Permission.id_permissions).where(Permission.code == code)
+                )
+            ).scalar_one()
+            session.add(
+                UserPermission(id_users=utilisateur.id_users, id_permissions=id_permissions)
+            )
+        await session.flush()
+        return utilisateur
+
+    return fabriquer
+
+
+@pytest.fixture
+def connexion(client: AsyncClient):  # type: ignore[no-untyped-def]
+    """Ouvre une session et renvoie le couple de jetons."""
+
+    async def se_connecter(
+        email: str, mot_de_passe: str = "Dev-Mot-De-Passe-2026"
+    ) -> dict[str, str]:
+        reponse = await client.post(
+            "/api/v1/auth/login", json={"email": email, "password": mot_de_passe}
+        )
+        assert reponse.status_code == 200, reponse.text
+        return dict(reponse.json())
+
+    return se_connecter
+
+
+def entete(jetons: dict[str, str]) -> dict[str, str]:
+    """En-tête d'autorisation à partir d'un couple de jetons."""
+    return {"Authorization": f"Bearer {jetons['access_token']}"}
