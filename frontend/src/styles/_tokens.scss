@@ -56,26 +56,75 @@
 
   /* --- couleurs de série, pour les graphiques --------------
      Une couleur par réseau. Ce ne sont pas celles des plateformes :
-     côte à côte, leurs rouges et leurs bleus se battraient entre eux et
-     avec la charte. Ces quatre teintes viennent de la palette de
-     l'application, se distinguent nettement, et tiennent AA sur blanc.
+     côte à côte, leurs rouges et leurs bleus se battraient entre eux
+     et avec la charte.
+
+     Les cinq teintes précédentes venaient de la palette de
+     l'interface. Passées au contrôle de vision des couleurs, deux
+     d'entre elles ne se séparaient pas : le doré LinkedIn #8a6d1f et
+     le vert TikTok #157347 n'avaient que 5,0 d'écart perceptuel en
+     vision protanope, et 13,2 en vision normale — sous le seuil de
+     15 en dessous duquel deux séries voisines deviennent difficiles
+     à distinguer. Le doré tombait en plus sous le plancher de
+     saturation : il était lu comme un gris.
+
+     Les teintes ci-dessous gardent les mêmes familles — Facebook
+     reste violet, TikTok reste vert — dans le registre plus lumineux
+     relevé chez Phoenix. Le pire écart entre deux séries voisines
+     remonte à 8,7 en protanopie et 22,6 en vision normale, et la
+     bande de luminosité comme le plancher de saturation passent sur
+     les cinq.
+
+     Ces couleurs ne servent QUE les graphiques et leurs pastilles de
+     légende. L'accent de l'interface reste le teal Datum : un
+     graphique bleu dans une application teal, c'est voulu.
+
+     L'orange YouTube reste sous 3:1 de contraste sur fond blanc :
+     partout où il sert, la valeur doit être écrite à côté de la
+     marque ou reprise dans un tableau.
+
      La couleur ne porte jamais seule l'information : légende et
      infobulle nomment toujours le réseau. */
-  --series-instagram: #167fa4;
-  --series-facebook:  #5b4b8a;
-  --series-linkedin:  #8a6d1f;
-  --series-tiktok:    #157347;
-  --series-youtube:   #a8432c;
+  --series-linkedin:  #3874ff;
+  --series-facebook:  #a855f7;
+  --series-instagram: #d6336c;
+  --series-tiktok:    #1c7c3c;
+  --series-youtube:   #e5780b;
 
-  /* --- typographie ---------------------------------------- */
-  --f-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --f-body:    'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --f-mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* --- typographie -----------------------------------------
+     Une seule famille porte l'interface, conformément à la
+     première décision du design system (voir
+     `design-system/_type.scss`). `--f-display` et `--f-body`
+     pointent volontairement sur la même police : ce qui
+     distingue un titre d'un paragraphe, c'est la graisse, pas
+     la famille.
+
+     La monospace est conservée pour ce qui en a réellement
+     besoin — identifiants, extraits de code, gabarits de
+     prompt. Les chiffres, eux, n'en ont plus besoin :
+     `font-variant-numeric: tabular-nums` suffit à les aligner
+     en colonne, et ils gardent la police du reste du texte.
+
+     `--f-emoji` ferme chaque pile. Sans elle, le rendu d'un
+     emoji dans un aperçu de publication dépend du dernier
+     recours du navigateur, et un poste sans police emoji
+     installée affiche un carré vide. */
+  --f-display: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-body:    'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Renommée `--f-code` : la monospace ne sert plus qu'à ce qui est
+     littéralement du code — variables de gabarit `{{prenom}}`, URL
+     brute, touche de raccourci. Les compteurs, dates et libellés qui
+     l'utilisaient pour aligner leurs chiffres passent par
+     `font-variant-numeric: tabular-nums`, et gardent la police du
+     reste de l'interface. 134 déclarations ont basculé ainsi. */
+  --f-code:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --f-emoji:   'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
   /* --- structure ------------------------------------------ */
   --sidebar-w:      272px;
   --sidebar-w-rail: 68px;
   --topbar-h:       56px;
+  --radius-sm:      4px;   /* badges — angle serré, repris de Phoenix */
   --radius:         8px;
   --radius-lg:      12px;
   --shadow-pop:     0 12px 32px rgba(7, 60, 78, .18);

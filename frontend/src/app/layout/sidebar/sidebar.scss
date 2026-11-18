@@ -72,7 +72,7 @@
 }
 .sb-search .k {
   margin-left: auto;
-  font-family: var(--f-mono);
+  font-family: var(--f-code);
   font-size: 9.5px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -126,7 +126,6 @@
 }
 
 .sb-count {
-  font-family: var(--f-mono);
   font-size: 10.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -141,7 +140,6 @@
   color: var(--accent-ink);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
   font-size: 10.5px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -256,6 +254,71 @@
 .sb-foot {
   margin-top: auto;
   padding-top: 12px;
+  position: relative;
+}
+
+/* ---------- menu du compte ---------- */
+
+.sb-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  background: transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: var(--w-semi);
+  color: var(--ink-2);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sb-menu-item:hover {
+  background: var(--ground-2);
+  color: var(--ink);
+}
+.sb-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Se déconnecter est la seule entrée qui fait sortir de l'application :
+   elle porte le rôle danger pour qu'on ne la clique pas par mégarde. */
+.sb-menu-item.is-leave {
+  color: var(--role-danger-deep);
+}
+.sb-menu-item.is-leave:hover {
+  background: var(--role-danger-soft);
+  color: var(--role-danger-deep);
+}
+
+.sb-user app-icon {
+  transition: transform 0.15s ease;
+}
+.sb-user.is-open app-icon {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-user app-icon { transition: none; }
 }
 
 .sb-user {
@@ -283,7 +346,7 @@
   color: var(--accent-deep);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   line-height: 1;
 }
@@ -299,7 +362,7 @@
   font-weight: 500;
 }
 .sb-who span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }
@@ -346,6 +409,13 @@
 }
 .sidebar.is-rail .sb-item,
 .sidebar.is-rail .sb-search,
+/* En rail, la barre est trop étroite pour un menu aligné sur elle :
+   il déborde vers la droite, sur le contenu. */
+.sidebar.is-rail .sb-menu {
+  right: auto;
+  width: 190px;
+}
+
 .sidebar.is-rail .sb-user {
   justify-content: center;
   padding-left: 0;

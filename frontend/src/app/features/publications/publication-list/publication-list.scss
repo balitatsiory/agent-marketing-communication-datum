@@ -1,5 +1,7 @@
 /* Publications — maquette 13b. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -22,14 +24,11 @@
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
@@ -84,7 +83,7 @@
 }
 .fopt .n {
   margin-left: auto;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -188,7 +187,7 @@
   border-radius: 11px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -208,8 +207,7 @@
   flex: 1;
 }
 .pcard-title {
-  font-size: 13.5px;
-  font-weight: 700;
+  @include type.compact-title;
   line-height: 1.35;
 }
 .pcard-metrics {
@@ -222,7 +220,6 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-family: var(--f-mono);
   font-size: 11px;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
@@ -231,7 +228,7 @@
   color: var(--muted);
 }
 .pcard-foot {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -261,7 +258,7 @@
   gap: 9px;
 }
 .pd-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -297,7 +294,7 @@
   text-transform: capitalize;
 }
 .pd-net .who span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -367,7 +364,7 @@
   flex: 1;
 }
 .cap {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   line-height: 1.5;
@@ -401,7 +398,7 @@
   border-radius: 11px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -473,7 +470,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }

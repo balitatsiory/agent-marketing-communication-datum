@@ -68,8 +68,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     }
 
     .name {
-      font-family: var(--f-display);
-      font-size: 19px;
+      font-size: var(--t-lg);
+      font-weight: var(--w-extra);
       line-height: 1;
       letter-spacing: 0.01em;
       color: var(--ink);

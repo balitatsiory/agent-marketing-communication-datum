@@ -1,5 +1,7 @@
 /* Gestion des modèles IA — Option A : Bandeau Flash + 3 Onglets Métier */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -25,9 +27,7 @@
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
+  @include type.page-title;
 }
 .page-head .sub,
 .section-head .sub,
@@ -197,7 +197,7 @@
   justify-content: space-between;
 }
 .task-badge {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -215,8 +215,7 @@
   color: var(--muted);
 }
 .task-card h3 {
-  font-size: 15px;
-  font-weight: 700;
+  @include type.card-title;
   color: var(--ink);
   margin: 0;
 }
@@ -250,7 +249,7 @@
   padding-top: 8px;
   font-size: 11px;
 }
-.task-foot .mono {
+.task-foot .num {
   font-size: 10.5px;
   color: var(--muted);
   overflow: hidden;
@@ -266,8 +265,8 @@
   margin-bottom: 12px;
 }
 .section-head h2 {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
   color: var(--ink);
 }
 .toolbar {
@@ -382,7 +381,7 @@
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   background: var(--ok-soft);
   color: var(--ok);
   padding: 2px 7px;
@@ -546,8 +545,7 @@
   padding-bottom: 10px;
 }
 .stats-panel-head h3 {
-  font-size: 15.5px;
-  font-weight: 700;
+  @include type.card-title;
   color: var(--ink);
   margin: 0;
 }
@@ -725,7 +723,7 @@
   font-weight: 600;
 }
 .badge-local {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   padding: 1px 4px;
   border-radius: 4px;
@@ -752,8 +750,7 @@
   flex-wrap: wrap;
 }
 .ch-left h3 {
-  font-size: 15px;
-  font-weight: 700;
+  @include type.card-title;
   margin: 0;
 }
 .provider-usage-pill {

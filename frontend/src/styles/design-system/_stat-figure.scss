@@ -1,0 +1,102 @@
+/* ============================================================
+   Tuile de chiffre à icône
+   ------------------------------------------------------------
+   Motif relevé sur la page CRM › Analytics de Phoenix v1.24.0 :
+   une icône de la couleur du rôle, un grand chiffre, sa légende.
+   Pas de carte par cellule — les cellules sont séparées par un
+   simple trait, et c'est le bloc entier qui porte le cadre.
+
+   Mesures relevées chez Phoenix, et leur équivalent ici :
+     chiffre  31,25 px / graisse 800  →  --t-2xl + --w-extra
+     légende  12,80 px / graisse 400  →  --t-xs
+   Les deux tombent exactement sur l'échelle 1.25, ce qui
+   n'étonne pas : c'est la même échelle.
+
+   La couleur vient de `--hue`, posée par une classe `.role-*`
+   (voir `_roles.scss`). La tuile ne sait pas quel rôle elle
+   porte : on peut donc la réutiliser sur n'importe quel écran.
+
+     <div class="stat-figures">
+       <div class="stat-figure role-success">
+         <span class="stat-figure__icon"><app-icon name="check" /></span>
+         <span class="stat-figure__value">1 366</span>
+         <span class="stat-figure__label">Messages remis</span>
+         <span class="stat-figure__note">hors rejets</span>
+       </div>
+     </div>
+
+   À distinguer de `.stats` / `.stat` (dans `_components.scss`),
+   qui reste le motif par défaut : une carte par chiffre, libellé
+   au-dessus, sans icône. `.stat-figures` est le motif « vitrine »,
+   pour une série de chiffres qu'on veut lire d'un coup d'œil.
+   ============================================================ */
+
+.stat-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+
+  /* Les traits de séparation sont les interstices de la grille :
+     le fond de la grille les dessine, les cellules les masquent.
+     Avantage sur une bordure par cellule : quand la grille passe
+     à la ligne, les traits horizontaux apparaissent tout seuls, et
+     il n'y a jamais de bordure en trop sur le dernier élément. */
+  gap: 1px;
+  background: var(--border);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+
+  /* Les pages de l'application sont des colonnes flex qui débordent
+     en hauteur. Sans cette ligne, le bloc est un élément flex que le
+     parent comprime : les rangées de la grille tombent à zéro et il
+     ne reste que les deux traits de séparation, soit 2 px de haut.
+     Le bloc garde donc sa hauteur de contenu, quoi qu'il arrive. */
+  flex: none;
+}
+
+.stat-figure {
+  background: var(--surface);
+  padding: 18px 16px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* L'icône prend la couleur du rôle. `.ico` du socle hérite déjà de
+   `currentColor` : il n'y a qu'à poser la couleur ici. */
+.stat-figure__icon {
+  display: inline-flex;
+  color: var(--hue, var(--accent));
+}
+.stat-figure__icon .ico { width: 26px; height: 26px; stroke-width: 1.6; }
+
+.stat-figure__value {
+  margin-top: 10px;
+  font-size: var(--t-2xl);
+  font-weight: var(--w-extra);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Un chiffre absent se dit, il ne se devine pas. */
+.stat-figure__value.is-empty { color: var(--muted); font-weight: var(--w-semi); }
+
+.stat-figure__label {
+  margin-top: 6px;
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+}
+
+/* Troisième ligne, facultative : la précision qui évite de mal
+   lire le chiffre. Phoenix n'en a pas ; l'application, si. */
+.stat-figure__note {
+  margin-top: 2px;
+  font-size: var(--t-2xs);
+  line-height: var(--lh-snug);
+  color: var(--muted);
+}

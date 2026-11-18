@@ -36,7 +36,7 @@
   background: var(--lavender-deep);
 }
 .key b {
-  font-family: var(--f-mono);
+  font-family: var(--f-code);
   font-size: 10px;
   color: var(--ink-2);
   font-weight: 400;
@@ -92,7 +92,7 @@ svg {
 }
 
 .tip-day {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -105,7 +105,7 @@ svg {
   font-size: 12px;
 }
 .tip-row b {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   margin-left: auto;
   padding-left: 10px;
 }
@@ -130,7 +130,7 @@ svg {
 .days span {
   flex: 1;
   text-align: center;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }

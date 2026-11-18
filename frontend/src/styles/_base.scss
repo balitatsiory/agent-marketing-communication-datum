@@ -1,6 +1,11 @@
 /* ============================================================
    Socle : remise à zéro, typographie, utilitaires
+   ------------------------------------------------------------
+   Les tailles et les graisses ne sont plus écrites ici : elles
+   viennent des jetons du design system.
    ============================================================ */
+
+@use 'design-system/type' as type;
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -10,13 +15,27 @@ body {
   margin: 0;
   background: var(--ground);
   color: var(--ink);
-  font-family: var(--f-body);
-  font-size: 14px;
-  line-height: 1.5;
+  /* La pile se termine par les polices emoji : sans elles, un
+     emoji d'aperçu de publication tombe sur le dernier recours du
+     navigateur, et affiche un carré vide sur un poste qui n'en a
+     aucune d'installée. */
+  font-family: var(--f-body), var(--f-emoji);
+  /* 16 px, premier cran de l'échelle. L'application était à 14 px
+     et descendait jusqu'à 9 px sur les libellés : c'est ce
+     plancher-là que ce passage à l'échelle corrige. Les écrans
+     denses gagnent en hauteur de ligne — c'est le prix assumé. */
+  font-size: var(--t-md);
+  line-height: var(--lh-base);
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4 { margin: 0; font-weight: 700; line-height: 1.2; }
+/* Aucune taille ici : chaque écran choisit son cran dans
+   l'échelle. Seules la graisse et l'interligne sont communes. */
+h1, h2, h3, h4 { margin: 0; font-weight: var(--w-bold); line-height: var(--lh-tight); }
+h1 { font-size: var(--t-2xl); font-weight: var(--w-extra); letter-spacing: -0.01em; }
+h2 { font-size: var(--t-xl); }
+h3 { font-size: var(--t-lg); }
+h4 { font-size: var(--t-md); }
 p { margin: 0; }
 button { font: inherit; color: inherit; }
 a { color: inherit; }
@@ -30,19 +49,25 @@ a { color: inherit; }
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
 
-/* La serif ne tient pas en petite taille : réservée au-dessus de 20 px. */
-.display { font-family: var(--f-display); font-weight: 400; letter-spacing: -.005em; }
+/* Un titre ne change plus de famille : il change de graisse.
+   La classe est conservée pour que les gabarits existants
+   continuent de fonctionner sans retouche. */
+.display { font-weight: var(--w-extra); letter-spacing: -.005em; }
 
-.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
-.num  { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+/* Vraie monospace : identifiants, extraits de code, gabarits de
+   prompt — ce qui doit garder une chasse fixe caractère par
+   caractère. */
+.mono { font-family: var(--f-code), var(--f-emoji); font-variant-numeric: tabular-nums; }
 
-.label {
-  font-family: var(--f-mono);
-  font-size: 10px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
+/* Un nombre n'a pas besoin d'une monospace pour s'aligner en
+   colonne : les chiffres à chasse fixe suffisent, et le nombre
+   garde la police du reste du texte. */
+.num { font-variant-numeric: tabular-nums; }
+
+/* Le libellé en capitales le plus répété de l'interface. Passé
+   de 10 px monospace à 10,24 px dans la police du corps, en
+   gras : même encombrement, nettement plus lisible. */
+.label { @include type.caps-label; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

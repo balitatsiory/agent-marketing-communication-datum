@@ -65,9 +65,9 @@
               <p class="card-subject">{{ template.content.subject }}</p>
 
               <div class="card-meta">
-                <span class="ver mono">{{ template.versions[0].label }}</span>
+                <span class="ver num">{{ template.versions[0].label }}</span>
                 <span>{{ template.updatedAt }} · {{ template.authorName }}</span>
-                <span class="usage mono">
+                <span class="usage num">
                   {{ template.usageCount }} {{ template.usageCount > 1 ? 'envois' : 'envoi' }}
                 </span>
               </div>
@@ -211,7 +211,7 @@
           <div class="pm-kicker">
             <span class="label">{{ categoryLabels[template.category] }}</span>
             @if (shownVersion(); as version) {
-              <span class="ver mono">{{ version.label }}</span>
+              <span class="ver num">{{ version.label }}</span>
             }
             <span
               class="status"

@@ -42,9 +42,9 @@ import { Icon } from '../../shared/icon/icon';
     .empty app-icon { color: var(--border-2); }
 
     .ref {
-      font-family: var(--f-mono);
-      font-size: 10px;
-      letter-spacing: 0.08em;
+      font-size: var(--t-2xs);
+      font-weight: var(--w-bold);
+      letter-spacing: 0.07em;
       text-transform: uppercase;
       color: var(--muted);
     }

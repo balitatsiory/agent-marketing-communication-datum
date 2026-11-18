@@ -1,0 +1,121 @@
+/* ============================================================
+   Cinq rôles de couleur, chacun avec son fond doux
+   ------------------------------------------------------------
+   Quatrième décision relevée chez Phoenix : toute couleur qui
+   porte du sens appartient à l'un de cinq rôles, et chaque rôle
+   possède une variante très claire (`-soft`) sur laquelle il
+   reste lisible. C'est cette paire qui fait les pastilles
+   d'icône, les badges d'état et les bandeaux.
+
+   La STRUCTURE vient de Phoenix. Les COULEURS restent celles de
+   la charte Datum : on n'importe pas le bleu de Phoenix, on
+   range les teintes de Datum dans ses cinq cases.
+
+   Les quatre premiers rôles existaient déjà dans `_tokens.scss`
+   sous d'autres noms ; ils sont ici réexposés sous un nom
+   uniforme, pour qu'un composant n'ait pas à savoir si le rôle
+   « succès » s'appelle `--ok` ou `--success`. Les anciens noms
+   restent valables : rien à réécrire dans l'existant.
+
+   CONTRASTES (calculés, rapport WCAG) :
+     rôle        sur blanc   sur son propre fond doux
+     primary       4,56            3,50
+     success       5,87            5,04
+     warning       4,90            4,27
+     danger        5,74            4,70
+     info          7,45            6,21
+
+   ⚠ `primary` sur `primary-soft` ne vaut que 3,50:1. C'est au-
+   dessus du seuil de 3:1 exigé pour un élément graphique ou un
+   texte d'au moins 24 px, mais EN DESSOUS des 4,5:1 exigés pour
+   du texte courant. Donc : un glyphe d'icône sur une pastille
+   primary, oui ; un libellé en petit texte sur ce même fond,
+   non — prendre `--ink` pour le texte dans ce cas.
+   ============================================================ */
+
+:root {
+  /* --- primary : l'action, le chemin principal -------------- */
+  --role-primary:      var(--accent);        /* #167fa4 — Datum */
+  --role-primary-soft: var(--accent-soft);   /* #d0e5ed */
+  --role-primary-line: var(--accent-line);   /* #a2cbda */
+  --role-primary-deep: var(--accent-hover);  /* #126683 — 4,95:1 sur le fond doux */
+
+  /* --- success : ce qui est parti, validé, en ligne --------- */
+  --role-success:      var(--ok);            /* #157347 */
+  --role-success-soft: var(--ok-soft);       /* #e3f1ea */
+  --role-success-line: #b9ddc9;
+  --role-success-deep: var(--ok);            /* #157347 — 5,04:1, la base suffit */
+
+  /* --- warning : ce qui attend une action humaine ---------- */
+  --role-warning:      var(--wait);          /* #8a6d1f */
+  --role-warning-soft: var(--wait-soft);     /* #f6efdb */
+  --role-warning-line: #e4d4a4;
+  --role-warning-deep: #7c621b;              /* 5,05:1 — la base #8a6d1f n'est qu'à 4,27:1 */
+
+  /* --- danger : ce qui a échoué ou expire ------------------ */
+  --role-danger:       var(--err);           /* #c42532 */
+  --role-danger-soft:  var(--err-soft);      /* #fae3e5 */
+  --role-danger-line:  #f0b9bf;
+  --role-danger-deep:  var(--err);           /* #c42532 — 4,70:1, la base suffit */
+
+  /* --- info : le cinquième rôle, nouveau -------------------
+     Il manquait à l'application. Pris sur la lavande Datum,
+     dans sa version lisible `--lavender-deep`.
+
+     `_tokens.scss` note que la lavande ne doit jamais porter un
+     signal d'état : cette remarque vise la lavande pâle
+     #d3c5fe, qui ne peut porter aucun texte. Sa dérivée foncée
+     tient 7,45:1 sur blanc, le meilleur score des cinq.
+
+     Le cyan Datum #0a4d64 aurait été l'autre candidat, mais il
+     partage la teinte de `primary` : côte à côte dans une
+     légende, les deux rôles se seraient confondus. */
+  --role-info:         var(--lavender-deep); /* #5b4b8a */
+  --role-info-soft:    #ece8fa;
+  --role-info-line:    #cfc3ef;
+  --role-info-deep:    var(--lavender-deep); /* #5b4b8a — 6,21:1 */
+}
+
+/* ------------------------------------------------------------
+   Porter un rôle sur un élément.
+
+   Une seule classe pose les deux variables `--hue` et `--tint`,
+   que les composants lisent ensuite. Le composant ne connaît
+   jamais le nom du rôle : il lit `--hue` et `--tint`, et c'est
+   le parent qui décide du rôle. C'est ce qui rend la pastille
+   d'icône, le badge et le bandeau interchangeables.
+   ------------------------------------------------------------ */
+
+/* Un rôle pose quatre variables, et un composant n'en lit jamais
+   d'autres :
+
+     --hue    la couleur pleine — un glyphe, un trait appuyé
+     --tint   le fond doux
+     --line   le trait, teinte médiane
+     --deep   le texte posé sur le fond doux
+
+   `--deep` existe parce que `--hue` ne tient pas toujours le
+   contraste sur `--tint` : le primary n'y vaut que 3,50:1, le
+   warning 4,27:1. Les deux passent sous le seuil de 4,5:1 exigé
+   pour du petit texte, et un badge est du petit texte. */
+@mixin role($nom) {
+  --hue:  var(--role-#{$nom});
+  --tint: var(--role-#{$nom}-soft);
+  --line: var(--role-#{$nom}-line);
+  --deep: var(--role-#{$nom}-deep);
+}
+
+.role-primary { @include role('primary'); }
+.role-success { @include role('success'); }
+.role-warning { @include role('warning'); }
+.role-danger  { @include role('danger'); }
+.role-info    { @include role('info'); }
+
+/* Neutre : même mécanique, sans signal. Pour un élément qui doit
+   suivre la forme des autres sans rien annoncer. */
+.role-neutral {
+  --hue:  var(--muted);
+  --tint: var(--ground-2);
+  --line: var(--border);
+  --deep: var(--ink-2);
+}

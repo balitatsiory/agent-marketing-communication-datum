@@ -1,5 +1,7 @@
 /* Réseaux & plateformes — maquette 6b : un réseau = un bloc empilé large. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -15,14 +17,11 @@
 }
 
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
@@ -80,7 +79,7 @@
   font-size: 16px;
 }
 .net-who > span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -98,7 +97,6 @@
   gap: 2px;
 }
 .net-stat .v {
-  font-family: var(--f-mono);
   font-size: 19px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;

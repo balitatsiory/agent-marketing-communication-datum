@@ -1,5 +1,5 @@
 <app-topbar [trail]="['Administrer', 'Modèles IA']">
-  <span class="mono quota">{{ store.models().length }} modèles référencés</span>
+  <span class="num quota">{{ store.models().length }} modèles référencés</span>
   <button
     class="btn"
     type="button"
@@ -45,24 +45,24 @@
       <div class="flash-item" (click)="setMainTab('stats')" title="Voir le détail des appels">
         <span class="flash-label">Activité (30 jours)</span>
         <div class="flash-val-row">
-          <b class="mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
-          <span class="flash-pill mono">{{ summary.avgSuccessRate }} % succès</span>
+          <b class="num">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
+          <span class="flash-pill num">{{ summary.avgSuccessRate }} % succès</span>
         </div>
       </div>
 
       <div class="flash-item" (click)="setMainTab('stats')" title="Voir la consommation de tokens">
         <span class="flash-label">Tokens restants ce mois</span>
         <div class="flash-val-row">
-          <b class="mono text-ok">{{ formatTokens(summary.remainingTokens) }}</b>
-          <span class="flash-muted mono">/ {{ formatTokens(summary.totalTokenQuota) }} ({{ summary.tokenQuotaUsedPct }} % utilisé)</span>
+          <b class="num text-ok">{{ formatTokens(summary.remainingTokens) }}</b>
+          <span class="flash-muted num">/ {{ formatTokens(summary.totalTokenQuota) }} ({{ summary.tokenQuotaUsedPct }} % utilisé)</span>
         </div>
       </div>
 
       <div class="flash-item" (click)="setMainTab('stats')" title="Voir le suivi budgétaire">
         <span class="flash-label">Budget mensuel restant</span>
         <div class="flash-val-row">
-          <b class="mono text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b>
-          <span class="flash-muted mono">/ {{ formatCurrency(summary.totalBudgetLimitUsd) }} ({{ formatCurrency(summary.totalCostUsd) }} dépensés)</span>
+          <b class="num text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b>
+          <span class="flash-muted num">/ {{ formatCurrency(summary.totalBudgetLimitUsd) }} ({{ formatCurrency(summary.totalCostUsd) }} dépensés)</span>
         </div>
       </div>
     </div>
@@ -81,7 +81,7 @@
       >
         <app-icon name="sparkle" size="sm" />
         <span>1. Catalogue &amp; Affectations</span>
-        <span class="tab-count mono">{{ store.models().length }}</span>
+        <span class="tab-count num">{{ store.models().length }}</span>
       </button>
 
       <button
@@ -94,7 +94,7 @@
       >
         <app-icon name="chart" size="sm" />
         <span>2. Statistiques &amp; Consommation</span>
-        <span class="tab-badge mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</span>
+        <span class="tab-badge num">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</span>
       </button>
 
       <button
@@ -107,7 +107,7 @@
       >
         <app-icon name="sliders" size="sm" />
         <span>3. Clés API &amp; Fournisseurs</span>
-        <span class="tab-count mono">{{ store.providerConfigs().length }}</span>
+        <span class="tab-count num">{{ store.providerConfigs().length }}</span>
       </button>
     </div>
 
@@ -145,7 +145,7 @@
 
             @if (currentTextModel(); as m) {
               <div class="task-foot">
-                <span class="mono">{{ m.technicalId }}</span>
+                <span class="num">{{ m.technicalId }}</span>
                 <span class="status status-published">Actif</span>
               </div>
             }
@@ -178,7 +178,7 @@
 
             @if (currentVisionModel(); as m) {
               <div class="task-foot">
-                <span class="mono">{{ m.technicalId }}</span>
+                <span class="num">{{ m.technicalId }}</span>
                 <span class="status status-published">Actif</span>
               </div>
             }
@@ -214,7 +214,7 @@
 
             @if (currentImageModel(); as m) {
               <div class="task-foot">
-                <span class="mono">{{ m.technicalId }}</span>
+                <span class="num">{{ m.technicalId }}</span>
                 <span class="status status-published">Actif</span>
               </div>
             }
@@ -247,7 +247,7 @@
 
             @if (currentRagModel(); as m) {
               <div class="task-foot">
-                <span class="mono">{{ m.technicalId }}</span>
+                <span class="num">{{ m.technicalId }}</span>
                 <span class="status status-published">Actif</span>
               </div>
             }
@@ -328,7 +328,7 @@
                       <td>
                         <div class="model-name-cell">
                           <b>{{ model.name }}</b>
-                          <span class="mono text-muted">{{ model.technicalId }}</span>
+                          <span class="num text-muted">{{ model.technicalId }}</span>
                           <span class="model-desc">{{ model.description }}</span>
                         </div>
                       </td>
@@ -360,13 +360,13 @@
                       <td>
                         <div class="usage-cell">
                           <div class="u-top">
-                            <b class="mono">{{ model.usage.callsCount }} appels</b>
-                            <span class="u-share mono">{{ model.usage.sharePct }} %</span>
+                            <b class="num">{{ model.usage.callsCount }} appels</b>
+                            <span class="u-share num">{{ model.usage.sharePct }} %</span>
                           </div>
                           <div class="u-bar">
                             <div class="u-fill" [style.width.%]="model.usage.sharePct"></div>
                           </div>
-                          <span class="u-sub mono">
+                          <span class="u-sub num">
                             @if (model.usage.imagesGenerated) {
                               {{ model.usage.imagesGenerated }} visuels · {{ formatCurrency(model.usage.costUsd) }}
                             } @else {
@@ -377,7 +377,7 @@
                       </td>
                       <td>
                         <div class="metrics-cell">
-                          <span class="mono">{{ model.latencyMs }} ms</span>
+                          <span class="num">{{ model.latencyMs }} ms</span>
                           <span class="cost-note">{{ model.costEstimate }}</span>
                         </div>
                       </td>
@@ -435,18 +435,18 @@
           <div class="kpi-card">
             <div class="kpi-head">
               <span class="kpi-label">Tokens dépensés &amp; restants</span>
-              <span class="kpi-tag mono">{{ summary.tokenQuotaUsedPct }} % du quota</span>
+              <span class="kpi-tag num">{{ summary.tokenQuotaUsedPct }} % du quota</span>
             </div>
             <div class="kpi-main">
-              <b class="kpi-value mono">{{ formatTokens(summary.totalTokensSpent) }} dépensés</b>
+              <b class="kpi-value num">{{ formatTokens(summary.totalTokensSpent) }} dépensés</b>
               <span class="kpi-sub">
-                Restants : <b class="mono text-ok">{{ formatTokens(summary.remainingTokens) }}</b> sur {{ formatTokens(summary.totalTokenQuota) }}
+                Restants : <b class="num text-ok">{{ formatTokens(summary.remainingTokens) }}</b> sur {{ formatTokens(summary.totalTokenQuota) }}
               </span>
             </div>
             <div class="quota-progress" role="progressbar" [attr.aria-valuenow]="summary.tokenQuotaUsedPct" aria-valuemin="0" aria-valuemax="100">
               <div class="quota-fill" [style.width.%]="summary.tokenQuotaUsedPct"></div>
             </div>
-            <div class="kpi-breakdown mono">
+            <div class="kpi-breakdown num">
               <span>Entrée : {{ formatTokens(summary.totalPromptTokens) }}</span>
               <span>Sortie : {{ formatTokens(summary.totalCompletionTokens) }}</span>
               <span class="cache-badge" title="Tokens lus depuis le cache de contexte (-90% coût)">
@@ -459,20 +459,20 @@
           <div class="kpi-card">
             <div class="kpi-head">
               <span class="kpi-label">Coût cumulé &amp; Budget</span>
-              <span class="kpi-tag mono" [class.tag-warn]="summary.budgetUsedPct >= 80">
+              <span class="kpi-tag num" [class.tag-warn]="summary.budgetUsedPct >= 80">
                 {{ summary.budgetUsedPct }} % consommé
               </span>
             </div>
             <div class="kpi-main">
-              <b class="kpi-value mono">{{ formatCurrency(summary.totalCostUsd) }}</b>
+              <b class="kpi-value num">{{ formatCurrency(summary.totalCostUsd) }}</b>
               <span class="kpi-sub">
-                Budget restant : <b class="mono text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b> / {{ formatCurrency(summary.totalBudgetLimitUsd) }}
+                Budget restant : <b class="num text-ok">{{ formatCurrency(summary.remainingBudgetUsd) }}</b> / {{ formatCurrency(summary.totalBudgetLimitUsd) }}
               </span>
             </div>
             <div class="quota-progress" role="progressbar" [attr.aria-valuenow]="summary.budgetUsedPct" aria-valuemin="0" aria-valuemax="100">
               <div class="quota-fill fill-cost" [style.width.%]="summary.budgetUsedPct"></div>
             </div>
-            <div class="kpi-breakdown mono">
+            <div class="kpi-breakdown num">
               <span>Coût moyen / appel : {{ (summary.totalCostUsd / summary.totalCalls).toFixed(4).replace('.', ',') }} $</span>
               <span>Local (Ollama) : 0,00 $</span>
             </div>
@@ -485,12 +485,12 @@
               <span class="status status-published">{{ summary.avgSuccessRate }} % succès</span>
             </div>
             <div class="kpi-main">
-              <b class="kpi-value mono">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
+              <b class="kpi-value num">{{ summary.totalCalls.toLocaleString('fr-FR') }} appels</b>
               <span class="kpi-sub">
-                Moyenne : <b class="mono">~{{ summary.dailyAvgCalls }} appels / jour</b> sur 30 jours
+                Moyenne : <b class="num">~{{ summary.dailyAvgCalls }} appels / jour</b> sur 30 jours
               </span>
             </div>
-            <div class="kpi-breakdown mono">
+            <div class="kpi-breakdown num">
               <span>Modèle n°1 : {{ summary.topModel.name }} ({{ summary.topModel.usage.sharePct }} %)</span>
               <span>Taux d'erreur : {{ (100 - summary.avgSuccessRate).toFixed(1).replace('.', ',') }} %</span>
             </div>
@@ -500,15 +500,15 @@
           <div class="kpi-card">
             <div class="kpi-head">
               <span class="kpi-label">Création &amp; Retouche d'image</span>
-              <span class="kpi-tag badge-image mono">Conversationnel</span>
+              <span class="kpi-tag badge-image num">Conversationnel</span>
             </div>
             <div class="kpi-main">
-              <b class="kpi-value mono">{{ summary.totalImages }} visuels</b>
+              <b class="kpi-value num">{{ summary.totalImages }} visuels</b>
               <span class="kpi-sub">
                 Générés ou retouchés consigne par consigne (Flux 1.1 Pro &amp; Ideogram v2)
               </span>
             </div>
-            <div class="kpi-breakdown mono">
+            <div class="kpi-breakdown num">
               <span>Coût visuels : 9,25 $ (26 % du budget)</span>
               <span>Moyenne : 0,042 $ / image</span>
             </div>
@@ -524,7 +524,7 @@
                 <h3>Palmarès des modèles les plus utilisés</h3>
                 <p class="sub">Classement par nombre d'appels, volume de tokens/images et coût sur 30 jours.</p>
               </div>
-              <span class="period-pill mono">Top {{ summary.sortedByCalls.length }} modèles</span>
+              <span class="period-pill num">Top {{ summary.sortedByCalls.length }} modèles</span>
             </div>
 
             <div class="ranking-list">
@@ -532,14 +532,14 @@
                 <div class="ranking-row">
                   <div class="r-top">
                     <div class="r-title">
-                      <span class="r-rank mono">#{{ idx + 1 }}</span>
+                      <span class="r-rank num">#{{ idx + 1 }}</span>
                       <b>{{ m.name }}</b>
                       <span class="provider-tag">{{ providerLabels[m.provider] }}</span>
                       @if (getModelRoleLabel(m.id); as role) {
                         <span class="assigned-pill">Actif : {{ role }}</span>
                       }
                     </div>
-                    <div class="r-metrics mono">
+                    <div class="r-metrics num">
                       <b>{{ m.usage.callsCount.toLocaleString('fr-FR') }} appels ({{ m.usage.sharePct }} %)</b>
                       <span class="r-cost">{{ formatCurrency(m.usage.costUsd) }}</span>
                     </div>
@@ -553,7 +553,7 @@
                     ></div>
                   </div>
 
-                  <div class="r-foot mono">
+                  <div class="r-foot num">
                     @if (m.usage.imagesGenerated) {
                       <span>Visuels générés/retouchés : {{ m.usage.imagesGenerated }}</span>
                       <span>Entrée prompt : {{ formatTokens(m.usage.promptTokens) }} tok.</span>
@@ -593,7 +593,7 @@
                     </div>
                     <button
                       type="button"
-                      class="btn-text mono"
+                      class="btn-text num"
                       (click)="openProviderConfig(cfg.provider)"
                     >
                       Configurer →
@@ -601,7 +601,7 @@
                   </div>
 
                   @if (cfg.provider === 'local') {
-                    <div class="pq-local mono">
+                    <div class="pq-local num">
                       <span>Exécution locale sur serveur interne (aucun coût API ni limite de facturation)</span>
                       <b>{{ formatTokens(cfg.tokensUsedThisMonth) }} tokens traités · 0,00 $</b>
                     </div>
@@ -609,7 +609,7 @@
                     <div class="pq-meters">
                       <!-- Jauge Budget $ -->
                       <div class="pq-meter">
-                        <div class="pq-meter-row mono">
+                        <div class="pq-meter-row num">
                           <span>Budget : <b>{{ formatCurrency(cfg.spentUsdThisMonth) }}</b> / {{ formatCurrency(cfg.monthlyBudgetLimitUsd) }}</span>
                           <span class="text-ok">
                             Restant : {{ formatCurrency(cfg.monthlyBudgetLimitUsd - cfg.spentUsdThisMonth) }} ({{ getProviderBudgetPct(cfg) }} %)
@@ -622,7 +622,7 @@
 
                       <!-- Jauge Quota Tokens -->
                       <div class="pq-meter">
-                        <div class="pq-meter-row mono">
+                        <div class="pq-meter-row num">
                           <span>Tokens : <b>{{ formatTokens(cfg.tokensUsedThisMonth) }}</b> / {{ formatTokens(cfg.monthlyTokenQuota) }}</span>
                           <span>
                             Restants : {{ formatTokens(cfg.monthlyTokenQuota - cfg.tokensUsedThisMonth) }} ({{ getProviderTokenPct(cfg) }} %)
@@ -654,13 +654,13 @@
               <div class="sb-card" [class.sb-image]="item.key === 'image-generation'">
                 <div class="sb-top">
                   <b>{{ item.label }}</b>
-                  <span class="u-share mono">{{ item.sharePct }} % des appels</span>
+                  <span class="u-share num">{{ item.sharePct }} % des appels</span>
                 </div>
                 <p class="sb-hint">{{ item.hint }}</p>
                 <div class="u-bar">
                   <div class="u-fill" [style.width.%]="item.sharePct"></div>
                 </div>
-                <div class="sb-foot mono">
+                <div class="sb-foot num">
                   <span><b>{{ item.calls.toLocaleString('fr-FR') }}</b> appels</span>
                   <span>{{ item.tokensOrUnits }}</span>
                   <b>{{ formatCurrency(item.costUsd) }}</b>
@@ -714,7 +714,7 @@
                 <span class="status status-published">
                   ● Connecté &amp; Valide ({{ store.currentProviderConfig().lastPingMs }} ms)
                 </span>
-                <span class="provider-usage-pill mono">
+                <span class="provider-usage-pill num">
                   Consommé ce mois : {{ formatCurrency(store.currentProviderConfig().spentUsdThisMonth) }}
                   @if (store.currentProviderConfig().monthlyBudgetLimitUsd > 0) {
                     / {{ formatCurrency(store.currentProviderConfig().monthlyBudgetLimitUsd) }}
@@ -722,7 +722,7 @@
                 </span>
               </div>
               <div class="ch-right">
-                <span class="mono last-check text-muted">
+                <span class="num last-check text-muted">
                   Dernière vérification : {{ store.currentProviderConfig().lastTestedAt }}
                 </span>
                 <button
@@ -745,7 +745,7 @@
                   <input
                     id="cfg-endpoint"
                     type="url"
-                    class="input mono"
+                    class="input num"
                     [ngModel]="editEndpoint()"
                     (ngModelChange)="editEndpoint.set($event)"
                     placeholder="https://api.example.com/v1"
@@ -771,7 +771,7 @@
                     <input
                       id="cfg-key"
                       [type]="showApiKey() ? 'text' : 'password'"
-                      class="input mono"
+                      class="input num"
                       [ngModel]="editApiKey()"
                       (ngModelChange)="editApiKey.set($event)"
                       [disabled]="store.selectedProvider() === 'local'"
@@ -785,7 +785,7 @@
                 <div class="field">
                   <div class="field-head">
                     <label for="cfg-temp">Température d'échantillonnage</label>
-                    <span class="mono temp-val">{{ editTemperature() }}</span>
+                    <span class="num temp-val">{{ editTemperature() }}</span>
                   </div>
                   <div class="range-wrap">
                     <input
@@ -811,7 +811,7 @@
                     min="128"
                     max="32768"
                     step="128"
-                    class="input mono"
+                    class="input num"
                     [ngModel]="editMaxTokens()"
                     (ngModelChange)="editMaxTokens.set(+$event)"
                   />
@@ -827,14 +827,14 @@
                     min="0"
                     max="5000"
                     step="5"
-                    class="input mono"
+                    class="input num"
                     [ngModel]="editMonthlyBudget()"
                     (ngModelChange)="editMonthlyBudget.set(+$event)"
                     [disabled]="store.selectedProvider() === 'local'"
                   />
                   <p class="note">
                     Déclenche une alerte à 80 % du budget. Restant :
-                    <b class="mono">{{ formatCurrency(editMonthlyBudget() > store.currentProviderConfig().spentUsdThisMonth ? editMonthlyBudget() - store.currentProviderConfig().spentUsdThisMonth : 0) }}</b>
+                    <b class="num">{{ formatCurrency(editMonthlyBudget() > store.currentProviderConfig().spentUsdThisMonth ? editMonthlyBudget() - store.currentProviderConfig().spentUsdThisMonth : 0) }}</b>
                   </p>
                 </div>
 
@@ -847,13 +847,13 @@
                     min="0"
                     max="100000000"
                     step="100000"
-                    class="input mono"
+                    class="input num"
                     [ngModel]="editMonthlyTokenQuota()"
                     (ngModelChange)="editMonthlyTokenQuota.set(+$event)"
                     [disabled]="store.selectedProvider() === 'local'"
                   />
                   <p class="note">
-                    Utilisés ce mois : <b class="mono">{{ formatTokens(store.currentProviderConfig().tokensUsedThisMonth) }}</b> tokens.
+                    Utilisés ce mois : <b class="num">{{ formatTokens(store.currentProviderConfig().tokensUsedThisMonth) }}</b> tokens.
                   </p>
                 </div>
               </div>

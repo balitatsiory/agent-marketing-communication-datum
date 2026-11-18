@@ -1,5 +1,5 @@
 <app-topbar [trail]="trail">
-  <span class="saved mono">brouillon non enregistré</span>
+  <span class="saved num">brouillon non enregistré</span>
   <button class="btn" type="button" (click)="saveDraft()">
     <app-icon name="files" size="sm" />
     Enregistrer en brouillon
@@ -179,7 +179,7 @@
                     <span class="media-doc" aria-hidden="true">PDF</span>
                   }
 
-                  <span class="media-pos mono" aria-hidden="true">{{ i + 1 }}</span>
+                  <span class="media-pos num" aria-hidden="true">{{ i + 1 }}</span>
 
                   <button
                     class="x"
@@ -192,7 +192,7 @@
 
                   <figcaption>
                     <span class="media-name">{{ item.name }}</span>
-                    <span class="media-meta mono">
+                    <span class="media-meta num">
                       {{ item.sizeLabel }}@if (item.durationLabel) { · {{ item.durationLabel }} }
                     </span>
                     <span class="media-move">
@@ -430,7 +430,7 @@
         </div>
 
         @if (format(); as chosen) {
-          <p class="pv-dims mono">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
+          <p class="pv-dims num">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
         }
 
         @if (previewCaption()) {
@@ -511,7 +511,7 @@
               }
             </div>
             @if (format(); as chosen) {
-              <p class="sum-dims mono">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
+              <p class="sum-dims num">{{ formatLabels[chosen] }} · {{ previewRatio() }}</p>
             }
           </div>
 
@@ -609,7 +609,7 @@
       </div>
 
       <div class="modal-foot">
-        <span class="mono foot-note">Aucun envoi réel depuis ce prototype.</span>
+        <span class="num foot-note">Aucun envoi réel depuis ce prototype.</span>
         <button class="btn" type="button" (click)="closeSummary()">Revenir à l'édition</button>
         <button class="btn btn-primary" type="button" (click)="confirmSend()">
           <app-icon name="send" size="sm" />

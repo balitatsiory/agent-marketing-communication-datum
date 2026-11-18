@@ -110,7 +110,7 @@
           <div class="panel-body">
             @for (publication of monthPublications(); track publication.id) {
               <button class="up-row" type="button" (click)="select(publication)">
-                <span class="up-when mono">{{ timeOf(publication) }}</span>
+                <span class="up-when num">{{ timeOf(publication) }}</span>
                 <span class="up-title">{{ publication.title }}</span>
                 <app-network-logo [network]="publication.networks[0]" />
               </button>
@@ -144,7 +144,7 @@
                       <app-network-logo [network]="code" />
                     }
                   </span>
-                  <span class="mono">{{ timeOf(publication) }}</span>
+                  <span class="num">{{ timeOf(publication) }}</span>
                 </div>
               </article>
             } @empty {

@@ -3,6 +3,8 @@
    Règle de l'écran : un champ qui n'a pas lieu d'être est grisé, jamais
    masqué. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -18,14 +20,11 @@
 }
 
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
@@ -65,12 +64,12 @@
   color: var(--ink-2);
 }
 .sec-n b {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   margin-right: 6px;
 }
 
 .counter {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
 }
@@ -105,7 +104,7 @@
 }
 
 .lab {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -160,7 +159,7 @@
 .rem li.is-skipped {
   color: var(--muted);
 }
-.rem .mono {
+.rem .num {
   font-size: 12px;
 }
 
@@ -235,7 +234,7 @@
   border-bottom: 0;
 }
 .sum dt {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;

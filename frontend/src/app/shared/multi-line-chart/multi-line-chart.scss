@@ -72,7 +72,7 @@ svg {
 }
 
 .tip-day {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -85,7 +85,7 @@ svg {
   font-size: 12px;
 }
 .tip-row b {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   margin-left: auto;
   padding-left: 12px;
 }

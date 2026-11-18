@@ -210,6 +210,20 @@ export const routes: Routes = [
 
 
       {
+        path: 'profil',
+        title: 'Profil · IAGORA',
+        data: {
+          title: 'Profil',
+          trail: ['Mon compte', 'Profil'],
+          icon: 'users',
+          /* `mockup` est omis : « non maquettée » est déjà la valeur
+             par défaut de PendingScreen. */
+        },
+        loadComponent: () =>
+          import('./features/placeholder/pending-screen').then((m) => m.PendingScreen),
+      },
+
+      {
         path: 'parametres',
         title: 'Paramètres · IAGORA',
         data: {

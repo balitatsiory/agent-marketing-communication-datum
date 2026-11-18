@@ -21,26 +21,34 @@
     </div>
   </div>
 
-  <div class="stats">
-    <div class="stat">
-      <span class="label">Envois</span>
-      <span class="v">{{ totals().sends }}</span>
-      <span class="d">toutes catégories</span>
+  <!-- Chiffres de la période. Motif `.stat-figures` du design system :
+       l'icône porte le rôle, le rôle porte la couleur. Chaque chiffre a
+       son rôle propre — un rejet n'est pas un envoi réussi, et la
+       couleur doit le dire avant la lecture. -->
+  <div class="stat-figures">
+    <div class="stat-figure role-primary">
+      <span class="stat-figure__icon"><app-icon name="send" /></span>
+      <span class="stat-figure__value">{{ totals().sends }}</span>
+      <span class="stat-figure__label">Envois</span>
+      <span class="stat-figure__note">toutes catégories</span>
     </div>
-    <div class="stat">
-      <span class="label">Messages remis</span>
-      <span class="v">{{ totals().delivered | number: '1.0-0' : 'fr' }}</span>
-      <span class="d">hors rejets</span>
+    <div class="stat-figure role-success">
+      <span class="stat-figure__icon"><app-icon name="check" /></span>
+      <span class="stat-figure__value">{{ totals().delivered | number: '1.0-0' : 'fr' }}</span>
+      <span class="stat-figure__label">Messages remis</span>
+      <span class="stat-figure__note">hors rejets</span>
     </div>
-    <div class="stat">
-      <span class="label">Rejets</span>
-      <span class="v">{{ totals().bounced }}</span>
-      <span class="d">adresses injoignables</span>
+    <div class="stat-figure role-danger">
+      <span class="stat-figure__icon"><app-icon name="close" /></span>
+      <span class="stat-figure__value" [class.is-empty]="!totals().bounced">{{ totals().bounced }}</span>
+      <span class="stat-figure__label">Rejets</span>
+      <span class="stat-figure__note">adresses injoignables</span>
     </div>
-    <div class="stat">
-      <span class="label">À reprendre</span>
-      <span class="v">{{ totals().needingAttention }}</span>
-      <span class="d">échecs ou envois partiels</span>
+    <div class="stat-figure role-warning">
+      <span class="stat-figure__icon"><app-icon name="warn" /></span>
+      <span class="stat-figure__value" [class.is-empty]="!totals().needingAttention">{{ totals().needingAttention }}</span>
+      <span class="stat-figure__label">À reprendre</span>
+      <span class="stat-figure__note">échecs ou envois partiels</span>
     </div>
   </div>
 
@@ -137,7 +145,7 @@
                       </td>
                       <td>
                         <span class="tpl">{{ send.templateName }}</span>
-                        <span class="ver mono">{{ send.templateVersion }}</span>
+                        <span class="ver num">{{ send.templateVersion }}</span>
                       </td>
                       <td class="num">{{ send.recipientCount }}</td>
                       <td class="num">
@@ -156,7 +164,7 @@
                           0
                         }
                       </td>
-                      <td class="mono when">{{ send.sentAtLabel }}</td>
+                      <td class="num when">{{ send.sentAtLabel }}</td>
                       <td>
                         <span class="status" [class]="modifierFor(send.status)">
                           {{ statusLabels[send.status] }}
@@ -262,7 +270,7 @@
               <div class="label">Modèle utilisé</div>
               <p class="sd-tpl">
                 {{ send.templateName }}
-                <span class="mono">{{ send.templateVersion }}</span>
+                <span class="num">{{ send.templateVersion }}</span>
               </p>
               <a class="btn btn-sm self-start" routerLink="/newsletter/modeles">
                 Ouvrir le modèle
@@ -274,7 +282,7 @@
       </div>
 
       <div class="modal-foot">
-        <span class="mono foot-note">
+        <span class="num foot-note">
           Signé par {{ send.content.signature.signedBy }} · empreinte
           {{ send.content.signature.fingerprint }}
         </span>

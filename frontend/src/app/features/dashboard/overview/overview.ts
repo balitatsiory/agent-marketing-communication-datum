@@ -1,3 +1,4 @@
+import type { EChartsOption, LineSeriesOption } from 'echarts';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CONVERSATIONS } from '../../../core/data/conversations.data';
 import { NEWSLETTER_SENDS } from '../../../core/data/newsletter-sends.data';
@@ -10,7 +11,8 @@ import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
 import { NetworkLogo } from '../../../shared/network-logo/network-logo';
 import { StatusBadge } from '../../../shared/status-badge/status-badge';
-import { LineSeries, MultiLineChart } from '../../../shared/multi-line-chart/multi-line-chart';
+import { Chart } from '../../../shared/chart/chart';
+import { networkSeriesColors } from '../../../shared/chart/chart-theme';
 import { RouterLink } from '@angular/router';
 
 /** Fenêtre d'observation du graphique d'abonnés. */
@@ -54,7 +56,7 @@ const CHART_PAD_BOTTOM = 18;
 @Component({
   selector: 'app-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Topbar, Icon, NetworkLogo, StatusBadge, MultiLineChart],
+  imports: [RouterLink, Topbar, Icon, NetworkLogo, StatusBadge, Chart],
   templateUrl: './overview.html',
   styleUrl: './overview.scss',
 })
@@ -152,14 +154,69 @@ export class Overview {
    * les comparer. Les écarts d'audience restent lisibles parce que les
    * ordres de grandeur sont voisins — de 1 240 à 8 420 abonnés.
    */
-  protected readonly followerSeries = computed<readonly LineSeries[]>(() =>
-    this.connectedNetworks.map((network) => ({
-      key: network.code,
-      label: network.label,
-      color: NETWORK_SERIES_COLORS[network.code],
-      values: network.followerHistory.slice(-this.window()),
-    })),
-  );
+  /**
+   * Bornes de l'axe vertical.
+   *
+   * L'axe ne part pas de zéro : entre 12 000 et 12 800 abonnés, un axe
+   * depuis zéro écraserait la courbe en une ligne plate. C'est un choix
+   * défendable pour une série d'abonnés — mais il doit être annoncé,
+   * d'où la mention affichée sous le graphique.
+   */
+  protected readonly followerScale = computed(() => {
+    const valeurs = this.connectedNetworks.flatMap((network) =>
+      network.followerHistory.slice(-this.window()),
+    );
+    return { min: Math.min(...valeurs), max: Math.max(...valeurs) };
+  });
+
+  /**
+   * Option ECharts de la courbe d'abonnés, une série par réseau.
+   *
+   * Aucune couleur n'est écrite ici : `networkSeriesColors()` lit les
+   * jetons `--series-*`, de sorte que les pastilles de la légende
+   * au-dessous et les courbes ne peuvent pas diverger.
+   */
+  protected readonly followerChartOption = computed<EChartsOption>(() => {
+    const couleurs = networkSeriesColors();
+    const libelles = this.dayLabels();
+    const { min, max } = this.followerScale();
+    const marge = Math.max(1, Math.round((max - min) * 0.12));
+
+    const series: LineSeriesOption[] = this.connectedNetworks.map((network) => ({
+      type: 'line',
+      name: network.label,
+      data: [...network.followerHistory.slice(-this.window())],
+      showSymbol: false,
+      symbol: 'circle',
+      symbolSize: 7,
+      lineStyle: { width: 2, color: couleurs[network.code] },
+      itemStyle: { color: couleurs[network.code], borderColor: '#fff', borderWidth: 2 },
+      emphasis: { focus: 'series' },
+    }));
+
+    return {
+      grid: { left: 56, right: 18, top: 14, bottom: 26 },
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: (valeur) => Number(valeur).toLocaleString('fr-FR'),
+      },
+      xAxis: {
+        type: 'category',
+        data: [...libelles],
+        boundaryGap: false,
+        /* Une graduation sur cinq : trente libellés « il y a N jours »
+           ne tiendraient pas côte à côte. */
+        axisLabel: { interval: Math.ceil(libelles.length / 5) },
+      },
+      yAxis: {
+        type: 'value',
+        min: min - marge,
+        max: max + marge,
+        axisLabel: { formatter: (valeur: number) => valeur.toLocaleString('fr-FR') },
+      },
+      series,
+    };
+  });
 
   /** Libellés de l'axe horizontal : J-29 … hier, aujourd'hui. */
   protected readonly dayLabels = computed<readonly string[]>(() => {

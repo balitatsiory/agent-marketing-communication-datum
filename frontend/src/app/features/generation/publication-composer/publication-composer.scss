@@ -1,5 +1,7 @@
 /* Créer / générer une publication — maquettes 3a et 4a. */
 
+@use '../../../../styles/design-system/type' as type;
+
 :host {
   display: contents;
 }
@@ -15,14 +17,11 @@
 }
 
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
@@ -88,13 +87,12 @@
   color: var(--accent-deep);
   display: grid;
   place-items: center;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   font-weight: 400;
 }
 
 .counter {
-  font-family: var(--f-mono);
   font-size: 10.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -176,7 +174,7 @@
   color: #ffffff;
   border-radius: 4px;
   padding: 1px 5px;
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 8.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -259,7 +257,7 @@
   font-weight: 700;
 }
 .fmt span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
 }
@@ -306,7 +304,7 @@
   color: var(--ink);
 }
 .plat-row .who > span {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted);
 }
@@ -417,7 +415,7 @@
 }
 
 .pv-ratio {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   letter-spacing: 0.08em;
   color: var(--muted);
@@ -487,7 +485,7 @@
   max-width: 880px;
 }
 .modal-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
   margin-top: 3px;
@@ -561,7 +559,7 @@
   gap: 12px;
 }
 .sum-list dt {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -592,7 +590,7 @@
 }
 
 .cap {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   color: var(--muted);
   line-height: 1.5;
@@ -671,7 +669,7 @@
   aspect-ratio: 4 / 5;
   background: var(--surface-2);
   color: var(--muted);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
 

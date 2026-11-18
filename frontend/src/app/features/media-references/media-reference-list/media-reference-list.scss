@@ -1,5 +1,9 @@
 /* Médias de référence — grille, recherche, pagination et visionneuse détaillée. */
 
+@use '../../../../styles/design-system/type' as type;
+
+@use '../../../../styles/design-system/roles' as roles;
+
 :host {
   display: contents;
 }
@@ -22,14 +26,11 @@
   flex-wrap: wrap;
 }
 .page-head h1 {
-  font-family: var(--f-display);
-  font-weight: 400;
-  font-size: 30px;
-  letter-spacing: -0.01em;
+  @include type.page-title;
 }
 .page-head .sub {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--t-xs);
   margin-top: 2px;
 }
 
@@ -116,33 +117,12 @@
 
 /* ---------- états : pastilles `.status` ---------- */
 
-.status.st-todo {
-  background: transparent;
-  color: var(--wait);
-  box-shadow: inset 0 0 0 1px var(--wait);
-}
-.status.st-todo::before {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--wait);
-}
-
-.status.st-done {
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-.status.st-done::before {
-  background: var(--ok);
-}
-
-.status.st-alert {
-  background: var(--err-soft);
-  color: var(--err);
-}
-.status.st-alert::before {
-  background: var(--err);
-  border-radius: 1px;
-  transform: rotate(45deg);
-}
+/* Trois états propres à cet écran. Ils reprennent la recette de
+   `.badge` par le rôle : rien à redéfinir ici que le rôle lui-même,
+   et le point décoratif disparaît avec le reste de la famille. */
+.status.st-todo  { @include roles.role('warning'); }
+.status.st-done  { @include roles.role('success'); }
+.status.st-alert { @include roles.role('danger'); }
 
 /* ---------- grille de cartes ---------- */
 
@@ -203,7 +183,7 @@
   border-radius: 11px;
   background: var(--surface);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9.5px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -224,7 +204,7 @@
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(4px);
   border: 1px solid var(--border-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--ink);
   opacity: 0;
@@ -242,8 +222,7 @@
   min-width: 0;
 }
 .mcard-name {
-  font-size: 13.5px;
-  font-weight: 700;
+  @include type.compact-title;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -308,7 +287,7 @@
   border: 1px solid var(--border-2);
   background: var(--surface);
   color: var(--ink-2);
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   cursor: pointer;
   display: inline-flex;
@@ -559,7 +538,7 @@
   flex-wrap: wrap;
 }
 .vm-kbd-hint kbd {
-  font-family: var(--f-mono);
+  font-family: var(--f-code);
   background: var(--surface-2);
   border: 1px solid var(--border-2);
   border-radius: 4px;
@@ -591,7 +570,7 @@
   min-width: 0;
 }
 .me-sub {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--muted);
   overflow: hidden;
@@ -607,7 +586,7 @@
 }
 
 .req {
-  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;

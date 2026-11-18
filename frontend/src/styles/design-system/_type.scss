@@ -1,0 +1,119 @@
+/* ============================================================
+   Échelle typographique — modulaire 1.25, racine 16 px
+   ------------------------------------------------------------
+   Relevée sur Phoenix v1.24.0 : chaque cran vaut exactement
+   1,25 fois le précédent, à partir de 1 rem.
+
+   Avant : 24 tailles distinctes entre 9 et 30 px dans
+   l'application, réglées à l'œil écran par écran, dont cinq
+   valeurs non entières nées d'un empilement de `em`.
+   Après : six crans, et rien entre les crans.
+
+   Tout est en rem : le zoom du navigateur et la taille de police
+   du système continuent d'agir, ce qui n'est pas le cas en px.
+
+   RÈGLE : si une taille vous manque, ce n'est pas le barreau qui
+   manque — c'est la hiérarchie qui doit passer par la graisse.
+   Voir `--w-*` plus bas.
+   ============================================================ */
+
+:root {
+  /* --- les six crans --------------------------------------- */
+  --t-2xs: 0.64rem;       /* 10,24 px — plancher absolu, jamais en dessous */
+  --t-xs:  0.8rem;        /* 12,80 px — libellés, métadonnées, cellules denses */
+  --t-md:  1rem;          /*    16 px — corps de texte, valeur par défaut */
+  --t-lg:  1.25rem;       /*    20 px — titres de carte, sous-titres */
+  --t-xl:  1.5625rem;     /* 25,00 px — chiffres clés, h2 */
+  --t-2xl: 1.953125rem;   /* 31,25 px — titre de page, h1 */
+
+  /* --- la graisse porte la hiérarchie ----------------------
+     Troisième décision relevée chez Phoenix : sur 1 100 blocs de
+     texte de sa page widgets, 326 sont en 12,8 px gras ou
+     semi-gras. Le corps reste petit, c'est la graisse qui dit
+     l'importance. On gagne de la densité sans perdre la lecture.  */
+  --w-light:   300;
+  --w-regular: 400;
+  --w-semi:    600;   /* libellés, en-têtes de tableau */
+  --w-bold:    700;   /* titres de section, valeurs mises en avant */
+  --w-extra:   800;   /* chiffres clés, titre de page */
+
+  /* --- interlignes ----------------------------------------- */
+  --lh-tight: 1.15;   /* titres et grands chiffres */
+  --lh-snug:  1.35;   /* libellés sur deux lignes */
+  --lh-base:  1.5;    /* texte courant */
+}
+
+/* ------------------------------------------------------------
+   Utilitaires. Même esprit que `.mono` et `.label` du socle :
+   une classe = une intention, pas une valeur.
+   ------------------------------------------------------------ */
+
+.t-2xs { font-size: var(--t-2xs); }
+.t-xs  { font-size: var(--t-xs); }
+.t-md  { font-size: var(--t-md); }
+.t-lg  { font-size: var(--t-lg); }
+.t-xl  { font-size: var(--t-xl); }
+.t-2xl { font-size: var(--t-2xl); }
+
+.w-regular { font-weight: var(--w-regular); }
+.w-semi    { font-weight: var(--w-semi); }
+.w-bold    { font-weight: var(--w-bold); }
+.w-extra   { font-weight: var(--w-extra); }
+
+/* Un chiffre dans un tableau ou une tuile : chasse fixe pour que
+   les colonnes s'alignent, sans passer par une police monospace. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------
+   Mixins — à préférer aux utilitaires dans les SCSS de composant.
+   ------------------------------------------------------------ */
+
+/* Libellé en capitales : le motif le plus répété de l'interface
+   (« À TRAITER », « PUBLIÉES », en-têtes de tableau).
+   Remplace les anciens 9 et 10 px, sous le seuil de confort. */
+@mixin caps-label($color: var(--muted)) {
+  font-size: var(--t-2xs);
+  font-weight: var(--w-bold);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: var(--lh-snug);
+  color: $color;
+}
+
+/* Titre de page. */
+@mixin page-title {
+  font-size: var(--t-2xl);
+  font-weight: var(--w-extra);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+/* Titre de deuxième niveau : en-tête de modale, de panneau large,
+   de volet, de fiche détaillée. Un cran sous le titre de page. */
+@mixin section-title {
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-tight);
+}
+
+/* Titre de carte ou de groupe dans une liste. */
+@mixin card-title {
+  font-size: var(--t-md);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-snug);
+}
+
+/* Titre d'une carte compacte : vignette de calendrier, tuile dense. */
+@mixin compact-title {
+  font-size: var(--t-xs);
+  font-weight: var(--w-bold);
+  line-height: var(--lh-snug);
+}
+
+/* Chiffre clé d'une tuile de statistique. */
+@mixin key-figure {
+  font-size: var(--t-xl);
+  font-weight: var(--w-extra);
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+}
