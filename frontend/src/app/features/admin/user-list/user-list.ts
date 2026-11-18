@@ -1,42 +1,70 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { ACCOUNT_CHANGES, USERS } from '../../../core/data/users.data';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+
+import { toApiError } from '../../../core/api/api-error';
+import { UsersApi } from '../../../core/api/users.api';
 import {
-  ACCOUNT_CHANGE_KIND_LABELS,
   ACCOUNT_STATUS_LABELS,
-  AUTH_METHOD_LABELS,
-  AccountChange,
-  PERMISSION_DESCRIPTIONS,
-  PERMISSION_LABELS,
-  PERMISSION_ORDER,
-  PermissionCode,
-  User,
+  Permission,
+  UserView,
   permissionSummary,
+  toPermission,
+  toUserView,
 } from '../../../core/models/user';
+import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
 
-/** Filtres de la liste de comptes. */
-type AccountFilter = 'all' | 'admins' | 'invited' | 'disabled';
+/** Filtres de la liste de comptes, calqués sur les trois états réels. */
+type AccountFilter = 'tous' | 'actifs' | 'suspendus' | 'archives';
 
 const FILTER_LABELS: Readonly<Record<AccountFilter, string>> = {
-  all: 'Tous',
-  admins: 'Administrateurs',
-  invited: 'Invités',
-  disabled: 'Désactivés',
+  tous: 'Tous',
+  actifs: 'Actifs',
+  suspendus: 'Suspendus',
+  archives: 'Archivés',
 };
 
 /**
- * Habilitations et utilisateurs — F-22.
- *
- * Trois colonnes : la liste des comptes, le détail du compte ouvert, et
- * le journal de ses modifications.
+ * Une seule page suffit : l'équipe de DATUM Academy compte quelques dizaines
+ * de personnes. Le jour où ce n'est plus vrai, l'API pagine déjà — seul cet
+ * écran est à reprendre.
+ */
+const TAILLE_PAGE = 200;
+
+/** Longueur minimale imposée par le backend (`MotDePasse`, `min_length=10`). */
+const MOT_DE_PASSE_MIN = 10;
+
+interface BrouillonDeCompte {
+  email: string;
+  first_name: string;
+  last_name: string;
+  password: string;
+}
+
+const COMPTE_VIDE: BrouillonDeCompte = { email: '', first_name: '', last_name: '', password: '' };
+
+/**
+ * Habilitations et utilisateurs — F-22, branché sur l'API.
  *
  * **Écart assumé par rapport à la maquette fournie.** Celle-ci montrait un
- * rôle, un bouton « Changer de rôle » et une colonne « hérité du rôle »
- * avec des exceptions. Le cahier des charges dit le contraire : « Aucun
- * rôle n'est figé dans le code : un administrateur attribue les droits »
- * (F-22). Il n'y a donc rien à hériter, et chaque droit se coche compte
- * par compte. Le reste de la maquette est repris tel quel.
+ * rôle, un bouton « Changer de rôle » et une colonne « hérité du rôle » avec
+ * des exceptions. Le cahier des charges dit le contraire : « Aucun rôle n'est
+ * figé dans le code : un administrateur attribue les droits » (F-22). Il n'y a
+ * donc rien à hériter, et chaque droit se coche compte par compte.
+ *
+ * **Trois écarts supplémentaires, par rapport à la version sur jeu d'essai.**
+ * La connexion déléguée Google, le double facteur et le statut « invitation
+ * envoyée » ont disparu : aucun des trois n'existe dans l'API ni dans le
+ * cahier des charges. La réinitialisation par courriel est remplacée par la
+ * définition directe d'un mot de passe, seule opération que l'API expose. Le
+ * journal des modifications attend le module 14 « Activité » : la table
+ * `user_permissions` conserve déjà l'historique, mais aucune route ne le lit
+ * encore.
+ *
+ * **Le catalogue des droits n'est pas écrit ici** : il est lu par
+ * `GET /api/v1/permissions`, parce que la table `permissions` est alimentée
+ * module par module. Cet écran affiche donc les droits existants, quels
+ * qu'ils soient, sans connaître leur liste.
  */
 @Component({
   selector: 'app-user-list',
@@ -46,157 +74,351 @@ const FILTER_LABELS: Readonly<Record<AccountFilter, string>> = {
   styleUrl: './user-list.scss',
 })
 export class UserList {
+  private readonly api = inject(UsersApi);
+  private readonly session = inject(Session);
+
   protected readonly filterLabels = FILTER_LABELS;
-  protected readonly filters: readonly AccountFilter[] = ['all', 'admins', 'invited', 'disabled'];
-
-  protected readonly permissionOrder = PERMISSION_ORDER;
-  protected readonly permissionLabels = PERMISSION_LABELS;
-  protected readonly permissionDescriptions = PERMISSION_DESCRIPTIONS;
+  protected readonly filters: readonly AccountFilter[] = [
+    'tous',
+    'actifs',
+    'suspendus',
+    'archives',
+  ];
   protected readonly statusLabels = ACCOUNT_STATUS_LABELS;
-  protected readonly authMethodLabels = AUTH_METHOD_LABELS;
-  protected readonly changeKindLabels = ACCOUNT_CHANGE_KIND_LABELS;
+  protected readonly motDePasseMin = MOT_DE_PASSE_MIN;
 
-  private readonly all = signal<readonly User[]>(USERS);
-  private readonly changes = signal<readonly AccountChange[]>(ACCOUNT_CHANGES);
+  private readonly comptes = signal<readonly UserView[]>([]);
+  protected readonly catalogue = signal<readonly Permission[]>([]);
 
-  protected readonly filter = signal<AccountFilter>('all');
-  protected readonly searchTerm = signal('');
-  private readonly selectedId = signal(USERS[0].id);
+  protected readonly chargement = signal(true);
+  protected readonly enCours = signal(false);
+  protected readonly erreur = signal<string | null>(null);
+  protected readonly avis = signal<string | null>(null);
+
+  protected readonly filtre = signal<AccountFilter>('tous');
+  protected readonly recherche = signal('');
+  private readonly selectionId = signal<number | null>(null);
 
   /**
    * Droits en cours d'édition.
    *
-   * Séparés du compte enregistré : tant que « Enregistrer » n'est pas
+   * Séparés des droits enregistrés : tant que « Enregistrer » n'est pas
    * actionné, rien n'est acquis, et l'écran doit pouvoir le montrer.
    */
-  private readonly draft = signal<ReadonlySet<PermissionCode>>(new Set(USERS[0].permissions));
+  private readonly brouillon = signal<ReadonlySet<string>>(new Set());
 
-  protected readonly counts = computed(() => {
-    const users = this.all();
+  /** Panneaux ouverts à la demande, pour ne pas charger l'écran. */
+  protected readonly creationOuverte = signal(false);
+  protected readonly nouveauCompte = signal<BrouillonDeCompte>({ ...COMPTE_VIDE });
+  protected readonly motDePasseOuvert = signal(false);
+  protected readonly nouveauMotDePasse = signal('');
+  protected readonly archivageDemande = signal(false);
+
+  /**
+   * Droits de la personne connectée.
+   *
+   * `manage_permissions` est distinct de `manage_users` : attribuer un droit
+   * est la seule action permettant une élévation de privilèges, et elle se
+   * concède séparément. L'écran grise les interrupteurs en conséquence.
+   */
+  protected readonly peutGererLesComptes = computed(() => this.session.has('manage_users'));
+  protected readonly peutAttribuerDesDroits = computed(() =>
+    this.session.has('manage_permissions'),
+  );
+
+  constructor() {
+    void this.charger();
+  }
+
+  // ----------------------------------------------------------------- lecture
+
+  protected readonly compteurs = computed<Readonly<Record<AccountFilter, number>>>(() => {
+    const tous = this.comptes();
     return {
-      all: users.length,
-      admins: users.filter((user) => user.permissions.includes('admin')).length,
-      invited: users.filter((user) => user.status === 'invited').length,
-      disabled: users.filter((user) => user.status === 'disabled').length,
+      tous: tous.length,
+      actifs: tous.filter((compte) => compte.status === 'active').length,
+      suspendus: tous.filter((compte) => compte.status === 'suspended').length,
+      archives: tous.filter((compte) => compte.status === 'archived').length,
     };
   });
 
-  protected readonly results = computed<readonly User[]>(() => {
-    const filter = this.filter();
-    const term = this.searchTerm().trim().toLowerCase();
+  protected readonly resultats = computed<readonly UserView[]>(() => {
+    const filtre = this.filtre();
+    const terme = this.recherche().trim().toLowerCase();
 
-    return this.all().filter((user) => {
-      if (filter === 'admins' && !user.permissions.includes('admin')) return false;
-      if (filter === 'invited' && user.status !== 'invited') return false;
-      if (filter === 'disabled' && user.status !== 'disabled') return false;
-      if (!term) return true;
+    return this.comptes().filter((compte) => {
+      if (filtre === 'actifs' && compte.status !== 'active') return false;
+      if (filtre === 'suspendus' && compte.status !== 'suspended') return false;
+      if (filtre === 'archives' && compte.status !== 'archived') return false;
+      if (!terme) return true;
       return (
-        user.fullName.toLowerCase().includes(term) || user.email.toLowerCase().includes(term)
+        compte.fullName.toLowerCase().includes(terme) ||
+        compte.email.toLowerCase().includes(terme)
       );
     });
   });
 
-  /** Compte ouvert. Bascule sur le premier de la liste si un filtre le masque. */
-  protected readonly selected = computed<User | null>(() => {
-    const results = this.results();
-    if (results.length === 0) return null;
-    return results.find((user) => user.id === this.selectedId()) ?? results[0];
+  /**
+   * Compte ouvert dans le panneau de détail.
+   *
+   * Volontairement indépendant des filtres : filtrer la liste ne doit pas
+   * refermer le détail en cours, et surtout pas lui substituer un autre compte
+   * alors que le brouillon de droits, lui, n'aurait pas suivi.
+   */
+  protected readonly selection = computed<UserView | null>(
+    () => this.comptes().find((compte) => compte.idUsers === this.selectionId()) ?? null,
+  );
+
+  /** Résumé des droits affiché sous le nom, dans la liste. */
+  protected resume(compte: UserView): string {
+    return permissionSummary(compte, this.catalogue());
+  }
+
+  /** Nombre de droits cochés ou décochés sans être encore enregistrés. */
+  protected readonly modifie = computed(() => {
+    const compte = this.selection();
+    if (!compte) return 0;
+
+    const brouillon = this.brouillon();
+    const enregistres = new Set(compte.permissions);
+    const codes = new Set([
+      ...this.catalogue().map((droit) => droit.code),
+      ...compte.permissions,
+    ]);
+    return [...codes].filter((code) => brouillon.has(code) !== enregistres.has(code)).length;
   });
 
-  protected readonly summaryOf = permissionSummary;
+  protected readonly aDesModifications = computed(() => this.modifie() > 0);
 
-  /** Journal du compte ouvert, du plus récent au plus ancien. */
-  protected readonly selectedChanges = computed<readonly AccountChange[]>(() => {
-    const user = this.selected();
-    if (!user) return [];
-    return this.changes().filter((change) => change.userId === user.id);
-  });
+  protected readonly motDePasseValide = computed(
+    () => this.nouveauMotDePasse().length >= MOT_DE_PASSE_MIN,
+  );
 
-  /** Vrai si le brouillon diffère des droits enregistrés. */
-  protected readonly hasPendingChanges = computed(() => {
-    const user = this.selected();
-    if (!user) return false;
-    const draft = this.draft();
+  protected readonly nouveauCompteValide = computed(() => {
+    const brouillon = this.nouveauCompte();
     return (
-      draft.size !== user.permissions.length ||
-      user.permissions.some((code) => !draft.has(code))
+      brouillon.email.includes('@') &&
+      brouillon.first_name.trim().length > 0 &&
+      brouillon.last_name.trim().length > 0 &&
+      brouillon.password.length >= MOT_DE_PASSE_MIN
     );
   });
 
-  /** Droits ajoutés ou retirés par rapport à l'enregistré. */
-  protected readonly pendingCount = computed(() => {
-    const user = this.selected();
-    if (!user) return 0;
-    const draft = this.draft();
-    const saved = new Set(user.permissions);
-    return PERMISSION_ORDER.filter((code) => draft.has(code) !== saved.has(code)).length;
-  });
+  // ------------------------------------------------------------- chargement
 
-  /**
-   * Un compte sur SSO n'a pas de mot de passe à réinitialiser, et un compte
-   * en attente d'invitation n'en a pas encore.
-   */
-  protected readonly canResetPassword = computed(() => {
-    const user = this.selected();
-    return user !== null && user.authMethod === 'password' && user.status !== 'invited';
-  });
-
-  protected readonly resetPasswordHint = computed(() => {
-    const user = this.selected();
-    if (!user) return '';
-    if (user.authMethod === 'google') return 'Connexion par Google : aucun mot de passe à réinitialiser.';
-    if (user.status === 'invited') return "L'invitation n'a pas encore été acceptée.";
-    return 'Envoie un lien valable 2 h à l’adresse du compte.';
-  });
-
-  protected readonly notice = signal<string | null>(null);
-
-  protected select(user: User): void {
-    this.selectedId.set(user.id);
-    this.draft.set(new Set(user.permissions));
-    this.notice.set(null);
+  private async charger(): Promise<void> {
+    this.chargement.set(true);
+    this.erreur.set(null);
+    try {
+      // Les comptes archivés sont demandés dès le départ : le filtre
+      // « Archivés » doit pouvoir les montrer sans second appel.
+      const [page, droits] = await Promise.all([
+        this.api.list({ page: 1, size: TAILLE_PAGE }, true),
+        this.api.permissions(),
+      ]);
+      this.catalogue.set(droits.map(toPermission));
+      this.poser(page.items.map(toUserView));
+    } catch (erreur) {
+      this.erreur.set(toApiError(erreur).message);
+    } finally {
+      this.chargement.set(false);
+    }
   }
 
-  protected isGranted(code: PermissionCode): boolean {
-    return this.draft().has(code);
+  private poser(vues: readonly UserView[]): void {
+    this.comptes.set(vues);
+    const retenu = vues.find((vue) => vue.idUsers === this.selectionId()) ?? vues[0] ?? null;
+    this.selectionId.set(retenu?.idUsers ?? null);
+    this.brouillon.set(new Set(retenu?.permissions ?? []));
+  }
+
+  private remplacer(vue: UserView): void {
+    this.comptes.update((courant) =>
+      courant.map((compte) => (compte.idUsers === vue.idUsers ? vue : compte)),
+    );
+  }
+
+  /**
+   * Enchaîne une action sur l'API en tenant l'écran informé.
+   *
+   * Un seul geste à la fois : deux enregistrements concurrents sur le même
+   * compte laisseraient l'écran afficher l'état du plus lent.
+   */
+  private async agir(action: () => Promise<void>): Promise<void> {
+    if (this.enCours()) return;
+    this.enCours.set(true);
+    this.erreur.set(null);
+    try {
+      await action();
+    } catch (erreur) {
+      this.erreur.set(toApiError(erreur).message);
+    } finally {
+      this.enCours.set(false);
+    }
+  }
+
+  // ---------------------------------------------------------------- gestes
+
+  protected selectionner(compte: UserView): void {
+    this.selectionId.set(compte.idUsers);
+    this.brouillon.set(new Set(compte.permissions));
+    this.reinitialiserLesPanneaux();
+  }
+
+  private reinitialiserLesPanneaux(): void {
+    this.avis.set(null);
+    this.erreur.set(null);
+    this.motDePasseOuvert.set(false);
+    this.nouveauMotDePasse.set('');
+    this.archivageDemande.set(false);
+  }
+
+  protected accorde(code: string): boolean {
+    return this.brouillon().has(code);
   }
 
   /** Vrai quand ce droit a été modifié sans être encore enregistré. */
-  protected isPending(code: PermissionCode): boolean {
-    const user = this.selected();
-    if (!user) return false;
-    return this.draft().has(code) !== user.permissions.includes(code);
+  protected enAttente(code: string): boolean {
+    const compte = this.selection();
+    if (!compte) return false;
+    return this.brouillon().has(code) !== compte.permissions.includes(code);
   }
 
-  protected togglePermission(code: PermissionCode): void {
-    this.draft.update((current) => {
-      const next = new Set(current);
-      if (!next.delete(code)) next.add(code);
-      return next;
+  protected basculer(code: string): void {
+    if (!this.peutAttribuerDesDroits()) return;
+    this.brouillon.update((courant) => {
+      const suivant = new Set(courant);
+      if (!suivant.delete(code)) suivant.add(code);
+      return suivant;
     });
-    this.notice.set(null);
+    this.avis.set(null);
   }
 
-  protected revert(): void {
-    const user = this.selected();
-    if (user) this.draft.set(new Set(user.permissions));
-    this.notice.set(null);
+  protected annuler(): void {
+    const compte = this.selection();
+    if (compte) this.brouillon.set(new Set(compte.permissions));
+    this.avis.set(null);
   }
 
-  /** Enregistrement simulé : le backend n'est pas branché. */
-  protected save(): void {
-    const count = this.pendingCount();
-    if (count === 0) return;
-    this.notice.set(
-      `${count} ${count > 1 ? 'droits modifiés' : 'droit modifié'} — simulation, rien n'a été enregistré.`,
-    );
+  protected async enregistrer(): Promise<void> {
+    const compte = this.selection();
+    if (!compte || this.modifie() === 0) return;
+
+    // L'ordre du catalogue est repris : l'API accepte n'importe quel ordre,
+    // mais une requête reproductible se relit plus facilement dans les journaux.
+    const brouillon = this.brouillon();
+    const codes = this.catalogue()
+      .map((droit) => droit.code)
+      .filter((code) => brouillon.has(code));
+
+    await this.agir(async () => {
+      const accordes = await this.api.setPermissions(compte.idUsers, codes);
+      this.remplacer({ ...compte, permissions: accordes });
+      this.brouillon.set(new Set(accordes));
+      this.avis.set(
+        accordes.length === 0
+          ? 'Tous les droits ont été retirés. Les attributions restent archivées.'
+          : `Droits enregistrés : ${accordes.length} au total.`,
+      );
+    });
   }
 
-  protected resetPassword(): void {
-    const user = this.selected();
-    if (!user || !this.canResetPassword()) return;
-    this.notice.set(
-      `Lien de réinitialisation prêt pour ${user.email} — simulation, rien n'a été envoyé.`,
-    );
+  protected async basculerActivation(): Promise<void> {
+    const compte = this.selection();
+    if (!compte || compte.status === 'archived') return;
+    const activer = compte.status !== 'active';
+
+    await this.agir(async () => {
+      const dto = await this.api.update(compte.idUsers, { is_active: activer });
+      this.remplacer(toUserView(dto));
+      this.avis.set(
+        activer
+          ? 'Compte réactivé.'
+          : "Compte suspendu. Son jeton d'accès reste valide au plus un quart d'heure, puis tout lui est refusé.",
+      );
+    });
+  }
+
+  protected demanderArchivage(): void {
+    this.avis.set(null);
+    this.archivageDemande.set(true);
+  }
+
+  protected renoncerArchivage(): void {
+    this.archivageDemande.set(false);
+  }
+
+  protected async archiver(): Promise<void> {
+    const compte = this.selection();
+    if (!compte || compte.status === 'archived') return;
+
+    await this.agir(async () => {
+      await this.api.archive(compte.idUsers);
+      this.archivageDemande.set(false);
+      // La route renvoie 204 : l'état archivé est reconstruit localement
+      // plutôt que relu, pour ne pas enchaîner un second appel.
+      this.remplacer({ ...compte, status: 'archived' });
+      this.avis.set(
+        `${compte.fullName} est archivé. Le compte reste l'auteur de ses publications passées, et ses sessions ont été révoquées.`,
+      );
+    });
+  }
+
+  protected async definirMotDePasse(): Promise<void> {
+    const compte = this.selection();
+    if (!compte || !this.motDePasseValide()) return;
+
+    await this.agir(async () => {
+      await this.api.setPassword(compte.idUsers, this.nouveauMotDePasse());
+      this.motDePasseOuvert.set(false);
+      this.nouveauMotDePasse.set('');
+      this.avis.set(
+        `Mot de passe remplacé pour ${compte.email}. Aucun courriel n'est envoyé : il faut le lui transmettre.`,
+      );
+    });
+  }
+
+  protected majNouveauCompte(champ: keyof BrouillonDeCompte, valeur: string): void {
+    this.nouveauCompte.update((courant) => ({ ...courant, [champ]: valeur }));
+  }
+
+  protected ouvrirCreation(): void {
+    this.nouveauCompte.set({ ...COMPTE_VIDE });
+    this.erreur.set(null);
+    this.avis.set(null);
+    this.creationOuverte.set(true);
+  }
+
+  protected fermerCreation(): void {
+    this.creationOuverte.set(false);
+  }
+
+  protected async creer(): Promise<void> {
+    if (!this.nouveauCompteValide()) return;
+    const brouillon = this.nouveauCompte();
+
+    await this.agir(async () => {
+      const dto = await this.api.create({
+        email: brouillon.email.trim(),
+        password: brouillon.password,
+        first_name: brouillon.first_name.trim(),
+        last_name: brouillon.last_name.trim(),
+      });
+      const vue = toUserView(dto);
+      this.creationOuverte.set(false);
+      this.nouveauCompte.set({ ...COMPTE_VIDE });
+      this.selectionId.set(vue.idUsers);
+      // La liste est relue plutôt que complétée sur place : son ordre est
+      // celui du backend (nom, puis prénom), et le reproduire ici serait une
+      // règle de tri en double, donc une divergence en puissance.
+      await this.charger();
+      this.avis.set(
+        `${vue.fullName} est créé, sans aucun droit. Cocher ci-dessous ce qu'il peut faire.`,
+      );
+    });
+  }
+
+  protected recharger(): void {
+    void this.charger();
   }
 }

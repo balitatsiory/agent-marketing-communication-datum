@@ -1,7 +1,12 @@
 <app-topbar [trail]="['Administrer', 'Utilisateurs']">
-  <button class="btn btn-primary" type="button">
+  <button
+    class="btn btn-primary"
+    type="button"
+    [disabled]="!peutGererLesComptes() || enCours()"
+    (click)="ouvrirCreation()"
+  >
     <app-icon name="plus" size="sm" />
-    Inviter une personne
+    Créer un compte
   </button>
 </app-topbar>
 
@@ -15,219 +20,397 @@
     </div>
   </div>
 
-  <div class="admin">
-    <!-- ---------- liste des comptes ---------- -->
-    <section class="panel people" aria-label="Comptes">
-      <div class="people-head">
-        <div class="searchbox">
-          <app-icon name="search" size="sm" />
+  @if (erreur(); as message) {
+    <p class="banner banner-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm" type="button" (click)="recharger()">Réessayer</button>
+    </p>
+  }
+
+  @if (creationOuverte()) {
+    <!-- Création d'un compte. Pas d'invitation par courriel : le cahier des
+         charges exclut le libre-service, donc l'administrateur pose lui-même
+         le premier mot de passe et le transmet. -->
+    <section class="panel creation" aria-label="Créer un compte">
+      <div class="panel-head">
+        <h2>Nouveau compte</h2>
+        <span class="cap">Aucun droit n'est accordé à la création</span>
+      </div>
+
+      <div class="creation-grid">
+        <div class="field">
+          <label for="nc-prenom">Prénom</label>
           <input
-            type="search"
-            placeholder="Nom ou e-mail"
-            aria-label="Rechercher un compte"
-            [value]="searchTerm()"
-            (input)="searchTerm.set($any($event.target).value)"
+            class="input"
+            id="nc-prenom"
+            type="text"
+            autocomplete="off"
+            [value]="nouveauCompte().first_name"
+            (input)="majNouveauCompte('first_name', $any($event.target).value)"
           />
         </div>
-
-        <div class="chips">
-          @for (option of filters; track option) {
-            <button class="chip" type="button" [class.is-on]="filter() === option" (click)="filter.set(option)">
-              {{ filterLabels[option] }}
-              <span class="n">{{ counts()[option] }}</span>
-            </button>
-          }
+        <div class="field">
+          <label for="nc-nom">Nom</label>
+          <input
+            class="input"
+            id="nc-nom"
+            type="text"
+            autocomplete="off"
+            [value]="nouveauCompte().last_name"
+            (input)="majNouveauCompte('last_name', $any($event.target).value)"
+          />
+        </div>
+        <div class="field">
+          <label for="nc-email">Adresse électronique</label>
+          <input
+            class="input"
+            id="nc-email"
+            type="email"
+            autocomplete="off"
+            [value]="nouveauCompte().email"
+            (input)="majNouveauCompte('email', $any($event.target).value)"
+          />
+        </div>
+        <div class="field">
+          <label for="nc-mdp">Mot de passe initial</label>
+          <input
+            class="input"
+            id="nc-mdp"
+            type="text"
+            autocomplete="new-password"
+            [attr.minlength]="motDePasseMin"
+            [value]="nouveauCompte().password"
+            (input)="majNouveauCompte('password', $any($event.target).value)"
+          />
+          <span class="hint">
+            {{ motDePasseMin }} caractères au moins. À transmettre à la personne.
+          </span>
         </div>
       </div>
 
-      <div class="people-body">
-        @for (user of results(); track user.id) {
-          <button
-            class="person"
-            type="button"
-            [class.is-on]="selected()?.id === user.id"
-            [class.is-off]="user.status !== 'active'"
-            (click)="select(user)"
-          >
-            <span class="av" [class.av-dashed]="user.status === 'invited'">
-              {{ user.status === 'invited' ? '' : user.initials }}
-            </span>
-            <span class="person-main">
-              <b>{{ user.fullName }}</b>
-              <span class="person-sub">
-                @if (user.status === 'active') {
-                  {{ summaryOf(user) }} · {{ statusLabels[user.status] }}
-                } @else {
-                  {{ statusLabels[user.status] }}
-                }
-              </span>
-            </span>
-          </button>
-        } @empty {
-          <p class="people-empty">Aucun compte pour ces filtres.</p>
-        }
-      </div>
-
-      <div class="people-foot">{{ counts().all }} comptes</div>
+      <footer class="creation-foot">
+        <button class="btn" type="button" (click)="fermerCreation()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="!nouveauCompteValide() || enCours()"
+          (click)="creer()"
+        >
+          Créer le compte
+        </button>
+      </footer>
     </section>
+  }
 
-    <!-- ---------- détail du compte ---------- -->
-    @if (selected(); as user) {
-      <section class="panel detail" aria-label="Détail du compte">
-        <header class="detail-head">
-          <span class="av av-lg">{{ user.initials }}</span>
-          <span class="detail-who">
-            <b>{{ user.fullName }}</b>
-            <span>{{ user.email }} · membre depuis {{ user.memberSinceLabel }}</span>
-          </span>
-
-          <div class="detail-acts">
-            <button
-              class="btn"
-              type="button"
-              [disabled]="!canResetPassword()"
-              [attr.title]="resetPasswordHint()"
-              (click)="resetPassword()"
-            >
-              <app-icon name="send" size="sm" />
-              Réinitialiser le mot de passe
-            </button>
+  @if (chargement()) {
+    <section class="panel detail">
+      <div class="empty">
+        <h2>Chargement</h2>
+        <p>Lecture des comptes et du référentiel des droits.</p>
+      </div>
+    </section>
+  } @else {
+    <div class="admin">
+      <!-- ---------- liste des comptes ---------- -->
+      <section class="panel people" aria-label="Comptes">
+        <div class="people-head">
+          <div class="searchbox">
+            <app-icon name="search" size="sm" />
+            <input
+              type="search"
+              placeholder="Nom ou e-mail"
+              aria-label="Rechercher un compte"
+              [value]="recherche()"
+              (input)="recherche.set($any($event.target).value)"
+            />
           </div>
-        </header>
 
-        <div class="detail-body">
-          <!-- authentification -->
-          <div class="block">
-            <div class="label">Authentification</div>
-            <div class="auth">
-              <div class="auth-cell">
-                <span class="label">Méthode</span>
-                <span class="v">{{ authMethodLabels[user.authMethod] }}</span>
-              </div>
-              <div class="auth-cell">
-                <span class="label">Double facteur</span>
-                <span class="v" [class.v-warn]="!user.hasTwoFactor">
-                  {{ user.hasTwoFactor ? 'Activé' : 'Non activé' }}
-                </span>
-              </div>
-              <div class="auth-cell">
-                <span class="label">Dernière connexion</span>
-                <span class="v">{{ user.lastSignInLabel ?? 'jamais connectée' }}</span>
-              </div>
-            </div>
-            @if (!canResetPassword()) {
-              <p class="hint">{{ resetPasswordHint() }}</p>
+          <div class="chips">
+            @for (option of filters; track option) {
+              <button
+                class="chip"
+                type="button"
+                [class.is-on]="filtre() === option"
+                (click)="filtre.set(option)"
+              >
+                {{ filterLabels[option] }}
+                <span class="n">{{ compteurs()[option] }}</span>
+              </button>
             }
           </div>
+        </div>
 
-          <!-- droits -->
-          <div class="block">
-            <div class="block-head">
-              <span class="label">Droits accordés</span>
-              <span class="cap">
-                @if (hasPendingChanges()) {
-                  {{ pendingCount() }} modification{{ pendingCount() > 1 ? 's' : '' }} non enregistrée{{ pendingCount() > 1 ? 's' : '' }}
-                } @else {
-                  {{ user.permissions.length }} sur {{ permissionOrder.length }}
-                }
+        <div class="people-body">
+          @for (compte of resultats(); track compte.idUsers) {
+            <button
+              class="person"
+              type="button"
+              [class.is-on]="selection()?.idUsers === compte.idUsers"
+              [class.is-off]="compte.status !== 'active'"
+              (click)="selectionner(compte)"
+            >
+              <span class="av" [class.av-dashed]="compte.status === 'archived'">
+                {{ compte.initials }}
               </span>
+              <span class="person-main">
+                <b>{{ compte.fullName }}</b>
+                <span class="person-sub">
+                  @if (compte.status === 'active') {
+                    {{ resume(compte) }}
+                  } @else {
+                    {{ statusLabels[compte.status] }} · {{ resume(compte) }}
+                  }
+                </span>
+              </span>
+            </button>
+          } @empty {
+            <p class="people-empty">Aucun compte pour ces filtres.</p>
+          }
+        </div>
+
+        <div class="people-foot">{{ compteurs().tous }} comptes</div>
+      </section>
+
+      <!-- ---------- détail du compte ---------- -->
+      @if (selection(); as compte) {
+        <section class="panel detail" aria-label="Détail du compte">
+          <header class="detail-head">
+            <span class="av av-lg">{{ compte.initials }}</span>
+            <span class="detail-who">
+              <b>{{ compte.fullName }}</b>
+              <span>{{ compte.email }} · membre depuis {{ compte.memberSinceLabel }}</span>
+            </span>
+
+            <div class="detail-acts">
+              <button
+                class="btn"
+                type="button"
+                [disabled]="!peutGererLesComptes() || compte.status === 'archived' || enCours()"
+                [attr.title]="
+                  compte.status === 'archived'
+                    ? 'Compte archivé : plus rien ne le modifie.'
+                    : 'Remplace le mot de passe. Aucun courriel n’est envoyé.'
+                "
+                (click)="motDePasseOuvert.set(!motDePasseOuvert())"
+              >
+                <app-icon name="pencil" size="sm" />
+                Définir un mot de passe
+              </button>
+            </div>
+          </header>
+
+          <div class="detail-body">
+            <!-- état du compte -->
+            <div class="block">
+              <div class="label">État du compte</div>
+              <div class="auth">
+                <div class="auth-cell">
+                  <span class="label">Accès</span>
+                  <span class="v" [class.v-warn]="compte.status !== 'active'">
+                    {{ statusLabels[compte.status] }}
+                  </span>
+                </div>
+                <div class="auth-cell">
+                  <span class="label">Dernière connexion</span>
+                  <span class="v">{{ compte.lastSignInLabel ?? 'jamais connecté' }}</span>
+                </div>
+                <div class="auth-cell">
+                  <span class="label">Droits accordés</span>
+                  <span class="v">{{ compte.permissions.length }} sur {{ catalogue().length }}</span>
+                </div>
+              </div>
+
+              @if (motDePasseOuvert()) {
+                <div class="pw">
+                  <div class="field">
+                    <label for="pw-nouveau">Nouveau mot de passe</label>
+                    <input
+                      class="input"
+                      id="pw-nouveau"
+                      type="text"
+                      autocomplete="new-password"
+                      [value]="nouveauMotDePasse()"
+                      (input)="nouveauMotDePasse.set($any($event.target).value)"
+                    />
+                  </div>
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    [disabled]="!motDePasseValide() || enCours()"
+                    (click)="definirMotDePasse()"
+                  >
+                    Remplacer
+                  </button>
+                  <button class="btn" type="button" (click)="motDePasseOuvert.set(false)">
+                    Annuler
+                  </button>
+                  <p class="hint">
+                    {{ motDePasseMin }} caractères au moins. Le cahier des charges exclut toute
+                    réinitialisation en libre-service : c'est vous qui transmettez le mot de passe.
+                  </p>
+                </div>
+              }
             </div>
 
-            <!-- Pas de colonne « hérité » : le cahier des charges ne prévoit
-                 aucun rôle, donc rien à hériter. Voir le commentaire du
-                 composant. -->
-            <table class="rights">
-              <thead>
-                <tr>
-                  <th>Droit</th>
-                  <th class="rights-ref">Exigence</th>
-                  <th class="rights-toggle">Accordé</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (code of permissionOrder; track code) {
-                  <tr [class.is-pending]="isPending(code)">
-                    <td>
-                      <span class="right-name">
-                        {{ permissionLabels[code] }}
-                        @if (isPending(code)) {
-                          <span class="pending-tag">modifié</span>
-                        }
-                      </span>
-                      <span class="right-desc">{{ permissionDescriptions[code].summary }}</span>
-                    </td>
-                    <td class="rights-ref num">{{ permissionDescriptions[code].reference }}</td>
-                    <td class="rights-toggle">
-                      <button
-                        class="switch"
-                        type="button"
-                        role="switch"
-                        [class.is-on]="isGranted(code)"
-                        [attr.aria-checked]="isGranted(code)"
-                        [attr.aria-label]="permissionLabels[code]"
-                        (click)="togglePermission(code)"
-                      ></button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <footer class="detail-foot">
-          <span class="foot-note">Chaque modification de droit est journalisée avec son auteur.</span>
-          @if (hasPendingChanges()) {
-            <button class="btn" type="button" (click)="revert()">Annuler les modifications</button>
-          }
-          <button class="btn" type="button">
-            {{ user.status === 'disabled' ? 'Réactiver le compte' : 'Désactiver le compte' }}
-          </button>
-          <button class="btn btn-primary" type="button" [disabled]="!hasPendingChanges()" (click)="save()">
-            Enregistrer
-          </button>
-        </footer>
-
-        @if (notice(); as message) {
-          <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
-        }
-      </section>
-
-      <!-- ---------- journal des modifications ---------- -->
-      <aside class="panel history" aria-label="Historique des modifications">
-        <div class="panel-head">
-          <h2>Historique</h2>
-          <span class="cap">{{ selectedChanges().length }} entrées</span>
-        </div>
-
-        <div class="panel-body">
-          @for (change of selectedChanges(); track change.id) {
-            <article class="change" [class]="'kind-' + change.kind">
-              <div class="change-top">
-                <span class="kind">{{ changeKindLabels[change.kind] }}</span>
-                <span class="when num">{{ change.atLabel }}</span>
+            <!-- droits -->
+            <div class="block">
+              <div class="block-head">
+                <span class="label">Droits accordés</span>
+                <span class="cap">
+                  @if (aDesModifications()) {
+                    {{ modifie() }} modification{{ modifie() > 1 ? 's' : '' }} non enregistrée{{
+                      modifie() > 1 ? 's' : ''
+                    }}
+                  } @else {
+                    {{ compte.permissions.length }} sur {{ catalogue().length }}
+                  }
+                </span>
               </div>
-              <p class="change-summary">{{ change.summary }}</p>
-              @if (change.detail; as detail) {
-                <p class="change-detail">{{ detail }}</p>
+
+              @if (!peutAttribuerDesDroits()) {
+                <p class="hint">
+                  Attribuer un droit demande « manage_permissions », distinct de
+                  « manage_users » : c'est la seule action permettant une élévation de
+                  privilèges, et elle se concède à part.
+                </p>
               }
-              <div class="change-author">
-                <span class="av av-sm">{{ change.authorInitials }}</span>
-                {{ change.authorName }}
-              </div>
-            </article>
-          } @empty {
-            <p class="history-empty">Aucune modification enregistrée pour ce compte.</p>
+
+              <!-- Pas de colonne « hérité » : le cahier des charges ne prévoit
+                   aucun rôle, donc rien à hériter. -->
+              <table class="rights">
+                <thead>
+                  <tr>
+                    <th>Droit</th>
+                    <th class="rights-ref">Code</th>
+                    <th class="rights-toggle">Accordé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (droit of catalogue(); track droit.code) {
+                    <tr [class.is-pending]="enAttente(droit.code)">
+                      <td>
+                        <span class="right-name">
+                          {{ droit.label }}
+                          @if (enAttente(droit.code)) {
+                            <span class="pending-tag">modifié</span>
+                          }
+                        </span>
+                        @if (droit.description; as description) {
+                          <span class="right-desc">{{ description }}</span>
+                        }
+                      </td>
+                      <td class="rights-ref num">{{ droit.code }}</td>
+                      <td class="rights-toggle">
+                        <button
+                          class="switch"
+                          type="button"
+                          role="switch"
+                          [class.is-on]="accorde(droit.code)"
+                          [attr.aria-checked]="accorde(droit.code)"
+                          [attr.aria-label]="droit.label"
+                          [disabled]="
+                            !peutAttribuerDesDroits() || compte.status === 'archived' || enCours()
+                          "
+                          (click)="basculer(droit.code)"
+                        ></button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="3">
+                        Le référentiel des droits est vide. Chaque module insère les siens par
+                        migration.
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <footer class="detail-foot">
+            <span class="foot-note">
+              Un droit retiré est archivé, non supprimé : la trace de qui a pu faire quoi, et
+              quand, est conservée.
+            </span>
+
+            @if (aDesModifications()) {
+              <button class="btn" type="button" (click)="annuler()">
+                Annuler les modifications
+              </button>
+            }
+
+            @if (compte.status !== 'archived') {
+              <button
+                class="btn"
+                type="button"
+                [disabled]="!peutGererLesComptes() || enCours()"
+                (click)="basculerActivation()"
+              >
+                {{ compte.status === 'suspended' ? 'Réactiver le compte' : 'Suspendre le compte' }}
+              </button>
+
+              @if (archivageDemande()) {
+                <button class="btn" type="button" (click)="renoncerArchivage()">Renoncer</button>
+                <button
+                  class="btn btn-danger"
+                  type="button"
+                  [disabled]="enCours()"
+                  (click)="archiver()"
+                >
+                  Confirmer l'archivage
+                </button>
+              } @else {
+                <button
+                  class="btn"
+                  type="button"
+                  [disabled]="!peutGererLesComptes() || enCours()"
+                  (click)="demanderArchivage()"
+                >
+                  Archiver
+                </button>
+              }
+            }
+
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="!aDesModifications() || !peutAttribuerDesDroits() || enCours()"
+              (click)="enregistrer()"
+            >
+              Enregistrer
+            </button>
+          </footer>
+
+          @if (avis(); as message) {
+            <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
           }
-        </div>
-      </aside>
-    } @else {
-      <section class="panel detail">
-        <div class="empty">
-          <h2>Aucun compte</h2>
-          <p>Aucun compte ne correspond à ces filtres.</p>
-        </div>
-      </section>
-    }
-  </div>
+        </section>
+
+        <!-- ---------- historique ---------- -->
+        <aside class="panel history" aria-label="Historique des modifications">
+          <div class="panel-head">
+            <h2>Historique</h2>
+            <span class="cap">module 14</span>
+          </div>
+
+          <div class="panel-body">
+            <p class="history-empty">
+              La base conserve déjà l'historique : chaque attribution de droit porte son auteur et
+              sa date, et une révocation archive la ligne au lieu de l'effacer. Aucune route ne le
+              lit encore — c'est l'objet du module 14 « Activité ».
+            </p>
+          </div>
+        </aside>
+      } @else {
+        <section class="panel detail">
+          <div class="empty">
+            <h2>Aucun compte sélectionné</h2>
+            <p>Choisissez une personne dans la liste.</p>
+          </div>
+        </section>
+      }
+    </div>
+  }
 </div>

@@ -503,3 +503,49 @@
   font-size: 13px;
   color: var(--muted);
 }
+
+
+/* ---------- Creation d'un compte ---------- */
+
+.creation {
+  flex: none;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+}
+
+.creation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  padding: 14px;
+}
+
+.creation-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+/* ---------- Definition d'un mot de passe ---------- */
+
+.pw {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--ground-2);
+
+  .field {
+    flex: 1 1 240px;
+  }
+
+  .hint {
+    flex: 1 1 100%;
+    margin: 0;
+  }
+}

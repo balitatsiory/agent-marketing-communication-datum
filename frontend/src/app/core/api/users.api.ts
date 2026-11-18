@@ -20,6 +20,8 @@ export interface UserDto {
   readonly last_login_at: string | null;
   readonly created_at: string;
   readonly deleted_at: string | null;
+  /** Codes des droits accordés, dans l'ordre d'affichage du référentiel. */
+  readonly permissions: readonly string[];
 }
 
 /** Droit attribuable, tel que `GET /permissions` le renvoie. */
