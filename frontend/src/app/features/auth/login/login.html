@@ -14,7 +14,12 @@
       </div>
 
       <div class="login-social">
-        <button class="btn" type="button" (click)="submit()">
+        <button
+          class="btn"
+          type="button"
+          disabled
+          title="La connexion par Google n'est pas au périmètre livré."
+        >
           <svg class="logo-net" viewBox="0 0 24 24" role="img" aria-label="Google">
             <rect x="2" y="2" width="20" height="20" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.5" />
             <path
@@ -57,7 +62,17 @@
         </div>
       </div>
 
-      <button class="btn btn-primary btn-lg btn-block" type="submit">Se connecter</button>
+      @if (erreur()) {
+        <p class="login-erreur" role="alert">{{ erreur() }}</p>
+      }
+
+      <button
+        class="btn btn-primary btn-lg btn-block"
+        type="submit"
+        [disabled]="enCours()"
+      >
+        {{ enCours() ? 'Connexion…' : 'Se connecter' }}
+      </button>
     </form>
   </main>
 

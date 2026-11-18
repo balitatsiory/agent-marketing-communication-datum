@@ -123,3 +123,14 @@
 .login-foot a:hover {
   color: var(--ink-2);
 }
+
+/* Message de refus de connexion. Rouge sémantique, pas décoratif. */
+.login-erreur {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--danger, #b3261e) 10%, transparent);
+  color: var(--danger, #b3261e);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}

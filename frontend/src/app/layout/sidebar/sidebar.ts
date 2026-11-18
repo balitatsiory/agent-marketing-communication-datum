@@ -65,7 +65,9 @@ export class Sidebar {
    */
   protected seDeconnecter(): void {
     this.fermerMenu();
-    this.session.signOut();
+    // signOut vide l'état local avant d'appeler l'API : on peut naviguer tout
+    // de suite, sans attendre la révocation côté serveur.
+    void this.session.signOut();
     void this.router.navigate(['/connexion']);
   }
 }

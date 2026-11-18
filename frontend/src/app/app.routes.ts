@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+
+import { authGuard } from './core/guards/auth-guard';
 import { AppShell } from './layout/app-shell/app-shell';
 
 /**
@@ -23,6 +25,8 @@ export const routes: Routes = [
   {
     path: '',
     component: AppShell,
+    // Tous les écrans de la coquille exigent une session ouverte.
+    canActivate: [authGuard],
     children: [
       {
         path: 'tableau-de-bord',
