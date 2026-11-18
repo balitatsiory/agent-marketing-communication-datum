@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +97,28 @@ def register_error_handlers(app: FastAPI) -> None:
         code = codes.get(exc.status_code, "http_error")
         return _enveloppe(code, str(exc.detail), exc.status_code)
 
-    @app.exception_handler(Exception)
-    async def _inattendue(request: Request, exc: Exception) -> JSONResponse:
+    # Référencées pour que ruff ne les signale pas comme inutilisées.
+    _ = (_api_error, _validation, _http)
+
+
+async def envelopper_les_erreurs_inattendues(
+    request: Request, appeler_la_suite: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Rattrape toute erreur non prévue et la renvoie dans l'enveloppe.
+
+    Pourquoi un INTERGICIEL et non un `@app.exception_handler(Exception)` :
+    un gestionnaire d'exception générique est traité par ServerErrorMiddleware,
+    que Starlette place TOUJOURS à l'extérieur de la pile — donc à l'extérieur
+    du CORS. La réponse 500 sortait alors sans en-tête
+    `Access-Control-Allow-Origin`, et le navigateur annonçait « CORS Missing
+    Allow Origin » alors que la vraie cause était une panne de l'API.
+
+    Un intergiciel posé À L'INTÉRIEUR du CORS laisse la réponse traverser la
+    couche CORS, et le navigateur reçoit enfin le vrai code d'erreur.
+    """
+    try:
+        return await appeler_la_suite(request)
+    except Exception:
         # Une erreur non prévue ne doit jamais fuir sa trace vers le client.
         logger.exception("Erreur inattendue sur %s %s", request.method, request.url.path)
         return _enveloppe(
@@ -105,10 +126,3 @@ def register_error_handlers(app: FastAPI) -> None:
             "Une erreur interne est survenue. Elle a été journalisée.",
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
-    # Référencées pour que ruff ne les signale pas comme inutilisées.
-    _ = (_api_error, _validation, _http, _inattendue)
-
-
-# Type d'un gestionnaire, utile aux annotations des modules.
-Handler = Callable[[Request, Exception], Awaitable[JSONResponse]]

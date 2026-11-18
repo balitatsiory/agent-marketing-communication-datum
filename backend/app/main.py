@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from app.api.v1 import api_v1_router
 from app.core.config import Settings, get_settings
 from app.core.database import check_database
-from app.core.errors import register_error_handlers
+from app.core.errors import envelopper_les_erreurs_inattendues, register_error_handlers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -89,6 +89,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "displayRequestDuration": True,
         },
     )
+
+    # L'ORDRE COMPTE. Starlette place le dernier intergiciel ajouté le plus à
+    # l'EXTÉRIEUR. L'enveloppe d'erreur est donc ajoutée d'abord, et le CORS
+    # ensuite : une réponse 500 traverse ainsi la couche CORS et porte son
+    # en-tête. Dans l'autre sens, le navigateur annoncerait « CORS Missing
+    # Allow Origin » à chaque panne de l'API, en masquant la vraie cause.
+    app.middleware("http")(envelopper_les_erreurs_inattendues)
 
     if settings.cors_origins:
         app.add_middleware(
