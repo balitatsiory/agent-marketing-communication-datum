@@ -128,6 +128,29 @@ class Settings(BaseSettings):
                     "puis « Manage R2 API Tokens »."
                 )
 
+            # Confusion fréquente : l'adresse S3 du compte n'est pas l'adresse
+            # publique du seau. La première n'accepte que des requêtes signées
+            # et porte le nom du seau dans son chemin ; la seconde est servie en
+            # lecture anonyme et ne le porte pas. Comme url_publique() colle la
+            # clé derrière cette base, s'y tromper produit des URL de média en
+            # erreur 401, visibles seulement dans le navigateur de l'utilisateur.
+            # Un nom de seau S3 ne contient pas de « / ». Colle tel quel dans
+            # l'appel boto3, il produirait une requete refusee des le premier
+            # depot. Faute facile quand on recopie un chemin du tableau de bord.
+            if "/" in self.R2_BUCKET:
+                raise ValueError(
+                    "R2_BUCKET doit porter le seul nom du seau, sans « / » : "
+                    f"lu « {self.R2_BUCKET} »."
+                )
+
+            if "r2.cloudflarestorage.com" in self.R2_PUBLIC_BASE_URL:
+                raise ValueError(
+                    "R2_PUBLIC_BASE_URL porte l'adresse S3 du compte "
+                    "(r2.cloudflarestorage.com), qui n'est pas publique. Y mettre "
+                    "l'URL de développement publique du seau (R2 > le seau > "
+                    "Settings > Public Development URL) ou son domaine personnalisé."
+                )
+
         if self.MEDIA_MAX_STORED_BYTES > self.MEDIA_MAX_UPLOAD_BYTES:
             raise ValueError(
                 "MEDIA_MAX_STORED_BYTES dépasse MEDIA_MAX_UPLOAD_BYTES : un fichier "
