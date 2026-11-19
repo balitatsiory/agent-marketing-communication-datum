@@ -1,4 +1,7 @@
 import { Routes } from '@angular/router';
+
+import { authGuard } from './core/guards/auth-guard';
+import { permissionGuard } from './core/guards/permission-guard';
 import { AppShell } from './layout/app-shell/app-shell';
 
 /**
@@ -23,6 +26,8 @@ export const routes: Routes = [
   {
     path: '',
     component: AppShell,
+    // Tous les écrans de la coquille exigent une session ouverte.
+    canActivate: [authGuard],
     children: [
       {
         path: 'tableau-de-bord',
@@ -204,8 +209,26 @@ export const routes: Routes = [
       {
         path: 'utilisateurs',
         title: 'Habilitations et utilisateurs · IAGORA',
+        canActivate: [permissionGuard('manage_users')],
         loadComponent: () =>
           import('./features/admin/user-list/user-list').then((m) => m.UserList),
+      },
+
+      {
+        path: 'droits',
+        title: 'Référentiel des droits · IAGORA',
+        canActivate: [permissionGuard('manage_users')],
+        loadComponent: () =>
+          import('./features/admin/permission-list/permission-list').then(
+            (m) => m.PermissionList,
+          ),
+      },
+
+      {
+        path: 'acces-refuse',
+        title: 'Accès refusé · IAGORA',
+        loadComponent: () =>
+          import('./features/auth/access-denied/access-denied').then((m) => m.AccessDenied),
       },
 
 

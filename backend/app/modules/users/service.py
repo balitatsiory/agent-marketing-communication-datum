@@ -1,154 +1,239 @@
-"""Règles métier des utilisateurs : unicité de l'email, activation, archivage, droits.
-
-C'est le seul point d'entrée des autres modules : ils appellent ces fonctions,
-jamais le routeur ni les modèles.
-"""
+"""Règles métier du module Utilisateurs et droits."""
 
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ApiError, ConflictError, NotFoundError
+from app.core.pagination import PageParams
 from app.core.security import hash_password, verify_password
-from app.modules.users.constants import PermissionCode
+from app.modules.auth.models import USER_ARCHIVED, RefreshToken
 from app.modules.users.models import Permission, User, UserPermission
 from app.modules.users.schemas import UserCreate, UserUpdate
 
 
-def normalize_email(email: str) -> str:
-    """Un email est comparé en minuscules : Marie@… et marie@… sont le même compte."""
-    return email.strip().lower()
+async def _email_est_pris(session: AsyncSession, email: str, sauf: int | None = None) -> bool:
+    """L'unicité ignore la casse et ne regarde que les comptes non archivés.
 
-
-async def find_user(session: AsyncSession, id_users: int) -> User | None:
-    """Renvoie un utilisateur actif, ou None."""
-    requete = select(User).where(User.id_users == id_users, User.deleted_at.is_(None))
-    return (await session.execute(requete)).scalar_one_or_none()
-
-
-async def get_user(session: AsyncSession, id_users: int) -> User:
-    """Renvoie un utilisateur actif, ou lève NotFoundError."""
-    user = await find_user(session, id_users)
-    if user is None:
-        raise NotFoundError("Utilisateur introuvable.", code="user_not_found")
-    return user
-
-
-async def find_user_by_email(session: AsyncSession, email: str) -> User | None:
-    requete = select(User).where(User.email == normalize_email(email), User.deleted_at.is_(None))
-    return (await session.execute(requete)).scalar_one_or_none()
-
-
-async def list_users(session: AsyncSession, *, include_archived: bool = False) -> Sequence[User]:
-    requete = select(User).order_by(User.last_name, User.first_name)
-    if not include_archived:
-        requete = requete.where(User.deleted_at.is_(None))
-    return (await session.execute(requete)).scalars().all()
-
-
-async def list_permissions(session: AsyncSession) -> Sequence[Permission]:
-    requete = select(Permission).order_by(Permission.sort_order)
-    return (await session.execute(requete)).scalars().all()
-
-
-async def _permissions_par_codes(
-    session: AsyncSession, codes: Sequence[PermissionCode]
-) -> list[Permission]:
-    """Traduit des codes en droits, en vérifiant qu'ils existent tous."""
-    if not codes:
-        return []
-    valeurs = [code.value for code in codes]
-    requete = select(Permission).where(Permission.code.in_(valeurs))
-    trouves = list((await session.execute(requete)).scalars().all())
-    if len(trouves) != len(set(valeurs)):
-        manquants = set(valeurs) - {permission.code for permission in trouves}
-        raise NotFoundError(
-            f"Droits inconnus : {', '.join(sorted(manquants))}.", code="permission_not_found"
-        )
-    return trouves
-
-
-async def set_permissions(
-    session: AsyncSession, user: User, codes: Sequence[PermissionCode]
-) -> User:
-    """Remplace les droits d'un utilisateur par la liste fournie."""
-    user.permissions = await _permissions_par_codes(session, codes)
-    await session.flush()
-    return user
-
-
-async def create_user(session: AsyncSession, payload: UserCreate) -> User:
-    """Crée un compte. L'email doit être libre."""
-    email = normalize_email(payload.email)
-    if await find_user_by_email(session, email) is not None:
-        raise ConflictError("Cet email est déjà utilisé.", code="email_already_used")
-
-    user = User(
-        email=email,
-        password_hash=hash_password(payload.password),
-        first_name=payload.first_name.strip(),
-        last_name=payload.last_name.strip(),
-        is_active=True,
+    La base l'impose déjà par un index unique partiel. On vérifie en amont pour
+    renvoyer un 409 explicite plutôt qu'une violation de contrainte.
+    """
+    requete = select(User.id_users).where(
+        func.lower(User.email) == email.lower(),
+        User.deleted_at.is_(None),
     )
-    user.permissions = await _permissions_par_codes(session, payload.permissions)
-    session.add(user)
-    await session.flush()
-    return user
+    if sauf is not None:
+        requete = requete.where(User.id_users != sauf)
+    return (await session.execute(requete)).first() is not None
 
 
-async def update_user(session: AsyncSession, id_users: int, payload: UserUpdate) -> User:
-    """Modifie un compte. Seuls les champs fournis sont touchés."""
-    user = await get_user(session, id_users)
+async def lister(
+    session: AsyncSession, params: PageParams, inclure_archives: bool = False
+) -> tuple[list[User], int]:
+    conditions = [] if inclure_archives else [User.deleted_at.is_(None)]
 
-    if payload.first_name is not None:
-        user.first_name = payload.first_name.strip()
-    if payload.last_name is not None:
-        user.last_name = payload.last_name.strip()
-    if payload.is_active is not None:
-        user.is_active = payload.is_active
-    if payload.permissions is not None:
-        user.permissions = await _permissions_par_codes(session, payload.permissions)
+    total = (
+        await session.execute(select(func.count()).select_from(User).where(*conditions))
+    ).scalar_one()
 
-    await session.flush()
-    return user
-
-
-async def change_password(
-    session: AsyncSession, user: User, current_password: str, new_password: str
-) -> None:
-    """Change le mot de passe après vérification de l'ancien."""
-    if not verify_password(current_password, user.password_hash):
-        raise ConflictError("Le mot de passe actuel est incorrect.", code="wrong_password")
-    user.password_hash = hash_password(new_password)
-    await session.flush()
-
-
-async def archive_user(session: AsyncSession, id_users: int) -> User:
-    """Archive un compte : il disparaît des listes, mais l'historique y renvoie encore."""
-    user = await get_user(session, id_users)
-    user.deleted_at = datetime.now(UTC)
-    user.is_active = False
-    await session.flush()
-    return user
-
-
-async def touch_last_login(session: AsyncSession, user: User) -> None:
-    user.last_login_at = datetime.now(UTC)
-    await session.flush()
-
-
-async def count_admins(session: AsyncSession) -> int:
-    """Nombre d'administrateurs actifs. Sert à ne pas supprimer le dernier."""
     requete = (
         select(User)
-        .join(UserPermission, UserPermission.id_users == User.id_users)
+        .where(*conditions)
+        .order_by(User.last_name, User.first_name)
+        .offset(params.offset)
+        .limit(params.size)
+    )
+    return list((await session.execute(requete)).scalars().all()), int(total)
+
+
+async def obtenir(session: AsyncSession, id_users: int) -> User:
+    utilisateur = await session.get(User, id_users)
+    if utilisateur is None:
+        raise NotFoundError("Cet utilisateur n'existe pas.")
+    return utilisateur
+
+
+async def creer(session: AsyncSession, donnees: UserCreate, par: User) -> User:
+    if await _email_est_pris(session, donnees.email):
+        raise ConflictError("Un compte utilise déjà cette adresse.")
+
+    utilisateur = User(
+        email=donnees.email,
+        password_hash=hash_password(donnees.password),
+        first_name=donnees.first_name,
+        last_name=donnees.last_name,
+        is_active=True,
+        id_users_created_by=par.id_users,
+    )
+    session.add(utilisateur)
+    await session.flush()
+    return utilisateur
+
+
+async def modifier(session: AsyncSession, id_users: int, donnees: UserUpdate, par: User) -> User:
+    utilisateur = await obtenir(session, id_users)
+    if utilisateur.deleted_at is not None:
+        raise ConflictError("Ce compte est archivé : il n'est plus modifiable.")
+
+    champs = donnees.model_dump(exclude_unset=True)
+    if "email" in champs and await _email_est_pris(session, champs["email"], sauf=id_users):
+        raise ConflictError("Un compte utilise déjà cette adresse.")
+
+    for nom, valeur in champs.items():
+        setattr(utilisateur, nom, valeur)
+    utilisateur.id_users_changed_by = par.id_users
+    await session.flush()
+    return utilisateur
+
+
+async def definir_mot_de_passe(
+    session: AsyncSession, id_users: int, mot_de_passe: str, par: User
+) -> None:
+    """Changement par un administrateur : aucun courriel, aucun lien.
+
+    Le cahier des charges exclut toute réinitialisation en libre-service ; ce
+    geste reste donc purement administratif.
+    """
+    utilisateur = await obtenir(session, id_users)
+    utilisateur.password_hash = hash_password(mot_de_passe)
+    utilisateur.id_users_changed_by = par.id_users
+    await session.flush()
+
+
+async def changer_son_mot_de_passe(
+    session: AsyncSession, utilisateur: User, ancien: str, nouveau: str
+) -> None:
+    if not verify_password(ancien, utilisateur.password_hash):
+        raise ApiError("wrong_password", "Le mot de passe actuel est incorrect.", 400)
+    utilisateur.password_hash = hash_password(nouveau)
+    utilisateur.id_users_changed_by = utilisateur.id_users
+    await session.flush()
+
+
+async def archiver(session: AsyncSession, id_users: int, par: User) -> None:
+    """Archive un compte et révoque ses sessions dans la MÊME transaction.
+
+    « On garde l'histoire, on détruit le pouvoir » : la ligne demeure, puisque
+    l'utilisateur reste l'auteur de ses publications passées, mais ses sessions
+    ouvertes cessent immédiatement.
+
+    La révocation est écrite ici et non appelée au module Authentification : un
+    module importe les modèles de ceux dont il dépend, jamais leur service.
+    """
+    utilisateur = await obtenir(session, id_users)
+    if utilisateur.deleted_at is not None:
+        raise ConflictError("Ce compte est déjà archivé.")
+    if utilisateur.id_users == par.id_users:
+        raise ConflictError("On ne peut pas archiver son propre compte.")
+
+    maintenant = datetime.now(UTC)
+    utilisateur.deleted_at = maintenant
+    utilisateur.id_users_deleted_by = par.id_users
+
+    jetons = (
+        (
+            await session.execute(
+                select(RefreshToken).where(
+                    RefreshToken.id_users == id_users,
+                    RefreshToken.revoked_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for jeton in jetons:
+        jeton.revoked_at = maintenant
+        jeton.revoked_reason = USER_ARCHIVED
+    await session.flush()
+
+
+async def droits_par_utilisateur(
+    session: AsyncSession, id_utilisateurs: Sequence[int]
+) -> dict[int, list[str]]:
+    """Codes des droits actifs, pour plusieurs utilisateurs en UNE requête.
+
+    L'écran des habilitations affiche un résumé des droits sous chaque nom :
+    sans cette lecture groupée, afficher une page de cinquante comptes
+    demanderait cinquante requêtes.
+    """
+    if not id_utilisateurs:
+        return {}
+
+    requete = (
+        select(UserPermission.id_users, Permission.code)
         .join(Permission, Permission.id_permissions == UserPermission.id_permissions)
         .where(
-            Permission.code == PermissionCode.ADMIN.value,
-            User.deleted_at.is_(None),
-            User.is_active.is_(True),
+            UserPermission.id_users.in_(id_utilisateurs),
+            UserPermission.deleted_at.is_(None),
         )
+        .order_by(UserPermission.id_users, Permission.sort_order)
     )
-    return len((await session.execute(requete)).scalars().all())
+
+    par_utilisateur: dict[int, list[str]] = {id_users: [] for id_users in id_utilisateurs}
+    for id_users, code in (await session.execute(requete)).all():
+        par_utilisateur[id_users].append(code)
+    return par_utilisateur
+
+
+async def lister_droits(session: AsyncSession) -> list[Permission]:
+    requete = select(Permission).order_by(Permission.sort_order)
+    return list((await session.execute(requete)).scalars().all())
+
+
+async def definir_droits(
+    session: AsyncSession, id_users: int, codes: list[str], par: User
+) -> list[str]:
+    """Remplace l'ensemble des droits par celui fourni.
+
+    Les droits retirés sont ARCHIVÉS, non supprimés : savoir qui a détenu quel
+    droit et à quelle période fait partie de la traçabilité.
+    """
+    utilisateur = await obtenir(session, id_users)
+    if utilisateur.deleted_at is not None:
+        raise ConflictError("Ce compte est archivé : ses droits ne sont plus modifiables.")
+
+    voulus = set(codes)
+    connus = {droit.code: droit.id_permissions for droit in await lister_droits(session)}
+    inconnus = sorted(voulus - set(connus))
+    if inconnus:
+        raise ApiError(
+            "unknown_permission",
+            f"Droits inconnus : {', '.join(inconnus)}.",
+            400,
+        )
+
+    actuelles = (
+        (
+            await session.execute(
+                select(UserPermission).where(
+                    UserPermission.id_users == id_users,
+                    UserPermission.deleted_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    par_id = {ligne.id_permissions: ligne for ligne in actuelles}
+    ids_voulus = {connus[code] for code in voulus}
+
+    maintenant = datetime.now(UTC)
+    for id_permissions, ligne in par_id.items():
+        if id_permissions not in ids_voulus:
+            ligne.deleted_at = maintenant
+            ligne.id_users_deleted_by = par.id_users
+
+    for id_permissions in ids_voulus - set(par_id):
+        session.add(
+            UserPermission(
+                id_users=id_users,
+                id_permissions=id_permissions,
+                id_users_created_by=par.id_users,
+            )
+        )
+
+    await session.flush()
+    return (await droits_par_utilisateur(session, [id_users]))[id_users]

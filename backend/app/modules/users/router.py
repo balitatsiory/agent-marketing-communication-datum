@@ -1,144 +1,138 @@
-"""Endpoints de gestion des utilisateurs et de leurs droits."""
+"""Routes du module Utilisateurs et droits. Aucune règle métier ici."""
 
-from fastapi import APIRouter, Depends, Path, status
+from collections.abc import Sequence
+from typing import Annotated
 
-from app.core.deps import CurrentUser, SessionDep, require_permission
-from app.core.errors import (
-    REPONSE_CONFLIT,
-    REPONSE_INTROUVABLE,
-    REPONSES_AUTHENTIFIEES,
-    ConflictError,
-)
+from fastapi import APIRouter, Depends, Query, Response, status
+
+from app.core.deps import SessionDep
+from app.core.pagination import Page, PageParams, page_params
 from app.modules.users import service
-from app.modules.users.constants import PermissionCode
+from app.modules.users.constants import MANAGE_PERMISSIONS, MANAGE_USERS
+from app.modules.users.deps import require
 from app.modules.users.models import User
 from app.modules.users.schemas import (
-    PasswordChange,
+    PasswordSet,
+    PermissionCodes,
     PermissionRead,
     UserCreate,
     UserRead,
     UserUpdate,
 )
 
-router = APIRouter(prefix="/users", tags=["utilisateurs"])
-permissions_router = APIRouter(prefix="/permissions", tags=["utilisateurs"])
+router = APIRouter(tags=["utilisateurs"])
 
-AdminRequired = Depends(require_permission(PermissionCode.ADMIN))
-IdUsers = Path(description="Identifiant de l'utilisateur.", examples=[2])
+Params = Annotated[PageParams, Depends(page_params)]
+GestionnaireUtilisateurs = Annotated[User, Depends(require(MANAGE_USERS))]
+GestionnaireDroits = Annotated[User, Depends(require(MANAGE_PERMISSIONS))]
 
 
-@router.get(
-    "",
-    response_model=list[UserRead],
-    summary="Lister les comptes",
-    responses=REPONSES_AUTHENTIFIEES,
-)
-async def list_users(session: SessionDep, user: User = AdminRequired) -> list[UserRead]:
-    """Liste les comptes actifs. Les comptes archivés n'y figurent pas."""
-    return [UserRead.from_model(compte) for compte in await service.list_users(session)]
+async def _avec_droits(session: SessionDep, utilisateurs: Sequence[User]) -> list[UserRead]:
+    """Compose la lecture d'un ou plusieurs comptes avec leurs droits.
+
+    Une seule requête quel que soit le nombre de comptes.
+    """
+    codes = await service.droits_par_utilisateur(session, [u.id_users for u in utilisateurs])
+    return [
+        UserRead.model_validate(u).model_copy(update={"permissions": codes[u.id_users]})
+        for u in utilisateurs
+    ]
+
+
+@router.get("/users", response_model=Page[UserRead], summary="Lister les utilisateurs")
+async def lister(
+    session: SessionDep,
+    params: Params,
+    _: GestionnaireUtilisateurs,
+    inclure_archives: bool = Query(
+        False, alias="include_archived", description="Inclure les comptes archivés."
+    ),
+) -> Page[UserRead]:
+    utilisateurs, total = await service.lister(session, params, inclure_archives)
+    return Page[UserRead].build(await _avec_droits(session, utilisateurs), total, params)
 
 
 @router.post(
-    "",
+    "/users",
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Créer un compte",
-    responses={**REPONSES_AUTHENTIFIEES, **REPONSE_CONFLIT},
+    summary="Créer un utilisateur",
+    responses={409: {"description": "Adresse déjà utilisée."}},
 )
-async def create_user(
-    payload: UserCreate, session: SessionDep, user: User = AdminRequired
+async def creer(
+    corps: UserCreate, session: SessionDep, par: GestionnaireUtilisateurs, reponse: Response
 ) -> UserRead:
-    """Crée un compte et lui attribue ses droits (F-22).
-
-    Le premier administrateur se crée en ligne de commande, puisque cet endpoint
-    exige déjà le droit « administrer » :
-    `python -m app.cli create-admin --email … --first-name … --last-name …`
-    """
-    return UserRead.from_model(await service.create_user(session, payload))
+    utilisateur = await service.creer(session, corps, par)
+    reponse.headers["Location"] = f"/api/v1/users/{utilisateur.id_users}"
+    return (await _avec_droits(session, [utilisateur]))[0]
 
 
-@router.get(
-    "/{id_users}",
-    response_model=UserRead,
-    summary="Consulter un compte",
-    responses={**REPONSES_AUTHENTIFIEES, **REPONSE_INTROUVABLE},
-)
-async def get_user(
-    session: SessionDep, id_users: int = IdUsers, user: User = AdminRequired
+@router.get("/users/{id_users}", response_model=UserRead, summary="Lire un utilisateur")
+async def obtenir(id_users: int, session: SessionDep, _: GestionnaireUtilisateurs) -> UserRead:
+    utilisateur = await service.obtenir(session, id_users)
+    return (await _avec_droits(session, [utilisateur]))[0]
+
+
+@router.patch("/users/{id_users}", response_model=UserRead, summary="Modifier un utilisateur")
+async def modifier(
+    id_users: int, corps: UserUpdate, session: SessionDep, par: GestionnaireUtilisateurs
 ) -> UserRead:
-    """Renvoie un compte et ses droits."""
-    return UserRead.from_model(await service.get_user(session, id_users))
+    utilisateur = await service.modifier(session, id_users, corps, par)
+    return (await _avec_droits(session, [utilisateur]))[0]
 
 
 @router.patch(
-    "/{id_users}",
-    response_model=UserRead,
-    summary="Modifier un compte",
-    responses={**REPONSES_AUTHENTIFIEES, **REPONSE_INTROUVABLE},
+    "/users/{id_users}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Changer le mot de passe d'un utilisateur",
+    description=(
+        "Réservé aux administrateurs. N'envoie aucun courriel et ne produit aucun "
+        "lien : le cahier des charges exclut toute réinitialisation en libre-service."
+    ),
 )
-async def update_user(
-    payload: UserUpdate,
-    session: SessionDep,
-    id_users: int = IdUsers,
-    user: User = AdminRequired,
-) -> UserRead:
-    """Modifie un compte. Seuls les champs fournis sont touchés.
-
-    Fournir `permissions` **remplace** la liste des droits ; l'omettre la laisse intacte.
-    """
-    return UserRead.from_model(await service.update_user(session, id_users, payload))
+async def definir_mot_de_passe(
+    id_users: int, corps: PasswordSet, session: SessionDep, par: GestionnaireUtilisateurs
+) -> None:
+    await service.definir_mot_de_passe(session, id_users, corps.password, par)
 
 
 @router.delete(
-    "/{id_users}",
+    "/users/{id_users}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Archiver un compte",
-    responses={**REPONSES_AUTHENTIFIEES, **REPONSE_INTROUVABLE, **REPONSE_CONFLIT},
+    summary="Archiver un utilisateur",
+    description=(
+        "Archivage et non suppression : le compte sort des listes mais reste "
+        "l'auteur de ses publications passées. Ses sessions ouvertes sont "
+        "révoquées dans la même transaction."
+    ),
+    responses={409: {"description": "Compte déjà archivé, ou son propre compte."}},
 )
-async def archive_user(
-    session: SessionDep, id_users: int = IdUsers, user: User = AdminRequired
-) -> None:
-    """Archive un compte : il disparaît des listes, l'historique y renvoie encore.
-
-    Deux refus volontaires : archiver **son propre** compte, et archiver **le dernier**
-    administrateur — plus personne ne pourrait alors administrer la plateforme.
-    """
-    if id_users == user.id_users:
-        raise ConflictError(
-            "Vous ne pouvez pas archiver votre propre compte.", code="self_archive_forbidden"
-        )
-    cible = await service.get_user(session, id_users)
-    if (
-        PermissionCode.ADMIN.value in cible.permission_codes
-        and await service.count_admins(session) <= 1
-    ):
-        raise ConflictError("Impossible d'archiver le dernier administrateur.", code="last_admin")
-    await service.archive_user(session, id_users)
+async def archiver(id_users: int, session: SessionDep, par: GestionnaireUtilisateurs) -> None:
+    await service.archiver(session, id_users, par)
 
 
-@router.post(
-    "/me/password",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Changer son mot de passe",
-    responses={**REPONSES_AUTHENTIFIEES, **REPONSE_CONFLIT},
-)
-async def change_password(payload: PasswordChange, session: SessionDep, user: CurrentUser) -> None:
-    """Change son propre mot de passe, après vérification de l'ancien.
-
-    Aucun droit particulier n'est requis : chacun gère son compte.
-    """
-    await service.change_password(session, user, payload.current_password, payload.new_password)
-
-
-@permissions_router.get(
-    "",
+@router.get(
+    "/permissions",
     response_model=list[PermissionRead],
     summary="Lister les droits attribuables",
-    responses=REPONSES_AUTHENTIFIEES,
 )
-async def list_permissions(session: SessionDep, user: CurrentUser) -> list[PermissionRead]:
-    """Liste les cinq droits du cahier des charges, pour l'écran Utilisateurs."""
-    return [
-        PermissionRead.model_validate(permission)
-        for permission in await service.list_permissions(session)
-    ]
+async def lister_droits(session: SessionDep, _: GestionnaireUtilisateurs) -> list[PermissionRead]:
+    return [PermissionRead.model_validate(d) for d in await service.lister_droits(session)]
+
+
+@router.put(
+    "/users/{id_users}/permissions",
+    response_model=list[str],
+    summary="Définir les droits d'un utilisateur",
+    description=(
+        "Remplace l'ensemble complet des droits. Les droits retirés sont archivés, "
+        "non supprimés. Demande le droit « manage_permissions », distinct de "
+        "« manage_users » : attribuer des droits est la seule action permettant "
+        "une élévation de privilèges."
+    ),
+    responses={400: {"description": "Un ou plusieurs codes de droits sont inconnus."}},
+)
+async def definir_droits(
+    id_users: int, corps: PermissionCodes, session: SessionDep, par: GestionnaireDroits
+) -> list[str]:
+    return await service.definir_droits(session, id_users, corps.codes, par)

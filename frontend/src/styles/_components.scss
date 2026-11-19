@@ -32,7 +32,30 @@
 .btn-block { width: 100%; justify-content: center; }
 .btn-icon  { width: 34px; padding: 0; justify-content: center; }
 
+/* Variante d'alerte, pour un geste difficilement reversible : l'archivage
+   d'un compte. Elle emprunte le role 'danger' du systeme de couleurs plutot
+   que d'inventer un rouge a elle. */
+.btn-danger {
+  @include roles.role('danger');
+  border-color: var(--line); background: var(--tint); color: var(--deep);
+}
+.btn-danger:hover { border-color: var(--hue); color: var(--deep); }
+
 .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- Bandeau d'etat, en tete de page ---------- */
+
+.banner {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 13px; margin-bottom: 14px;
+  border: 1px solid var(--border-2); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--ink-2); font-size: 13px;
+}
+.banner .btn { margin-left: auto; }
+.banner-error {
+  @include roles.role('danger');
+  border-color: var(--line); background: var(--tint); color: var(--deep);
+}
 
 /* ---------- Pastilles de filtre ---------- */
 

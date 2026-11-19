@@ -1,0 +1,354 @@
+{
+  "name": "Statistiques des comptes Meta (test reseaux.html)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Test des statistiques de compte\n\nAlimente les 4 chiffres de `prototype/reseaux.html` :\npublications, abonnés, vues du profil, engagement.\n\n### Avant d'exécuter\n1. Créer une identification **Header Auth** nommée `Meta Graph - jeton de page` :\n   - Name : `Authorization`\n   - Value : `Bearer EAA...` (jeton de **Page**, jamais commité)\n2. Renseigner `pageId` et `igUserId` dans le nœud **Config**.\n3. Exécuter, puis lire la sortie du nœud **Consolider**.\n\nAucune donnée n'est écrite : ce workflow ne fait que lire.",
+        "height": 420,
+        "width": 420,
+        "color": 4
+      },
+      "id": "note-intro",
+      "name": "Mode d'emploi",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-380, 40]
+    },
+    {
+      "parameters": {},
+      "id": "trigger-manual",
+      "name": "Executer le test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "apiVersion",
+              "value": "v26.0",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "pageId",
+              "value": "REMPLACER_PAGE_ID",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "igUserId",
+              "value": "REMPLACER_IG_USER_ID",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "days",
+              "value": "={{ 30 }}",
+              "type": "number"
+            },
+            {
+              "id": "a5",
+              "name": "since",
+              "value": "={{ Math.floor(Date.now() / 1000) - 30 * 86400 }}",
+              "type": "number"
+            },
+            {
+              "id": "a6",
+              "name": "until",
+              "value": "={{ Math.floor(Date.now() / 1000) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $json.apiVersion }}/{{ $json.pageId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,username,link,fan_count,followers_count"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb-page",
+      "name": "FB - compte",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.apiVersion }}/{{ $('Config').first().json.pageId }}/insights",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "metric",
+              "value": "page_follows,page_views_total,page_post_engagements,page_impressions"
+            },
+            {
+              "name": "period",
+              "value": "day"
+            },
+            {
+              "name": "since",
+              "value": "={{ $('Config').first().json.since }}"
+            },
+            {
+              "name": "until",
+              "value": "={{ $('Config').first().json.until }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb-insights",
+      "name": "FB - statistiques",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.apiVersion }}/{{ $('Config').first().json.pageId }}/published_posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,created_time"
+            },
+            {
+              "name": "since",
+              "value": "={{ $('Config').first().json.since }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb-posts",
+      "name": "FB - publications 30j",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.apiVersion }}/{{ $('Config').first().json.igUserId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,username,followers_count,media_count"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ig-compte",
+      "name": "IG - compte",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1220, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.apiVersion }}/{{ $('Config').first().json.igUserId }}/insights",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "metric",
+              "value": "reach,profile_views"
+            },
+            {
+              "name": "period",
+              "value": "day"
+            },
+            {
+              "name": "since",
+              "value": "={{ $('Config').first().json.since }}"
+            },
+            {
+              "name": "until",
+              "value": "={{ $('Config').first().json.until }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ig-insights",
+      "name": "IG - statistiques",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.apiVersion }}/{{ $('Config').first().json.igUserId }}/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,timestamp,media_product_type,like_count,comments_count,permalink"
+            },
+            {
+              "name": "since",
+              "value": "={{ $('Config').first().json.since }}"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ig-medias",
+      "name": "IG - publications 30j",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1660, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Meta Graph - jeton de page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Consolide les reponses Meta en une ligne par compte,\n// dans l'ordre des colonnes de prototype/reseaux.html.\n\nconst cfg = $('Config').first().json;\n\n// --- somme d'une serie 'day' renvoyee par /insights ---\nfunction sumMetric(payload, name) {\n  const serie = (payload.data || []).find((m) => m.name === name);\n  if (!serie) return null;\n  return (serie.values || []).reduce((total, v) => total + (Number(v.value) || 0), 0);\n}\n\n// --- derniere valeur connue d'une serie 'day' ---\nfunction lastMetric(payload, name) {\n  const serie = (payload.data || []).find((m) => m.name === name);\n  if (!serie || !serie.values || !serie.values.length) return null;\n  return Number(serie.values[serie.values.length - 1].value) || 0;\n}\n\nconst fbPage = $('FB - compte').first().json;\nconst fbIns = $('FB - statistiques').first().json;\nconst fbPosts = $('FB - publications 30j').first().json;\nconst igUser = $('IG - compte').first().json;\nconst igIns = $('IG - statistiques').first().json;\nconst igMedia = $('IG - publications 30j').first().json;\n\n// ---------- Facebook ----------\nconst fbImpressions = sumMetric(fbIns, 'page_impressions');\nconst fbEngagements = sumMetric(fbIns, 'page_post_engagements');\nconst facebook = {\n  reseau: 'facebook',\n  compte: fbPage.name || null,\n  externalMetaId: fbPage.id || null,\n  publications30j: (fbPosts.data || []).length,\n  abonnes: fbPage.followers_count ?? fbPage.fan_count ?? lastMetric(fbIns, 'page_follows'),\n  vuesProfil30j: sumMetric(fbIns, 'page_views_total'),\n  // engagement = interactions / affichages, sur 30 jours\n  engagementPct: fbImpressions ? Number(((fbEngagements / fbImpressions) * 100).toFixed(2)) : null,\n  posts30jTronque: (fbPosts.paging && fbPosts.paging.next) ? true : false,\n};\n\n// ---------- Instagram ----------\nconst medias = igMedia.data || [];\nconst interactions = medias.reduce(\n  (total, m) => total + (Number(m.like_count) || 0) + (Number(m.comments_count) || 0),\n  0,\n);\nconst abonnesIg = Number(igUser.followers_count) || 0;\nconst instagram = {\n  reseau: 'instagram',\n  compte: igUser.username || null,\n  externalMetaId: igUser.id || null,\n  publications30j: medias.length,\n  publicationsTotal: igUser.media_count ?? null,\n  abonnes: abonnesIg || null,\n  vuesProfil30j: sumMetric(igIns, 'profile_views'),\n  portee30j: sumMetric(igIns, 'reach'),\n  // engagement = interactions moyennes par publication / abonnes\n  engagementPct:\n    medias.length && abonnesIg\n      ? Number(((interactions / medias.length / abonnesIg) * 100).toFixed(2))\n      : null,\n  medias30jTronque: (igMedia.paging && igMedia.paging.next) ? true : false,\n};\n\n// ---------- indicateurs manquants, a verifier pendant le test ----------\nconst aVerifier = [];\nif (facebook.vuesProfil30j === null) aVerifier.push('page_views_total absent de la reponse Facebook');\nif (fbImpressions === null) aVerifier.push('page_impressions absent : engagement Facebook non calculable');\nif (instagram.vuesProfil30j === null) aVerifier.push('profile_views absent de la reponse Instagram');\nif (instagram.portee30j === null) aVerifier.push('reach absent de la reponse Instagram');\n\nreturn [\n  {\n    json: {\n      collecteLe: new Date().toISOString(),\n      periodeJours: cfg.days,\n      comptes: [facebook, instagram],\n      aVerifier,\n    },\n  },\n];\n"
+      },
+      "id": "consolider",
+      "name": "Consolider",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 300]
+    },
+    {
+      "parameters": {
+        "content": "### Formules d'engagement\n\nMeta ne renvoie **aucun** taux d'engagement : il se calcule.\nDeux formules differentes sont utilisees ici, faute d'indicateurs communs :\n\n- **Facebook** : `page_post_engagements / page_impressions` sur 30 jours\n- **Instagram** : interactions moyennes par publication / abonnes\n\nLes deux chiffres ne sont donc **pas comparables** entre eux.\nA arbitrer avec l'encadrement avant de figer l'ecran.",
+        "height": 300,
+        "width": 420,
+        "color": 3
+      },
+      "id": "note-engagement",
+      "name": "Note engagement",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1660, 480]
+    },
+    {
+      "parameters": {
+        "content": "### Limites connues\n\n- Donnees jusqu'a **48 h** de retard.\n- `since` / `until` en **secondes** depuis 1970.\n- 100 elements par page : si `paging.next` existe, la liste est **tronquee**\n  (signale par `posts30jTronque` / `medias30jTronque`).\n- Certains indicateurs de compte n'existent pas en dessous de **100 abonnes**.\n- Erreur **190** = jeton expire ; **4 / 17 / 613** = quota atteint.",
+        "height": 300,
+        "width": 420,
+        "color": 5
+      },
+      "id": "note-limites",
+      "name": "Note limites",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2100, 480]
+    }
+  ],
+  "connections": {
+    "Executer le test": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "FB - compte", "type": "main", "index": 0 }]]
+    },
+    "FB - compte": {
+      "main": [[{ "node": "FB - statistiques", "type": "main", "index": 0 }]]
+    },
+    "FB - statistiques": {
+      "main": [[{ "node": "FB - publications 30j", "type": "main", "index": 0 }]]
+    },
+    "FB - publications 30j": {
+      "main": [[{ "node": "IG - compte", "type": "main", "index": 0 }]]
+    },
+    "IG - compte": {
+      "main": [[{ "node": "IG - statistiques", "type": "main", "index": 0 }]]
+    },
+    "IG - statistiques": {
+      "main": [[{ "node": "IG - publications 30j", "type": "main", "index": 0 }]]
+    },
+    "IG - publications 30j": {
+      "main": [[{ "node": "Consolider", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "iagora-prototype"
+  },
+  "tags": []
+}

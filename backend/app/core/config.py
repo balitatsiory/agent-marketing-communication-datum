@@ -1,8 +1,8 @@
 """Réglages de l'application, lus depuis .env via pydantic-settings.
 
-Aucune valeur d'environnement n'est lue ailleurs : tout passe par `get_settings()`.
-Un réglage manquant ou incohérent empêche le démarrage, plutôt que de provoquer
-une erreur plus tard, en pleine utilisation.
+Aucune variable d'environnement n'est lue ailleurs : tout passe par
+`get_settings()`. Un réglage manquant ou incohérent empêche le démarrage plutôt
+que de provoquer une panne plus tard, en pleine utilisation.
 """
 
 from functools import lru_cache
@@ -13,7 +13,6 @@ from pydantic import PostgresDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["local", "test", "production"]
-SocialGateway = Literal["n8n", "meta"]
 
 
 class Settings(BaseSettings):
@@ -31,6 +30,7 @@ class Settings(BaseSettings):
 
     # --- base de données ---
     DATABASE_URL: PostgresDsn
+    TEST_DATABASE_URL: PostgresDsn | None = None
 
     # --- sécurité ---
     JWT_SECRET_KEY: SecretStr
@@ -41,19 +41,6 @@ class Settings(BaseSettings):
     # --- interface web ---
     # Liste d'origines séparées par des virgules ; voir la propriété cors_origins.
     CORS_ORIGINS: str = ""
-
-    # --- réseaux sociaux ---
-    SOCIAL_GATEWAY: SocialGateway = "n8n"
-    N8N_BASE_URL: str | None = None
-    META_API_VERSION: str = "v26.0"
-    META_APP_ID: str | None = None
-    META_APP_SECRET: SecretStr | None = None
-    META_WEBHOOK_VERIFY_TOKEN: SecretStr | None = None
-
-    # --- intelligence artificielle (étape ultérieure) ---
-    LLM_PROVIDER: str | None = None
-    LLM_API_KEY: SecretStr | None = None
-    LLM_MODEL: str | None = None
 
     @property
     def cors_origins(self) -> list[str]:
@@ -69,14 +56,9 @@ class Settings(BaseSettings):
         """Refuse une configuration incomplète ou restée aux valeurs d'exemple.
 
         Mieux vaut échouer au démarrage, avec un message clair, qu'au premier usage :
-        une clé Fernet invalide ne se verrait qu'au moment de chiffrer un jeton Meta,
-        des semaines plus tard.
+        une clé Fernet invalide ne se verrait qu'au moment de chiffrer un secret de
+        plateforme, des semaines plus tard.
         """
-        if self.SOCIAL_GATEWAY == "n8n" and not self.N8N_BASE_URL:
-            raise ValueError("SOCIAL_GATEWAY=n8n exige N8N_BASE_URL.")
-        if self.SOCIAL_GATEWAY == "meta" and not (self.META_APP_ID and self.META_APP_SECRET):
-            raise ValueError("SOCIAL_GATEWAY=meta exige META_APP_ID et META_APP_SECRET.")
-
         if self.JWT_SECRET_KEY.get_secret_value().startswith("a-remplacer"):
             raise ValueError(
                 "JWT_SECRET_KEY a gardé sa valeur d'exemple. Générer une clé avec :\n"
@@ -84,7 +66,7 @@ class Settings(BaseSettings):
             )
 
         # Une clé Fernet est faite de 32 octets encodés en base64 url-safe, soit
-        # 44 caractères. On le vérifie ici plutôt que de découvrir l'erreur plus tard.
+        # 44 caractères. On le vérifie ici plutôt que de le découvrir plus tard.
         cle = self.TOKEN_ENCRYPTION_KEY.get_secret_value()
         try:
             Fernet(cle.encode("utf-8"))
@@ -95,11 +77,16 @@ class Settings(BaseSettings):
                 'print(Fernet.generate_key().decode())"'
             ) from erreur
 
+        if self.ACCESS_TOKEN_MINUTES < 1:
+            raise ValueError("ACCESS_TOKEN_MINUTES doit valoir au moins 1.")
+        if self.REFRESH_TOKEN_DAYS < 1:
+            raise ValueError("REFRESH_TOKEN_DAYS doit valoir au moins 1.")
+
         return self
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Renvoie les réglages, lus une seule fois puis conservés en mémoire."""
-    # Les valeurs viennent de l'environnement, pas d'arguments : mypy ne peut pas le savoir.
+    # Les valeurs viennent de l'environnement, pas d'arguments : mypy l'ignore.
     return Settings()  # type: ignore[call-arg]

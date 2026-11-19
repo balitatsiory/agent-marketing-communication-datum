@@ -12,6 +12,8 @@ export interface NavigationLink {
   readonly badge?: string;
   /** Écran prévu mais pas encore construit. */
   readonly isPending?: boolean;
+  /** Code du droit requis pour afficher l'entrée dans la navigation. */
+  readonly requiresPermission?: string;
 }
 
 /**

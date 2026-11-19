@@ -1,108 +1,158 @@
-"""Règles d'authentification : connexion, rotation des jetons, déconnexion."""
+"""Règles métier du module Authentification.
 
-import logging
+Le cycle d'une session : connexion, puis renouvellements successifs par
+ROTATION — le jeton utilisé est révoqué et remplacé. Rejouer un jeton déjà
+révoqué révoque toute la lignée, parce qu'un tel rejeu ne peut venir que d'un
+jeton volé ou d'un client qui a perdu le fil.
+"""
+
+import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.errors import AuthenticationError
+from app.core.errors import NotAuthenticatedError
 from app.core.security import (
     create_access_token,
-    generate_refresh_token,
-    hash_refresh_token,
-    refresh_token_expiry,
+    hash_token,
+    new_refresh_token,
+    refresh_expiry,
     verify_password,
 )
-from app.modules.auth.models import RefreshToken
-from app.modules.auth.schemas import TokenPair
-from app.modules.users import service as users_service
+from app.modules.auth.models import LOGOUT, REPLAY_DETECTED, ROTATED, RefreshToken
 from app.modules.users.models import User
 
-logger = logging.getLogger(__name__)
-settings = get_settings()
-
-# Même message pour un email inconnu et un mot de passe faux : sinon, l'API
-# permettrait de découvrir quelles adresses ont un compte.
-MESSAGE_IDENTIFIANTS = "Email ou mot de passe incorrect."
+# Message unique pour « adresse inconnue » et « mot de passe faux » : dire
+# laquelle des deux est fausse révélerait quelles adresses ont un compte.
+IDENTIFIANTS_REFUSES = "Adresse ou mot de passe incorrect."
 
 
-async def _creer_session(session: AsyncSession, user: User, user_agent: str | None) -> TokenPair:
-    """Crée une session : un jeton de renouvellement en base, un jeton d'accès signé."""
-    refresh_token = generate_refresh_token()
+def _duree_du_jeton_d_acces() -> int:
+    return get_settings().ACCESS_TOKEN_MINUTES * 60
+
+
+async def _emettre(
+    session: AsyncSession,
+    id_users: int,
+    family_id: uuid.UUID,
+    user_agent: str | None,
+) -> str:
+    """Crée une ligne de session et renvoie le jeton en clair.
+
+    Le jeton n'est renvoyé qu'ici, une seule fois : seule son empreinte est
+    conservée.
+    """
+    brut = new_refresh_token()
     session.add(
         RefreshToken(
-            id_users=user.id_users,
-            token_hash=hash_refresh_token(refresh_token),
-            expires_at=refresh_token_expiry(),
-            user_agent=(user_agent or "")[:255] or None,
+            id_users=id_users,
+            token_hash=hash_token(brut),
+            family_id=family_id,
+            expires_at=refresh_expiry(),
+            user_agent=user_agent[:512] if user_agent else None,
         )
     )
     await session.flush()
+    return brut
 
-    return TokenPair(
-        access_token=create_access_token(user.id_users, sorted(user.permission_codes)),
-        refresh_token=refresh_token,
-        expires_in=settings.ACCESS_TOKEN_MINUTES * 60,
+
+async def _revoquer_la_lignee(session: AsyncSession, family_id: uuid.UUID, raison: str) -> None:
+    lignee = (
+        (
+            await session.execute(
+                select(RefreshToken).where(
+                    RefreshToken.family_id == family_id,
+                    RefreshToken.revoked_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
     )
-
-
-async def login(
-    session: AsyncSession, email: str, password: str, *, user_agent: str | None = None
-) -> TokenPair:
-    """Vérifie les identifiants et ouvre une session."""
-    user = await users_service.find_user_by_email(session, email)
-    if user is None or not verify_password(password, user.password_hash):
-        raise AuthenticationError(MESSAGE_IDENTIFIANTS)
-    if not user.is_active:
-        raise AuthenticationError("Ce compte est désactivé.")
-
-    await users_service.touch_last_login(session, user)
-    logger.info("Connexion réussie · utilisateur=%s", user.id_users)
-    return await _creer_session(session, user, user_agent)
-
-
-async def refresh(
-    session: AsyncSession, refresh_token: str, *, user_agent: str | None = None
-) -> TokenPair:
-    """Échange un jeton de renouvellement contre un couple neuf.
-
-    L'ancien jeton est révoqué au passage : un jeton volé ne sert qu'une fois.
-    """
-    empreinte = hash_refresh_token(refresh_token)
-    requete = select(RefreshToken).where(RefreshToken.token_hash == empreinte)
-    ligne = (await session.execute(requete)).scalar_one_or_none()
-
     maintenant = datetime.now(UTC)
-    if ligne is None or ligne.revoked_at is not None or ligne.expires_at <= maintenant:
-        raise AuthenticationError("Session expirée ou révoquée, reconnectez-vous.")
-
-    user = await users_service.find_user(session, ligne.id_users)
-    if user is None or not user.is_active:
-        raise AuthenticationError("Ce compte n'est plus actif.")
-
-    ligne.revoked_at = maintenant
+    for jeton in lignee:
+        jeton.revoked_at = maintenant
+        jeton.revoked_reason = raison
     await session.flush()
-    return await _creer_session(session, user, user_agent)
 
 
-async def logout(session: AsyncSession, refresh_token: str) -> None:
-    """Ferme une session. Sans effet si le jeton est déjà inconnu ou révoqué."""
-    empreinte = hash_refresh_token(refresh_token)
-    requete = (
-        update(RefreshToken)
-        .where(RefreshToken.token_hash == empreinte, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(UTC))
+async def connexion(
+    session: AsyncSession, email: str, mot_de_passe: str, user_agent: str | None
+) -> tuple[str, str, int]:
+    utilisateur = (
+        await session.execute(
+            select(User).where(
+                User.email.ilike(email),
+                User.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+
+    if utilisateur is None or not verify_password(mot_de_passe, utilisateur.password_hash):
+        raise NotAuthenticatedError(IDENTIFIANTS_REFUSES)
+
+    # Un compte suspendu se voit refuser la connexion, et on le lui dit : à ce
+    # stade les identifiants sont bons, l'information ne révèle donc rien.
+    if not utilisateur.is_active:
+        raise NotAuthenticatedError("Ce compte est suspendu. Contacter un administrateur.")
+
+    utilisateur.last_login_at = datetime.now(UTC)
+    brut = await _emettre(session, utilisateur.id_users, uuid.uuid4(), user_agent)
+    return (
+        create_access_token(utilisateur.id_users),
+        brut,
+        _duree_du_jeton_d_acces(),
     )
-    await session.execute(requete)
 
 
-async def revoke_all_sessions(session: AsyncSession, id_users: int) -> None:
-    """Ferme toutes les sessions d'un compte : suspension, archivage, mot de passe changé."""
-    requete = (
-        update(RefreshToken)
-        .where(RefreshToken.id_users == id_users, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(UTC))
+async def renouveler(
+    session: AsyncSession, jeton_brut: str, user_agent: str | None
+) -> tuple[str, str, int]:
+    jeton = (
+        await session.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == hash_token(jeton_brut))
+        )
+    ).scalar_one_or_none()
+
+    if jeton is None:
+        raise NotAuthenticatedError("Jeton de renouvellement inconnu.")
+
+    if jeton.revoked_at is not None:
+        # Un jeton déjà révoqué qui revient : soit il a été volé, soit un client
+        # rejoue. Dans les deux cas la lignée n'est plus digne de confiance.
+        await _revoquer_la_lignee(session, jeton.family_id, REPLAY_DETECTED)
+        raise NotAuthenticatedError("Session invalidée. Se reconnecter.")
+
+    if jeton.expires_at <= datetime.now(UTC):
+        raise NotAuthenticatedError("Session expirée. Se reconnecter.")
+
+    utilisateur = await session.get(User, jeton.id_users)
+    if utilisateur is None or not utilisateur.est_utilisable:
+        raise NotAuthenticatedError("Ce compte n'est plus actif.")
+
+    # Rotation : l'ancien est révoqué, le nouveau garde la même lignée.
+    jeton.revoked_at = datetime.now(UTC)
+    jeton.revoked_reason = ROTATED
+    brut = await _emettre(session, utilisateur.id_users, jeton.family_id, user_agent)
+    return (
+        create_access_token(utilisateur.id_users),
+        brut,
+        _duree_du_jeton_d_acces(),
     )
-    await session.execute(requete)
+
+
+async def deconnexion(session: AsyncSession, jeton_brut: str) -> None:
+    """Ferme la session. Reste silencieuse sur un jeton inconnu.
+
+    Se déconnecter deux fois, ou avec un jeton déjà expiré, ne doit pas produire
+    d'erreur : le résultat voulu est atteint dans tous les cas.
+    """
+    jeton = (
+        await session.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == hash_token(jeton_brut))
+        )
+    ).scalar_one_or_none()
+    if jeton is not None and jeton.revoked_at is None:
+        await _revoquer_la_lignee(session, jeton.family_id, LOGOUT)

@@ -4,12 +4,12 @@ version = "0.1.0"
 description = "API de la plateforme IAGORA — agent IA de marketing et communication digitale"
 requires-python = ">=3.12"
 
-# Les dépendances sont listées dans requirements.txt et requirements-dev.txt.
-# Ce fichier ne sert qu'à décrire le projet et à configurer les outils.
+# Les dépendances sont dans requirements.txt et requirements-dev.txt.
+# Ce fichier décrit le projet et configure l'outillage.
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # ruff — mise en forme et analyse statique
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 [tool.ruff]
 target-version = "py312"
 line-length = 100
@@ -21,50 +21,48 @@ select = [
     "F",        # pyflakes
     "I",        # tri des imports
     "N",        # conventions de nommage
-    "UP",       # tournures modernes de Python
-    "B",        # pièges courants (bugbear)
+    "UP",       # tournures modernes
+    "B",        # pièges courants
     "SIM",      # simplifications
     "C4",       # compréhensions
     "PTH",      # pathlib plutôt que os.path
-    "RUF",      # règles propres à ruff
+    "RUF",
 ]
 ignore = [
-    "B008",  # FastAPI utilise des appels dans les valeurs par défaut : Depends(...)
+    "B008",  # FastAPI utilise des appels en valeur par défaut : Depends(...)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # assert autorisé dans les tests
-# __table_args__ est un dictionnaire de classe : c'est la forme imposée par SQLAlchemy.
+"tests/**" = ["S101"]
+# __table_args__ est un dictionnaire de classe : forme imposée par SQLAlchemy.
 "**/models.py" = ["RUF012"]
 
 [tool.ruff.format]
 quote-style = "double"
 
-# ----------------------------------------------------------------------------
-# mypy — vérification des types
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# mypy
+# ---------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.12"
 files = ["app"]
 strict = true
 warn_unreachable = true
 show_error_codes = true
-# Les migrations sont générées : on ne les type pas.
 exclude = ["alembic/versions/"]
 
 [[tool.mypy.overrides]]
 module = ["asyncpg.*"]
 ignore_missing_imports = true
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # pytest
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# --import-mode=importlib : chaque fichier de test est chargé par son chemin, avec un nom
-# unique. Deux fichiers peuvent ainsi porter le même nom (tests/modules/auth/test_router.py
-# et tests/modules/users/test_router.py) sans __init__.py dans les dossiers de tests.
+# --import-mode=importlib : chaque test est chargé par son chemin, avec un nom
+# unique. Deux modules peuvent ainsi avoir leur tests/modules/<nom>/test_router.py
+# sans __init__.py dans les dossiers de tests.
 addopts = "-q --import-mode=importlib"
-# Le dossier backend/ est ajouté au chemin de recherche, pour que les tests importent `app`.
 pythonpath = ["."]

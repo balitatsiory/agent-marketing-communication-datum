@@ -1,163 +1,170 @@
-"""Tables users, permissions et user_permissions."""
+"""Tables du module Utilisateurs et droits.
+
+Les commentaires, contraintes d'unicité et index sont déclarés ici À L'IDENTIQUE
+de la migration 0001. Ce n'est pas de la redondance : `alembic revision
+--autogenerate` compare les modèles à la base, et tout ce qui n'est pas déclaré
+ici serait proposé en SUPPRESSION dans la migration d'un module suivant.
+`alembic check` le vérifie.
+"""
 
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
-    Identity,
-    SmallInteger,
+    Index,
+    Integer,
     String,
     UniqueConstraint,
     func,
+    text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 
-class Permission(Base):
-    """Droit attribuable : créer, valider, publier, consulter, administrer (F-22)."""
+class User(Base):
+    """Membre de l'équipe DATUM Academy.
 
-    __tablename__ = "permissions"
-    __table_args__ = {
-        "comment": "Droits attribuables aux utilisateurs. Table de référence, "
-        "alimentée par migration : créer, valider, publier, consulter, administrer."
-    }
+    `is_active` est l'état d'exploitation, réversible. `deleted_at` est
+    l'archivage, posé par-dessus cet état : le compte sort des listes mais reste
+    l'auteur de ses publications passées.
+    """
 
-    id_permissions: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True, comment="Identifiant du droit."
-    )
-    code: Mapped[str] = mapped_column(
-        String(30),
-        unique=True,
-        comment="Code technique utilisé par le code Python : create, review, publish, read, admin. "
-        "Ne change jamais.",
-    )
-    label: Mapped[str] = mapped_column(
-        String(100), comment="Libellé affiché dans l'interface. Modifiable librement."
-    )
-    sort_order: Mapped[int] = mapped_column(
-        SmallInteger, default=0, comment="Ordre d'affichage dans les listes."
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), comment="Date de création (UTC)."
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        comment="Date de dernière modification (UTC).",
-    )
-
-
-class UserPermission(Base):
-    """Attribution d'un droit à un utilisateur."""
-
-    __tablename__ = "user_permissions"
+    __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("id_users", "id_permissions"),
+        # Index PARTIEL sur lower(email) : sans lui, deux comptes existeraient
+        # pour la même personne ; sans la clause partielle, un compte archivé
+        # interdirait de recréer son adresse.
+        Index(
+            "uq_users_email_actif",
+            text("lower(email)"),
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
         {
-            "comment": "Quel utilisateur possède quel droit. Une personne peut en cumuler "
-            "plusieurs, dans n'importe quelle combinaison : aucun rôle n'est figé."
+            "comment": (
+                "Membres de l'equipe DATUM Academy qui utilisent IAGORA. Un compte "
+                "archive (deleted_at) disparait des listes mais reste l'auteur de "
+                "ses publications passees."
+            )
         },
     )
 
-    id_user_permissions: Mapped[int] = mapped_column(
-        BigInteger,
-        Identity(always=True),
-        primary_key=True,
-        comment="Identifiant de l'attribution.",
-    )
-    id_users: Mapped[int] = mapped_column(
-        BigInteger,
-        ForeignKey("users.id_users", ondelete="CASCADE"),
-        comment="Utilisateur concerné. Supprimé avec lui.",
-    )
-    id_permissions: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("permissions.id_permissions"), comment="Droit attribué."
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        comment="Date d'attribution du droit (UTC).",
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        comment="Date de dernière modification (UTC).",
-    )
-
-
-class User(Base):
-    """Membre de l'équipe DATUM Academy utilisant IAGORA."""
-
-    __tablename__ = "users"
-    __table_args__ = {
-        "comment": "Membres de l'équipe DATUM Academy qui utilisent IAGORA. "
-        "Ni les prospects, ni les inscrits aux webinaires : ceux-là vivent ailleurs."
-    }
-
-    id_users: Mapped[int] = mapped_column(
-        BigInteger, Identity(always=True), primary_key=True, comment="Identifiant de l'utilisateur."
-    )
+    id_users: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(
-        String(255),
-        unique=True,
-        comment="Adresse e-mail, identifiant de connexion. Toujours stockée en minuscules.",
+        String(254),
+        comment="Identifiant de connexion. Unique a la casse pres, parmi les comptes non archives.",
     )
     password_hash: Mapped[str] = mapped_column(
         String(255),
-        comment="Empreinte bcrypt du mot de passe. Irréversible : le mot de passe n'est "
-        "jamais stocké, ni récupérable.",
+        comment=(
+            "Empreinte bcrypt. Dimensionnee large pour ne pas bloquer un passage "
+            "ulterieur a argon2, qui produit des empreintes plus longues."
+        ),
     )
-    first_name: Mapped[str] = mapped_column(String(100), comment="Prénom.")
-    last_name: Mapped[str] = mapped_column(String(100), comment="Nom de famille.")
-
+    first_name: Mapped[str] = mapped_column(String(100))
+    last_name: Mapped[str] = mapped_column(String(100))
     is_active: Mapped[bool] = mapped_column(
         Boolean,
-        default=True,
-        server_default="true",
-        comment="Faux = compte suspendu temporairement : connexion refusée, mais le compte "
-        "reste visible et réactivable.",
+        server_default=func.true(),
+        comment="Etat d'exploitation, reversible : acces suspendu sans archivage.",
     )
     last_login_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True),
-        comment="Dernière connexion réussie (UTC). Vide si l'utilisateur ne s'est jamais connecté.",
+        DateTime(timezone=True), comment="Derniere connexion reussie."
     )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), comment="Date de création (UTC)."
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        comment="Date de dernière modification (UTC).",
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        comment="Date d'archivage (UTC). Renseignée = le compte disparaît des listes, mais "
-        "l'historique et les publications continuent d'y renvoyer.",
+        comment=(
+            "Archivage, pose PAR-DESSUS l'etat et non a sa place. L'archivage "
+            "revoque tous les jetons de l'utilisateur dans la meme transaction."
+        ),
+    )
+    id_users_created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id_users"))
+    id_users_changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id_users"))
+    id_users_deleted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id_users"))
+
+    @property
+    def est_utilisable(self) -> bool:
+        """Un compte archivé ou suspendu ne peut ni se connecter ni agir."""
+        return self.deleted_at is None and self.is_active
+
+
+class Permission(Base):
+    """Droit attribuable. Référentiel alimenté par migration."""
+
+    __tablename__ = "permissions"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_permissions_code"),
+        {
+            "comment": (
+                "Droits attribuables, alimentes par migration. Chaque module insere "
+                "les siens, avec un sort_order valant son numero de module multiplie "
+                "par 100, par pas de 10. Un droit se retire par migration : il ne "
+                "s'archive pas."
+            )
+        },
     )
 
-    permissions: Mapped[list[Permission]] = relationship(
-        secondary="user_permissions", lazy="selectin", order_by=Permission.sort_order
+    id_permissions: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(
+        String(60),
+        comment="Identifiant stable du droit, en anglais, minuscules et tiret bas.",
+    )
+    label: Mapped[str] = mapped_column(
+        String(120), comment="Libelle francais affiche dans l'ecran des habilitations."
+    )
+    description: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Phrase expliquant ce que le droit autorise, affichee a l'administrateur.",
+    )
+    sort_order: Mapped[int] = mapped_column(
+        Integer, comment="Ordre d'affichage : numero du module x 100, par pas de 10."
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserPermission(Base):
+    """Attribution d'un droit à un utilisateur.
+
+    Une révocation archive la ligne au lieu de la supprimer : l'historique des
+    attributions est lui-même une information de traçabilité.
+    """
+
+    __tablename__ = "user_permissions"
+    __table_args__ = (
+        # Unicité PARTIELLE : un droit révoqué doit pouvoir être réattribué,
+        # l'ancienne ligne restant archivée.
+        Index(
+            "uq_user_permissions_actif",
+            "id_users",
+            "id_permissions",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+        {
+            "comment": (
+                "Quel utilisateur possede quel droit. Aucun role n'est fige : les "
+                "droits se cumulent. Une revocation archive la ligne au lieu de la "
+                "supprimer, pour garder la trace de qui a pu faire quoi et quand."
+            )
+        },
     )
 
-    @property
-    def permission_codes(self) -> set[str]:
-        return {permission.code for permission in self.permissions}
-
-    @property
-    def full_name(self) -> str:
-        return f"{self.first_name} {self.last_name}".strip()
-
-    @property
-    def is_archived(self) -> bool:
-        return self.deleted_at is not None
+    id_user_permissions: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_users: Mapped[int] = mapped_column(ForeignKey("users.id_users"))
+    id_permissions: Mapped[int] = mapped_column(ForeignKey("permissions.id_permissions"))
+    id_users_created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id_users"), comment="Qui a attribue ce droit."
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        comment="Revocation du droit. La ligne est conservee pour l'historique.",
+    )
+    id_users_deleted_by: Mapped[int | None] = mapped_column(ForeignKey("users.id_users"))

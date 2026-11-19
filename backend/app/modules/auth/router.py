@@ -1,72 +1,78 @@
-"""Endpoints d'authentification."""
+"""Routes du module Authentification. Aucune règle métier ici."""
 
-from fastapi import APIRouter, Request, status
+from typing import Annotated
 
-from app.core.deps import CurrentUser, SessionDep
-from app.core.errors import REPONSES_AUTHENTIFIEES, ErrorResponse
+from fastapi import APIRouter, Header, status
+
+from app.core.deps import SessionDep
 from app.modules.auth import service
-from app.modules.auth.schemas import LoginRequest, RefreshRequest, TokenPair
-from app.modules.users.schemas import UserRead
+from app.modules.auth.schemas import LoginRequest, MeRead, RefreshRequest, TokenPair
+from app.modules.users.deps import CurrentUser, codes_de
+from app.modules.users.schemas import PasswordChange
+from app.modules.users.service import changer_son_mot_de_passe
 
 router = APIRouter(prefix="/auth", tags=["authentification"])
+
+UserAgent = Annotated[str | None, Header(include_in_schema=False)]
 
 
 @router.post(
     "/login",
     response_model=TokenPair,
-    summary="Se connecter",
-    responses={401: {"model": ErrorResponse, "description": "Identifiants incorrects."}},
+    summary="Ouvrir une session",
+    responses={401: {"description": "Identifiants refusés, ou compte suspendu."}},
 )
-async def login(payload: LoginRequest, request: Request, session: SessionDep) -> TokenPair:
-    """Ouvre une session et renvoie le couple de jetons.
-
-    Le message d'erreur est **le même** pour un email inconnu et un mot de passe faux :
-    sinon, l'API permettrait de découvrir quelles adresses ont un compte.
-    """
-    return await service.login(
-        session,
-        payload.email,
-        payload.password,
-        user_agent=request.headers.get("User-Agent"),
+async def login(
+    corps: LoginRequest, session: SessionDep, user_agent: UserAgent = None
+) -> TokenPair:
+    acces, renouvellement, duree = await service.connexion(
+        session, corps.email, corps.password, user_agent
     )
+    return TokenPair(access_token=acces, refresh_token=renouvellement, expires_in=duree)
 
 
 @router.post(
     "/refresh",
     response_model=TokenPair,
     summary="Renouveler le jeton d'accès",
-    responses={401: {"model": ErrorResponse, "description": "Session expirée ou révoquée."}},
+    responses={401: {"description": "Jeton inconnu, expiré, ou lignée invalidée."}},
 )
-async def refresh(payload: RefreshRequest, request: Request, session: SessionDep) -> TokenPair:
-    """Échange un jeton de renouvellement contre un couple neuf.
+async def refresh(
+    corps: RefreshRequest, session: SessionDep, user_agent: UserAgent = None
+) -> TokenPair:
+    acces, renouvellement, duree = await service.renouveler(
+        session, corps.refresh_token, user_agent
+    )
+    return TokenPair(access_token=acces, refresh_token=renouvellement, expires_in=duree)
 
-    L'ancien jeton est **révoqué au passage** : un jeton volé ne sert qu'une fois.
-    """
-    return await service.refresh(
-        session, payload.refresh_token, user_agent=request.headers.get("User-Agent")
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Fermer la session",
+)
+async def logout(corps: RefreshRequest, session: SessionDep) -> None:
+    await service.deconnexion(session, corps.refresh_token)
+
+
+@router.get("/me", response_model=MeRead, summary="Profil courant et ses droits")
+async def me(session: SessionDep, utilisateur: CurrentUser) -> MeRead:
+    return MeRead(
+        id_users=utilisateur.id_users,
+        email=utilisateur.email,
+        first_name=utilisateur.first_name,
+        last_name=utilisateur.last_name,
+        permissions=await codes_de(session, utilisateur.id_users),
     )
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Se déconnecter")
-async def logout(payload: RefreshRequest, session: SessionDep) -> None:
-    """Ferme la session correspondant au jeton fourni.
-
-    Sans effet si le jeton est déjà inconnu ou révoqué : la déconnexion ne doit pas
-    renseigner un attaquant sur la validité d'un jeton.
-    """
-    await service.logout(session, payload.refresh_token)
-
-
-@router.get(
-    "/me",
-    response_model=UserRead,
-    summary="Compte connecté et ses droits",
-    responses=REPONSES_AUTHENTIFIEES,
+@router.patch(
+    "/me/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Changer son propre mot de passe",
+    responses={400: {"description": "Le mot de passe actuel est incorrect."}},
 )
-async def me(user: CurrentUser) -> UserRead:
-    """Renvoie le compte connecté et ses droits.
-
-    Le front s'en sert pour afficher ou masquer les actions : « Approuver » n'apparaît
-    que si le droit `review` figure dans la réponse.
-    """
-    return UserRead.from_model(user)
+async def changer_mot_de_passe(
+    corps: PasswordChange, session: SessionDep, utilisateur: CurrentUser
+) -> None:
+    await changer_son_mot_de_passe(session, utilisateur, corps.current_password, corps.new_password)

@@ -21,7 +21,7 @@
     <span class="k">Ctrl K</span>
   </button>
 
-  @for (entry of navigation; track entry.key) {
+  @for (entry of navigation(); track entry.key) {
     @if (entry.type === 'link') {
       <a
         class="sb-item"
@@ -143,10 +143,10 @@
       aria-haspopup="menu"
       (click)="basculerMenu()"
     >
-      <span class="sb-av">{{ user.initials }}</span>
+      <span class="sb-av">{{ session.initials() }}</span>
       <span class="sb-who">
-        <b>{{ user.fullName }}</b>
-        <span>{{ userSummary }}</span>
+        <b>{{ session.fullName() }}</b>
+        <span>{{ session.user()?.email }}</span>
       </span>
       <app-icon name="chevron" size="sm" />
     </button>
