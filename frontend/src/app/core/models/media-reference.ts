@@ -64,6 +64,7 @@ export interface MediaReferenceView {
   readonly isActive: boolean;
   readonly isArchived: boolean;
   readonly createdAtLabel: string;
+  readonly createdAtFullLabel: string;
   readonly media: MediaView | null;
 }
 
@@ -127,6 +128,7 @@ export function toMediaReferenceView(
   mediasParId: ReadonlyMap<number, MediaView>,
   naturesParCode: ReadonlyMap<string, MediaReferenceNature>,
 ): MediaReferenceView {
+  const dateCreation = new Date(dto.created_at);
   return {
     idMediaReferences: dto.id_media_references,
     idMedia: dto.id_media,
@@ -136,7 +138,8 @@ export function toMediaReferenceView(
     description: dto.description,
     isActive: dto.is_active,
     isArchived: dto.deleted_at !== null,
-    createdAtLabel: DATE_COURTE.format(new Date(dto.created_at)),
+    createdAtLabel: DATE_COURTE.format(dateCreation),
+    createdAtFullLabel: DATE_ET_HEURE.format(dateCreation),
     media: mediasParId.get(dto.id_media) ?? null,
   };
 }

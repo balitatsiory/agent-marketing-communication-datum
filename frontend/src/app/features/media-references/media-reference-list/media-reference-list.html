@@ -76,14 +76,28 @@
   } @else {
     <div class="grille">
       @for (ref of resultats(); track ref.idMediaReferences) {
-        <article class="panel carte" [class.is-inactive]="!ref.isActive">
-          <div class="carte-apercu">
+        <article
+          class="panel carte"
+          [class.is-inactive]="!ref.isActive"
+          (click)="ouvrirDetail(ref)"
+        >
+          <div
+            class="carte-apercu"
+            tabindex="0"
+            role="button"
+            [attr.aria-label]="'Voir les détails de ' + ref.label"
+            (keydown.enter)="ouvrirDetail(ref)"
+          >
             @if (ref.media?.url; as url) {
               <img [src]="url" [alt]="ref.label" loading="lazy" />
             } @else {
               <app-icon name="image" size="lg" />
             }
             <span class="status status-review carte-nature">{{ ref.natureLabel }}</span>
+            <span class="carte-zoom" aria-hidden="true">
+              <app-icon name="image" size="sm" />
+              Détails
+            </span>
           </div>
 
           <div class="carte-corps">
@@ -112,7 +126,7 @@
               </div>
             }
 
-            <div class="carte-actions">
+            <div class="carte-actions" (click)="$event.stopPropagation()">
               <button
                 class="btn btn-sm"
                 type="button"
@@ -154,8 +168,8 @@
             <app-icon name="image" size="lg" />
             <h2>Aucun média de référence</h2>
             <p>
-              Déclarez un média existant de la bibliothèque pour le mettre à disposition de la
-              génération d'images.
+              Déclarez un média existant de la bibliothèque ou importez une nouvelle image pour la
+              génération.
             </p>
           </div>
         </section>
@@ -163,6 +177,216 @@
     </div>
   }
 
+  <!-- ============================================================
+       Pop-up d'aperçu et de détails d'un média de référence
+       ============================================================ -->
+  @if (referenceDetail(); as ref) {
+    <div class="modal-back" (click)="fermerDetail()">
+      <div
+        class="modal modal-detail"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-ref-titre"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-head">
+          <div class="detail-entete-titre">
+            <div class="detail-entete-badges">
+              <span class="status status-review">{{ ref.natureLabel }}</span>
+              @if (ref.isActive) {
+                <span class="status status-published">Active</span>
+              } @else {
+                <span class="status status-draft">Inactive</span>
+              }
+              @if (indexDetail() >= 0) {
+                <span class="detail-compteur num">
+                  {{ indexDetail() + 1 }} / {{ resultats().length }}
+                </span>
+              }
+            </div>
+            <h2 id="detail-ref-titre">{{ ref.label }}</h2>
+          </div>
+
+          <div class="detail-entete-actions">
+            @if (ref.media?.url; as url) {
+              <a
+                class="btn btn-sm"
+                [href]="url"
+                target="_blank"
+                rel="noopener"
+              >
+                <app-icon name="external" size="sm" />
+                Ouvrir le fichier
+              </a>
+            }
+            @if (peutGererReferences()) {
+              <button
+                class="btn btn-sm"
+                type="button"
+                (click)="ouvrirModificationDepuisDetail(ref)"
+              >
+                <app-icon name="pencil" size="sm" />
+                Modifier
+              </button>
+            }
+            <button
+              #boutonFermerDetail
+              class="btn btn-icon btn-ghost"
+              type="button"
+              aria-label="Fermer"
+              (click)="fermerDetail()"
+            >
+              <app-icon name="close" size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-body detail-corps">
+          <div class="detail-scene">
+            @if (ref.media?.url; as url) {
+              <img [src]="url" [alt]="ref.label" />
+            } @else {
+              <div class="detail-scene-vide">
+                <app-icon name="image" size="lg" />
+                <span>Aperçu indisponible</span>
+              </div>
+            }
+          </div>
+
+          <aside class="detail-fiche" aria-label="Détails du média de référence">
+            <div class="detail-bloc">
+              <span class="label">Nature de la référence</span>
+              <div class="detail-nature-carte">
+                <div class="detail-nature-entete">
+                  <b>{{ ref.natureLabel }}</b>
+                  <span class="num detail-code">{{ ref.natureCode }}</span>
+                </div>
+                @if (descriptionNature(ref.natureCode); as descNature) {
+                  <p>{{ descNature }}</p>
+                }
+              </div>
+            </div>
+
+            <div class="detail-bloc">
+              <span class="label">Description pour la génération IA</span>
+              @if (ref.description; as desc) {
+                <p class="detail-description">{{ desc }}</p>
+              } @else {
+                <p class="detail-description is-muted">Aucune description renseignée.</p>
+              }
+            </div>
+
+            <div class="detail-liste">
+              <div class="detail-ligne">
+                <span class="label">Identifiant référence</span>
+                <span class="num">#{{ ref.idMediaReferences }}</span>
+              </div>
+
+              <div class="detail-ligne">
+                <span class="label">Déclarée le</span>
+                <span class="num">{{ ref.createdAtFullLabel }}</span>
+              </div>
+
+              @if (ref.media; as media) {
+                <div class="detail-ligne">
+                  <span class="label">Fichier source</span>
+                  <span>{{ media.displayName }} (#{{ media.idMedia }})</span>
+                </div>
+
+                <div class="detail-ligne">
+                  <span class="label">Type MIME</span>
+                  <span class="num">{{ media.fileType }}</span>
+                </div>
+
+                <div class="detail-ligne">
+                  <span class="label">Dimensions</span>
+                  <span class="num">{{ media.dimensionsLabel ?? 'Non mesurées' }}</span>
+                </div>
+
+                <div class="detail-ligne">
+                  <span class="label">Poids</span>
+                  <span class="num">
+                    {{ media.sizeLabel }} ({{ media.sizeBytes.toLocaleString('fr-FR') }} octets)
+                  </span>
+                </div>
+
+                <div class="detail-ligne">
+                  <span class="label">Origine</span>
+                  <span>{{ media.sourceLabel }}</span>
+                </div>
+              }
+            </div>
+
+            @if (peutGererReferences()) {
+              <div class="detail-actions">
+                <button
+                  class="btn btn-sm"
+                  type="button"
+                  [disabled]="enCours()"
+                  (click)="ouvrirModificationDepuisDetail(ref)"
+                >
+                  <app-icon name="pencil" size="sm" />
+                  Modifier
+                </button>
+
+                @if (retraitId() === ref.idMediaReferences) {
+                  <button class="btn btn-sm" type="button" (click)="renoncerRetrait()">
+                    Renoncer
+                  </button>
+                  <button
+                    class="btn btn-sm btn-danger"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="retirerReference(ref)"
+                  >
+                    Confirmer le retrait
+                  </button>
+                } @else {
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="demanderRetrait(ref.idMediaReferences)"
+                  >
+                    Retirer la référence
+                  </button>
+                }
+              </div>
+            }
+          </aside>
+        </div>
+
+        <footer class="modal-foot detail-pied">
+          <div class="detail-nav">
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="!peutDetailPrecedent()"
+              (click)="detailPrecedent()"
+            >
+              <app-icon name="chevron" size="sm" class="chev-gauche" />
+              Précédent
+            </button>
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="!peutDetailSuivant()"
+              (click)="detailSuivant()"
+            >
+              Suivant
+              <app-icon name="chevron" size="sm" class="chev-droite" />
+            </button>
+          </div>
+
+          <button class="btn" type="button" (click)="fermerDetail()">Fermer</button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  <!-- ============================================================
+       Pop-up Déclarer / Modifier une référence
+       ============================================================ -->
   @if (editeur(); as etat) {
     <div class="modal-back" (click)="fermerModale()">
       <div
@@ -184,6 +408,7 @@
             class="btn btn-icon btn-ghost"
             type="button"
             aria-label="Fermer"
+            [disabled]="enCours()"
             (click)="fermerModale()"
           >
             <app-icon name="close" size="sm" />
@@ -201,50 +426,136 @@
           <div class="form-grille">
             @if (etat.mode === 'declarer') {
               <div class="field">
-                <label for="ref-recherche-media">Média de la bibliothèque</label>
-                @if (mediasEligibles().length === 0) {
-                  <p class="hint">
-                    Aucune image disponible dans la bibliothèque (ou toutes sont déjà déclarées).
-                    <a class="link" routerLink="/medias" (click)="fermerModale()">
-                      Déposer un média dans la médiathèque
-                    </a>
-                  </p>
-                } @else {
-                  <div class="searchbox">
-                    <app-icon name="search" size="sm" />
-                    <input
-                      id="ref-recherche-media"
-                      type="search"
-                      placeholder="Filtrer la bibliothèque par nom…"
-                      [value]="rechercheMedia()"
-                      (input)="rechercheMedia.set($any($event.target).value)"
-                    />
+                <div class="source-entete">
+                  <span class="label">Source de l'image</span>
+                  <div class="segmented" role="group" aria-label="Mode de choix du média">
+                    <button
+                      type="button"
+                      [class.is-on]="modeSource() === 'bibliotheque'"
+                      (click)="changerModeSource('bibliotheque')"
+                    >
+                      <app-icon name="grid" size="sm" />
+                      Choisir dans la bibliothèque ({{ mediasEligibles().length }})
+                    </button>
+                    <button
+                      type="button"
+                      [class.is-on]="modeSource() === 'importer'"
+                      (click)="changerModeSource('importer')"
+                    >
+                      <app-icon name="plus" size="sm" />
+                      Importer un fichier
+                    </button>
                   </div>
+                </div>
 
-                  <div class="selecteur-medias" role="listbox" aria-label="Choisir un média">
-                    @for (media of mediasCandidatsFiltres(); track media.idMedia) {
+                @if (modeSource() === 'bibliotheque') {
+                  @if (mediasEligibles().length === 0) {
+                    <div class="source-vide">
+                      <p class="hint">
+                        Aucune image disponible dans la bibliothèque (ou toutes sont déjà
+                        déclarées).
+                      </p>
                       <button
-                        class="media-choix"
+                        class="btn btn-sm"
                         type="button"
-                        role="option"
-                        [class.is-selected]="idMediaChoisi() === media.idMedia"
-                        [attr.aria-selected]="idMediaChoisi() === media.idMedia"
-                        (click)="choisirMedia(media)"
+                        (click)="changerModeSource('importer')"
                       >
-                        <span class="media-choix-vignette">
-                          @if (media.url) {
-                            <img [src]="media.url" [alt]="media.displayName" loading="lazy" />
-                          }
-                        </span>
-                        <span class="media-choix-texte">
-                          <b>{{ media.displayName }}</b>
-                          <span class="num">{{ media.dimensionsLabel ?? media.sizeLabel }}</span>
-                        </span>
+                        <app-icon name="plus" size="sm" />
+                        Importer un fichier directement
                       </button>
-                    } @empty {
-                      <p class="hint">Aucun média ne correspond à cette recherche.</p>
+                    </div>
+                  } @else {
+                    <div class="searchbox">
+                      <app-icon name="search" size="sm" />
+                      <input
+                        id="ref-recherche-media"
+                        type="search"
+                        placeholder="Filtrer la bibliothèque par nom…"
+                        aria-label="Filtrer la bibliothèque par nom"
+                        [value]="rechercheMedia()"
+                        (input)="rechercheMedia.set($any($event.target).value)"
+                      />
+                    </div>
+
+                    <div class="selecteur-medias" role="listbox" aria-label="Choisir un média">
+                      @for (media of mediasCandidatsFiltres(); track media.idMedia) {
+                        <button
+                          class="media-choix"
+                          type="button"
+                          role="option"
+                          [class.is-selected]="idMediaChoisi() === media.idMedia"
+                          [attr.aria-selected]="idMediaChoisi() === media.idMedia"
+                          (click)="choisirMedia(media)"
+                        >
+                          <span class="media-choix-vignette">
+                            @if (media.url) {
+                              <img [src]="media.url" [alt]="media.displayName" loading="lazy" />
+                            }
+                          </span>
+                          <span class="media-choix-texte">
+                            <b>{{ media.displayName }}</b>
+                            <span class="num">{{ media.dimensionsLabel ?? media.sizeLabel }}</span>
+                          </span>
+                        </button>
+                      } @empty {
+                        <p class="hint">Aucun média ne correspond à cette recherche.</p>
+                      }
+                    </div>
+                  }
+                } @else {
+                  @if (!peutDeposerMedia()) {
+                    <p class="hint">
+                      Importer un nouveau fichier demande le droit « manage_media ».
+                    </p>
+                  } @else {
+                    <div class="field">
+                      <label for="ref-fichier-import">Fichier image à importer</label>
+                      <input
+                        class="input input-fichier"
+                        id="ref-fichier-import"
+                        type="file"
+                        [disabled]="enCours()"
+                        (change)="auChoixFichier($event)"
+                      />
+                    </div>
+
+                    @if (fichierImporte(); as fichier) {
+                      <div class="import-apercu">
+                        @if (apercuLocal(); as url) {
+                          <img [src]="url" [alt]="fichier.name" />
+                        } @else {
+                          <div class="import-apercu-neutre">
+                            <app-icon name="image" size="lg" />
+                          </div>
+                        }
+                        <div class="import-apercu-meta num">
+                          <b>{{ fichier.name }}</b>
+                          <span>{{ poidsFichierImporte() }}</span>
+                        </div>
+                      </div>
                     }
-                  </div>
+
+                    @if (progression() !== null) {
+                      <div class="progression-bloc">
+                        <div class="progression-entete num">
+                          <span>Dépôt du fichier dans la médiathèque…</span>
+                          <b>{{ progression() }} %</b>
+                        </div>
+                        <div
+                          class="progression-barre"
+                          role="progressbar"
+                          aria-valuemin="0"
+                          aria-valuemax="100"
+                          [attr.aria-valuenow]="progression()"
+                        >
+                          <div
+                            class="progression-remplissage"
+                            [style.width.%]="progression()"
+                          ></div>
+                        </div>
+                      </div>
+                    }
+                  }
                 }
               </div>
             }
@@ -256,6 +567,7 @@
                 class="select"
                 id="ref-nature"
                 [value]="codeNatureChoisi() ?? ''"
+                [disabled]="enCours()"
                 (change)="codeNatureChoisi.set($any($event.target).value)"
               >
                 @for (nature of natures(); track nature.code) {
@@ -278,6 +590,7 @@
                 maxlength="120"
                 autocomplete="off"
                 [value]="libelleSaisi()"
+                [disabled]="enCours()"
                 (input)="libelleSaisi.set($any($event.target).value)"
               />
             </div>
@@ -290,6 +603,7 @@
                 rows="3"
                 maxlength="4000"
                 [value]="descriptionSaisie()"
+                [disabled]="enCours()"
                 (input)="descriptionSaisie.set($any($event.target).value)"
               ></textarea>
             </div>
@@ -299,6 +613,7 @@
                 <input
                   type="checkbox"
                   [checked]="estActifSaisi()"
+                  [disabled]="enCours()"
                   (change)="estActifSaisi.set($any($event.target).checked)"
                 />
                 Référence active pour la génération
@@ -308,14 +623,29 @@
         </div>
 
         <footer class="modal-foot">
-          <button class="btn" type="button" (click)="fermerModale()">Annuler</button>
+          <button
+            class="btn"
+            type="button"
+            [disabled]="enCours()"
+            (click)="fermerModale()"
+          >
+            Annuler
+          </button>
           <button
             class="btn btn-primary"
             type="button"
-            [disabled]="!formulaireValide() || enCours()"
+            [disabled]="
+              !formulaireValide() ||
+              (etat.mode === 'declarer' && modeSource() === 'importer' && !peutDeposerMedia()) ||
+              enCours()
+            "
             (click)="enregistrer()"
           >
-            {{ etat.mode === 'declarer' ? 'Déclarer' : 'Enregistrer' }}
+            @if (etat.mode === 'declarer') {
+              {{ modeSource() === 'importer' ? 'Importer et déclarer' : 'Déclarer' }}
+            } @else {
+              Enregistrer
+            }
           </button>
         </footer>
       </div>
