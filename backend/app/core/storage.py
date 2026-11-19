@@ -137,7 +137,19 @@ class StockageR2:
             aws_access_key_id=access_key_id,
             aws_secret_access_key=secret_access_key,
             region_name="auto",
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                # Depuis botocore 1.36, le client calcule une somme de
+                # controle CRC32 sur chaque depot et l'annonce par un
+                # en-tete x-amz-checksum-algorithm. R2 ne l'implemente pas
+                # et repond « Header 'x-amz-checksum-algorithm' with value
+                # 'CRC32' not implemented ». On revient donc au
+                # comportement anterieur : une somme de controle seulement
+                # la ou l'API l'exige. L'integrite reste verifiee par
+                # l'ETag que R2 renvoie a chaque depot.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            ),
         )
         # Au-delà du seuil, boto3 découpe en parties et les envoie l'une après
         # l'autre : la mémoire reste bornée quelle que soit la taille du dépôt.
