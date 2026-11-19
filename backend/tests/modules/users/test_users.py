@@ -302,7 +302,11 @@ class TestAttributionDesDroits:
         reponse = await client.get("/api/v1/permissions", headers=entete(jetons))
         assert reponse.status_code == 200
         droits = reponse.json()
-        assert [d["code"] for d in droits] == ["manage_users", "manage_permissions"]
+        # La route renvoie le referentiel ENTIER, qui grandit a chaque module :
+        # on verifie la presence et l'ordre, non une liste close.
+        ordres = [d["sort_order"] for d in droits]
+        assert [d["code"] for d in droits][:2] == ["manage_users", "manage_permissions"]
+        assert ordres == sorted(ordres)
         assert all(d["description"] for d in droits)
 
 

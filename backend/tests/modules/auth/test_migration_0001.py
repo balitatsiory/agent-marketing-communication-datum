@@ -59,15 +59,30 @@ class TestSchema:
 
 
 class TestDroitsAmorces:
+    """`permissions` est une table PARTAGÉE : chaque module y insère les siens.
+
+    Les assertions sont donc bornées à la plage de CE module, 200 à 299. Une
+    assertion sur le contenu entier de la table casserait à chaque module
+    suivant, ce qui est arrivé le 19 novembre avec la migration 0002.
+    """
+
     async def test_les_deux_droits_du_module_sont_presents(self, session: AsyncSession) -> None:
-        resultat = await session.execute(text("SELECT code FROM permissions ORDER BY sort_order"))
+        resultat = await session.execute(
+            text(
+                "SELECT code FROM permissions "
+                "WHERE sort_order BETWEEN 200 AND 299 ORDER BY sort_order"
+            )
+        )
         assert resultat.scalars().all() == ["manage_users", "manage_permissions"]
 
     async def test_le_sort_order_suit_la_convention(self, session: AsyncSession) -> None:
         """Numero du module x 100, par pas de 10 : aucune collision possible
         avec les droits qu'inséreront les modules suivants."""
         resultat = await session.execute(
-            text("SELECT sort_order FROM permissions ORDER BY sort_order")
+            text(
+                "SELECT sort_order FROM permissions "
+                "WHERE sort_order BETWEEN 200 AND 299 ORDER BY sort_order"
+            )
         )
         assert resultat.scalars().all() == [200, 210]
 
