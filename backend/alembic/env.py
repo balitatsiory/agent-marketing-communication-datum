@@ -21,6 +21,7 @@ from app.core.database import Base
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.media import models as media_models  # noqa: F401
 from app.modules.platforms import models as platforms_models  # noqa: F401
+from app.modules.social_accounts import models as social_accounts_models  # noqa: F401
 from app.modules.users import models as users_models  # noqa: F401
 
 config = context.config
