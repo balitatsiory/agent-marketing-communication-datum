@@ -35,6 +35,19 @@ class TestLecteurBorne:
         with pytest.raises(FichierTropLourdError):
             lecteur.read(100)
 
+    async def test_le_lecteur_borne_ne_se_repositionne_pas(self) -> None:
+        """L'enveloppe n'expose que `read`, et c'est ce qui rend le compteur
+        infranchissable : avec un `seek`, un appelant pourrait revenir au début
+        et faire repasser deux fois les mêmes octets devant lui.
+
+        C'est aussi ce qui justifie le `cast` de `StockageR2.deposer` : boto3
+        lit séquentiellement dès que le flux n'est pas repositionnable.
+        """
+        lecteur = LecteurBorne(io.BytesIO(b"x" * 10), octets_max=10)
+        assert not hasattr(lecteur, "seek")
+        assert not hasattr(lecteur, "tell")
+        assert callable(lecteur.read)
+
     async def test_le_refus_porte_le_statut_413(self) -> None:
         erreur = FichierTropLourdError(8 * 1024 * 1024)
         assert erreur.status_code == 413

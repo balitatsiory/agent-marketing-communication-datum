@@ -19,7 +19,7 @@ from __future__ import annotations
 import shutil
 from functools import lru_cache
 from pathlib import Path
-from typing import BinaryIO, Protocol
+from typing import IO, BinaryIO, Protocol, cast
 
 from starlette.concurrency import run_in_threadpool
 
@@ -154,7 +154,15 @@ class StockageR2:
             # boto3 est synchrone : l'appel part dans un fil d'exécution séparé
             # pour ne pas immobiliser la boucle événementielle de l'API.
             self._client.upload_fileobj(
-                compteur,
+                # boto3 déclare attendre un flux complet. s3transfer ne se sert
+                # en réalité que de `read` dès que le flux n'est pas
+                # repositionnable, ce qui est le cas ici : l'enveloppe n'expose
+                # QUE `read`, et c'est ce qui rend le compteur infranchissable
+                # — avec un `seek`, un appelant pourrait revenir au début et
+                # faire repasser deux fois les mêmes octets devant lui.
+                # `test_le_lecteur_borne_ne_se_repositionne_pas` le vérifie à
+                # l'exécution, puisque le vérificateur de types ne le peut pas.
+                cast(IO[bytes], compteur),
                 self._bucket,
                 cle,
                 ExtraArgs={"ContentType": type_mime},
