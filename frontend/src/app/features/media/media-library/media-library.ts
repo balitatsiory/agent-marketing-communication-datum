@@ -46,7 +46,9 @@ const TAILLE_PAGE = 200;
   templateUrl: './media-library.html',
   styleUrl: './media-library.scss',
   host: {
-    '(document:keydown.escape)': 'fermerDepot()',
+    '(document:keydown.escape)': 'auEchap()',
+    '(document:keydown.arrowleft)': 'auFlecheGauche($event)',
+    '(document:keydown.arrowright)': 'auFlecheDroite($event)',
   },
 })
 export class MediaLibrary {
@@ -54,6 +56,8 @@ export class MediaLibrary {
   private readonly session = inject(Session);
   private readonly premierChampDepot =
     viewChild<ElementRef<HTMLInputElement>>('premierChampDepot');
+  private readonly boutonFermerDetail =
+    viewChild<ElementRef<HTMLButtonElement>>('boutonFermerDetail');
 
   protected readonly filtres: readonly FiltreMedia[] = ['actifs', 'archives', 'tous'];
   protected readonly libellesFiltre = LIBELLES_FILTRE;
@@ -67,11 +71,14 @@ export class MediaLibrary {
   protected readonly filtre = signal<FiltreMedia>('actifs');
   protected readonly recherche = signal('');
 
-  /** Renommage, archivage et purge depuis la vignette. */
+  /** Renommage, archivage et purge depuis la vignette ou la fenêtre de détail. */
   protected readonly renommageId = signal<number | null>(null);
   protected readonly nouveauNom = signal('');
   protected readonly archivageId = signal<number | null>(null);
   protected readonly purgeId = signal<number | null>(null);
+
+  /** Fenêtre modale de détail d'un média. */
+  private readonly detailId = signal<number | null>(null);
 
   /** Fenêtre modale de dépôt. */
   protected readonly depotOuvert = signal(false);
@@ -106,6 +113,22 @@ export class MediaLibrary {
     });
   });
 
+  protected readonly mediaDetail = computed<MediaView | null>(
+    () => this.medias().find((m) => m.idMedia === this.detailId()) ?? null,
+  );
+
+  protected readonly indexDetail = computed<number>(() => {
+    const id = this.detailId();
+    if (id === null) return -1;
+    return this.resultats().findIndex((m) => m.idMedia === id);
+  });
+
+  protected readonly peutDetailPrecedent = computed(() => this.indexDetail() > 0);
+  protected readonly peutDetailSuivant = computed(() => {
+    const idx = this.indexDetail();
+    return idx >= 0 && idx < this.resultats().length - 1;
+  });
+
   protected readonly poidsFichierSelectionne = computed(() => {
     const fichier = this.fichierSelectionne();
     return fichier ? formaterPoids(fichier.size) : '';
@@ -114,6 +137,9 @@ export class MediaLibrary {
   constructor() {
     effect(() => {
       this.premierChampDepot()?.nativeElement.focus();
+    });
+    effect(() => {
+      this.boutonFermerDetail()?.nativeElement.focus();
     });
     inject(DestroyRef).onDestroy(() => this.libererApercu());
     void this.charger();
@@ -134,6 +160,54 @@ export class MediaLibrary {
 
   protected recharger(): void {
     void this.charger();
+  }
+
+  // ------------------------------------------------ navigation clavier modale
+
+  protected auEchap(): void {
+    if (this.mediaDetail()) {
+      this.fermerDetail();
+      return;
+    }
+    if (this.depotOuvert()) {
+      this.fermerDepot();
+    }
+  }
+
+  protected auFlecheGauche(evenement: Event): void {
+    if (!this.mediaDetail() || this.renommageId() !== null) return;
+    evenement.preventDefault();
+    this.detailPrecedent();
+  }
+
+  protected auFlecheDroite(evenement: Event): void {
+    if (!this.mediaDetail() || this.renommageId() !== null) return;
+    evenement.preventDefault();
+    this.detailSuivant();
+  }
+
+  // --------------------------------------------------- détail d'un média (pop-up)
+
+  protected ouvrirDetail(media: MediaView): void {
+    this.detailId.set(media.idMedia);
+  }
+
+  protected fermerDetail(): void {
+    this.detailId.set(null);
+  }
+
+  protected detailPrecedent(): void {
+    const idx = this.indexDetail();
+    if (idx > 0) {
+      this.detailId.set(this.resultats()[idx - 1].idMedia);
+    }
+  }
+
+  protected detailSuivant(): void {
+    const idx = this.indexDetail();
+    if (idx >= 0 && idx < this.resultats().length - 1) {
+      this.detailId.set(this.resultats()[idx + 1].idMedia);
+    }
   }
 
   // ------------------------------------------------------------------- dépôt
@@ -294,6 +368,9 @@ export class MediaLibrary {
     try {
       await this.api.purge(media.idMedia);
       this.purgeId.set(null);
+      if (this.detailId() === media.idMedia) {
+        this.detailId.set(null);
+      }
       this.medias.update((courants) => courants.filter((m) => m.idMedia !== media.idMedia));
       this.avis.set(`« ${media.displayName} » a été définitivement supprimé.`);
     } catch (erreur) {

@@ -18,6 +18,7 @@ export interface MediaView {
   readonly isImage: boolean;
   readonly isVideo: boolean;
   readonly source: string;
+  readonly sourceLabel: string;
   readonly sizeBytes: number;
   readonly sizeLabel: string;
   readonly width: number | null;
@@ -25,6 +26,8 @@ export interface MediaView {
   readonly dimensionsLabel: string | null;
   readonly videoDurationSeconds: number | null;
   readonly createdAtLabel: string;
+  readonly createdAtFullLabel: string;
+  readonly deletedAtLabel: string | null;
   readonly isArchived: boolean;
   readonly url: string;
 }
@@ -68,6 +71,16 @@ const DATE_COURTE = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'short',
 });
 
+const DATE_ET_HEURE = new Intl.DateTimeFormat('fr-FR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+const LIBELLES_SOURCE: Readonly<Record<string, string>> = {
+  upload: 'Dépôt direct',
+  ai_generated: 'Généré par IA',
+};
+
 export function formaterPoids(octets: number): string {
   if (octets < 1024) return `${octets} o`;
   if (octets < 1024 * 1024) return `${Math.round(octets / 1024)} Ko`;
@@ -75,6 +88,7 @@ export function formaterPoids(octets: number): string {
 }
 
 export function toMediaView(dto: MediaDto): MediaView {
+  const dateCreation = new Date(dto.created_at);
   return {
     idMedia: dto.id_media,
     displayName: dto.display_name,
@@ -82,6 +96,7 @@ export function toMediaView(dto: MediaDto): MediaView {
     isImage: dto.file_type.startsWith('image/'),
     isVideo: dto.file_type.startsWith('video/'),
     source: dto.source,
+    sourceLabel: LIBELLES_SOURCE[dto.source] ?? dto.source,
     sizeBytes: dto.size_bytes,
     sizeLabel: formaterPoids(dto.size_bytes),
     width: dto.width,
@@ -89,7 +104,10 @@ export function toMediaView(dto: MediaDto): MediaView {
     dimensionsLabel:
       dto.width !== null && dto.height !== null ? `${dto.width} × ${dto.height} px` : null,
     videoDurationSeconds: dto.video_duration_seconds,
-    createdAtLabel: DATE_COURTE.format(new Date(dto.created_at)),
+    createdAtLabel: DATE_COURTE.format(dateCreation),
+    createdAtFullLabel: DATE_ET_HEURE.format(dateCreation),
+    deletedAtLabel:
+      dto.deleted_at !== null ? DATE_ET_HEURE.format(new Date(dto.deleted_at)) : null,
     isArchived: dto.deleted_at !== null,
     url: dto.url,
   };
