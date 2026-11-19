@@ -27,7 +27,8 @@ export const NAVIGATION: readonly NavigationEntry[] = [
       { kind: 'link', key: 'compose', label: 'Créer une publication', icon: 'pencil', route: '/publications/nouvelle' },
       { kind: 'link', key: 'generate', label: 'Générer une publication', icon: 'sparkle', route: '/publications/generer' },
       { kind: 'link', key: 'publications', label: 'Publications', icon: 'files', route: '/publications', count: '24' },
-      { kind: 'link', key: 'media-references', label: 'Médias de référence', icon: 'image', route: '/medias-de-reference', count: '8' },
+      { kind: 'link', key: 'media', label: 'Médiathèque', icon: 'image', route: '/medias', requiresPermission: 'manage_media' },
+      { kind: 'link', key: 'media-references', label: 'Médias de référence', icon: 'image', route: '/medias-de-reference', requiresPermission: 'manage_media_reference' },
     ],
   },
   {

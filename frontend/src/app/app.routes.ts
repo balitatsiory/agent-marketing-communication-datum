@@ -78,8 +78,17 @@ export const routes: Routes = [
 
 
       {
+        path: 'medias',
+        title: 'Médiathèque · IAGORA',
+        canActivate: [permissionGuard('manage_media')],
+        loadComponent: () =>
+          import('./features/media/media-library/media-library').then((m) => m.MediaLibrary),
+      },
+
+      {
         path: 'medias-de-reference',
         title: 'Médias de référence · IAGORA',
+        canActivate: [permissionGuard('manage_media_reference')],
         loadComponent: () =>
           import('./features/media-references/media-reference-list/media-reference-list').then(
             (m) => m.MediaReferenceList,
