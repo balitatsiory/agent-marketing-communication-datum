@@ -32,6 +32,15 @@ if TYPE_CHECKING:
 CONTENU = b"IAGORA - recette du stockage R2\n"
 TYPE_MIME = "text/plain"
 
+# Les médias sont lus par des navigateurs, jamais par un client Python.
+# urllib annonce « Python-urllib/3.x », un agent d'automatisation que
+# Cloudflare peut refuser : sans cet en-tête, la recette testerait autre
+# chose que le cas réel et nous ferait chercher la panne au mauvais endroit.
+NAVIGATEUR = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+)
+
 
 def _ligne(renseigne: bool, texte: str) -> str:
     return f"  [{'x' if renseigne else ' '}] {texte}"
@@ -100,7 +109,10 @@ async def principal() -> int:
         print(_ligne(False, "R2_PUBLIC_BASE_URL vide : l'URL rendue est inutilisable"))
     else:
         try:
-            with urllib.request.urlopen(url, timeout=15) as reponse:
+            demande = urllib.request.Request(
+                url, headers={"User-Agent": NAVIGATEUR, "Accept": "*/*"}
+            )
+            with urllib.request.urlopen(demande, timeout=15) as reponse:
                 public = reponse.read()
             print(_ligne(public == CONTENU, f"lecture anonyme : {len(public)} octets"))
         except urllib.error.HTTPError as erreur:
