@@ -105,8 +105,24 @@ async def principal() -> int:
             print(_ligne(public == CONTENU, f"lecture anonyme : {len(public)} octets"))
         except urllib.error.HTTPError as erreur:
             print(_ligne(False, f"lecture anonyme refusée : HTTP {erreur.code}"))
-            print("      Le seau n'est pas en accès public ou le domaine n'est")
-            print("      pas rattaché. À régler dans R2 > Settings > Public access.")
+            # Les en-têtes distinguent deux causes qui donnent le même code :
+            # l'accès public simplement desactive, et un blocage côté
+            # Cloudflare. Sans eux on clique au hasard dans le tableau de bord.
+            for entete in ("x-proxy-error", "cf-ray", "server"):
+                valeur = erreur.headers.get(entete)
+                if valeur:
+                    print(f"      {entete}: {valeur}")
+            if erreur.code in (401, 403):
+                print("      Cause la plus probable : l'accès public du seau n'est")
+                print("      pas activé. R2 > le seau > Settings > Public")
+                print("      Development URL > Enable, puis taper « allow ».")
+            elif erreur.code == 404:
+                print("      Le domaine public ne sert pas ce seau : vérifier que")
+                print("      R2_PUBLIC_BASE_URL est bien celui de CE seau.")
+            elif erreur.code == 429:
+                print("      Débit limité : l'URL r2.dev est bridée par Cloudflare")
+                print("      et réservée au développement. Un domaine")
+                print("      personnalisé lève cette limite.")
         except urllib.error.URLError as erreur:
             print(_ligne(False, f"domaine injoignable : {erreur.reason}"))
 
