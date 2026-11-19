@@ -21,7 +21,7 @@
     <span class="k">Ctrl K</span>
   </button>
 
-  @for (entry of navigation; track entry.key) {
+  @for (entry of navigation(); track entry.key) {
     @if (entry.type === 'link') {
       <a
         class="sb-item"

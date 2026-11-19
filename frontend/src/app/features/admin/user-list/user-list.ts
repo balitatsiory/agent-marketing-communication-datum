@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 
 import { toApiError } from '../../../core/api/api-error';
 import { UsersApi } from '../../../core/api/users.api';
@@ -41,7 +50,10 @@ interface BrouillonDeCompte {
   password: string;
 }
 
+type ChampCreation = keyof BrouillonDeCompte;
+
 const COMPTE_VIDE: BrouillonDeCompte = { email: '', first_name: '', last_name: '', password: '' };
+const FORMAT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Habilitations et utilisateurs — F-22, branché sur l'API.
@@ -72,10 +84,15 @@ const COMPTE_VIDE: BrouillonDeCompte = { email: '', first_name: '', last_name: '
   imports: [Topbar, Icon],
   templateUrl: './user-list.html',
   styleUrl: './user-list.scss',
+  host: {
+    '(document:keydown.escape)': 'fermerCreation()',
+  },
 })
 export class UserList {
   private readonly api = inject(UsersApi);
   private readonly session = inject(Session);
+  private readonly premierChampCreation =
+    viewChild<ElementRef<HTMLInputElement>>('premierChampCreation');
 
   protected readonly filterLabels = FILTER_LABELS;
   protected readonly filters: readonly AccountFilter[] = [
@@ -110,6 +127,7 @@ export class UserList {
   /** Panneaux ouverts à la demande, pour ne pas charger l'écran. */
   protected readonly creationOuverte = signal(false);
   protected readonly nouveauCompte = signal<BrouillonDeCompte>({ ...COMPTE_VIDE });
+  private readonly champsTouches = signal<ReadonlySet<ChampCreation>>(new Set());
   protected readonly motDePasseOuvert = signal(false);
   protected readonly nouveauMotDePasse = signal('');
   protected readonly archivageDemande = signal(false);
@@ -127,6 +145,12 @@ export class UserList {
   );
 
   constructor() {
+    effect(() => {
+      if (!this.creationOuverte()) {
+        this.champsTouches.set(new Set());
+      }
+      this.premierChampCreation()?.nativeElement.focus();
+    });
     void this.charger();
   }
 
@@ -194,6 +218,12 @@ export class UserList {
     () => this.nouveauMotDePasse().length >= MOT_DE_PASSE_MIN,
   );
 
+  protected readonly erreurMotDePasse = computed<string | null>(() => {
+    const mdp = this.nouveauMotDePasse();
+    if (mdp.length === 0 || mdp.length >= MOT_DE_PASSE_MIN) return null;
+    return `Mot de passe trop court (${mdp.length} / ${MOT_DE_PASSE_MIN} caractères minimum).`;
+  });
+
   protected readonly nouveauCompteValide = computed(() => {
     const brouillon = this.nouveauCompte();
     return (
@@ -203,6 +233,64 @@ export class UserList {
       brouillon.password.length >= MOT_DE_PASSE_MIN
     );
   });
+
+  protected readonly erreursCreation = computed<
+    Readonly<Record<ChampCreation, string | null>>
+  >(() => {
+    const b = this.nouveauCompte();
+    const touches = this.champsTouches();
+
+    const prenom =
+      touches.has('first_name') || b.first_name.length > 0
+        ? b.first_name.trim().length === 0
+          ? 'Le prénom est obligatoire.'
+          : null
+        : null;
+
+    const nom =
+      touches.has('last_name') || b.last_name.length > 0
+        ? b.last_name.trim().length === 0
+          ? 'Le nom est obligatoire.'
+          : null
+        : null;
+
+    let email: string | null = null;
+    const emailSaisi = b.email.trim();
+    if (emailSaisi.length > 0) {
+      if (!FORMAT_EMAIL.test(emailSaisi)) {
+        email = 'Adresse électronique invalide (exemple : nom@domaine.org).';
+      } else if (
+        this.comptes().some((c) => c.email.toLowerCase() === emailSaisi.toLowerCase())
+      ) {
+        email = 'Cette adresse électronique est déjà utilisée.';
+      }
+    } else if (touches.has('email')) {
+      email = "L'adresse électronique est obligatoire.";
+    }
+
+    let password: string | null = null;
+    if (b.password.length > 0 && b.password.length < MOT_DE_PASSE_MIN) {
+      password = `Mot de passe trop court (${b.password.length} / ${MOT_DE_PASSE_MIN} caractères minimum).`;
+    } else if (touches.has('password') && b.password.length === 0) {
+      password = 'Le mot de passe initial est obligatoire.';
+    }
+
+    return {
+      first_name: prenom,
+      last_name: nom,
+      email,
+      password,
+    };
+  });
+
+  protected marquerTouche(champ: ChampCreation): void {
+    this.champsTouches.update((courant) => {
+      if (courant.has(champ)) return courant;
+      const suivant = new Set(courant);
+      suivant.add(champ);
+      return suivant;
+    });
+  }
 
   // ------------------------------------------------------------- chargement
 

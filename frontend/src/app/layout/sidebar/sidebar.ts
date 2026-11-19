@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NAVIGATION } from '../../core/data/navigation.data';
+import { NavigationChild, NavigationEntry, NavigationLink } from '../../core/models/navigation';
 import { Session } from '../../core/services/session';
 import { SidebarState } from '../../core/services/sidebar-state';
 import { BrandLogo } from '../../shared/brand-logo/brand-logo';
@@ -20,7 +21,6 @@ import { Icon } from '../../shared/icon/icon';
 })
 export class Sidebar {
   protected readonly state = inject(SidebarState);
-  protected readonly navigation = NAVIGATION;
 
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);
@@ -33,6 +33,41 @@ export class Sidebar {
    * d'administration verrait une ligne vide.
    */
   protected readonly session = inject(Session);
+
+  /**
+   * Ce filtrage est un confort d'affichage, pas une sécurité : masquer une
+   * entrée n'empêche pas d'appeler la route. La sécurité est au backend, qui
+   * renvoie 403.
+   */
+  protected readonly navigation = computed<readonly NavigationEntry[]>(() => {
+    const autorise = (lien: NavigationLink): boolean =>
+      !lien.requiresPermission || this.session.has(lien.requiresPermission);
+
+    const entrees: NavigationEntry[] = [];
+    for (const entree of NAVIGATION) {
+      if (entree.type === 'link') {
+        if (autorise(entree)) entrees.push(entree);
+        continue;
+      }
+
+      const enfants: NavigationChild[] = [];
+      for (const enfant of entree.items) {
+        if (enfant.kind === 'link') {
+          if (autorise(enfant)) enfants.push(enfant);
+          continue;
+        }
+        const feuilles = enfant.items.filter(autorise);
+        if (feuilles.length > 0) {
+          enfants.push({ ...enfant, items: feuilles });
+        }
+      }
+
+      if (enfants.length > 0) {
+        entrees.push({ ...entree, items: enfants });
+      }
+    }
+    return entrees;
+  });
 
   /** Menu du compte, ouvert depuis le bouton du pied de barre. */
   protected readonly menuOuvert = signal(false);

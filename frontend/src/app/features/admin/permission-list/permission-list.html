@@ -1,0 +1,263 @@
+<app-topbar [trail]="['Administrer', 'Droits']" />
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Référentiel des droits</h1>
+      <p class="sub">
+        Catalogue des droits déclarés par les modules et comptes qui les détiennent.
+      </p>
+    </div>
+  </div>
+
+  @if (erreur(); as message) {
+    <p class="banner banner-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm" type="button" (click)="recharger()">Réessayer</button>
+    </p>
+  }
+
+  @if (chargement()) {
+    <section class="panel">
+      <div class="empty">
+        <h2>Chargement</h2>
+        <p>Lecture du référentiel des droits et des comptes.</p>
+      </div>
+    </section>
+  } @else {
+    <section class="panel" aria-label="Référentiel des droits">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Libellé</th>
+              <th>Code</th>
+              <th>Description</th>
+              <th class="num">Détenteurs</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (droit of droits(); track droit.code) {
+              <tr>
+                <td class="droit-libelle">{{ droit.label }}</td>
+                <td class="droit-code num">{{ droit.code }}</td>
+                <td class="droit-desc">{{ droit.description ?? '—' }}</td>
+                <td class="num">
+                  <button
+                    class="btn btn-sm num"
+                    type="button"
+                    (click)="ouvrirDetenteurs(droit.code)"
+                  >
+                    {{ droit.detenteurs.length }}
+                    {{ droit.detenteurs.length > 1 ? 'comptes' : 'compte' }}
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">
+                  <div class="empty">
+                    <h2>Aucun droit référencé</h2>
+                    <p>Le référentiel des droits est alimenté par migration, module par module.</p>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (droitOuvert(); as droit) {
+    <div class="modal-back" (click)="fermerDetenteurs()">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detenteurs-titre"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-head">
+          <div class="modal-titre">
+            <h2 id="detenteurs-titre">{{ droit.label }}</h2>
+            <span class="droit-code num">{{ droit.code }}</span>
+          </div>
+          <button
+            #boutonFermer
+            class="btn btn-icon btn-ghost"
+            type="button"
+            aria-label="Fermer"
+            (click)="fermerDetenteurs()"
+          >
+            <app-icon name="close" size="sm" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          @if (erreurAction(); as message) {
+            <p class="banner banner-error modal-alerte" role="alert">
+              <app-icon name="warn" size="sm" />
+              {{ message }}
+            </p>
+          }
+
+          @if (avis(); as message) {
+            <p class="notice" role="status">
+              <app-icon name="check" size="sm" />
+              {{ message }}
+            </p>
+          }
+
+          <!-- Détenteurs actuels -->
+          <div class="section-bloc">
+            <div class="section-entete">
+              <span class="label">Comptes détenteurs ({{ droit.detenteurs.length }})</span>
+            </div>
+
+            @for (compte of droit.detenteurs; track compte.idUsers) {
+              <div class="detenteur" [class.is-off]="compte.status !== 'active'">
+                <span class="av" [class.av-dashed]="compte.status === 'archived'">
+                  {{ compte.initials }}
+                </span>
+                <span class="detenteur-id">
+                  <b>{{ compte.fullName }}</b>
+                  <span>{{ compte.email }}</span>
+                </span>
+                @if (compte.status !== 'active') {
+                  <span
+                    class="status"
+                    [class.status-scheduled]="compte.status === 'suspended'"
+                    [class.status-draft]="compte.status === 'archived'"
+                  >
+                    {{ statusLabels[compte.status] }}
+                  </span>
+                }
+                @if (peutAttribuerDesDroits() && compte.status !== 'archived') {
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="retirerDroit(compte)"
+                  >
+                    Retirer
+                  </button>
+                }
+              </div>
+            } @empty {
+              <div class="empty">
+                <p>Aucun compte ne détient ce droit</p>
+              </div>
+            }
+          </div>
+
+          <!-- Attribution par sélection multiple -->
+          <div class="section-bloc section-attribution">
+            <div class="section-entete">
+              <span class="label">Attribuer à des utilisateurs (sélection multiple)</span>
+              @if (peutAttribuerDesDroits() && candidatsFiltres().length > 0) {
+                <button
+                  class="btn btn-sm"
+                  type="button"
+                  [disabled]="enCours()"
+                  (click)="basculerTout()"
+                >
+                  {{ toutEstSelectionne() ? 'Tout désélectionner' : 'Tout sélectionner' }}
+                </button>
+              }
+            </div>
+
+            @if (!peutAttribuerDesDroits()) {
+              <p class="hint">
+                Attribuer ou retirer un droit demande « manage_permissions », distinct de
+                « manage_users ».
+              </p>
+            } @else if (candidatsEligibles().length === 0) {
+              <p class="hint">
+                Tous les comptes actifs ou suspendus détiennent déjà ce droit.
+              </p>
+            } @else {
+              <div class="multi-outils">
+                <div class="searchbox">
+                  <app-icon name="search" size="sm" />
+                  <input
+                    type="search"
+                    placeholder="Rechercher un compte par nom ou e-mail…"
+                    aria-label="Rechercher un compte à qui attribuer ce droit"
+                    [value]="rechercheCandidat()"
+                    (input)="rechercheCandidat.set($any($event.target).value)"
+                  />
+                </div>
+
+                @if (comptesSelectionnes().length > 0) {
+                  <div class="chips" aria-label="Comptes sélectionnés">
+                    @for (choisi of comptesSelectionnes(); track choisi.idUsers) {
+                      <button
+                        class="chip-active"
+                        type="button"
+                        [disabled]="enCours()"
+                        (click)="basculerSelection(choisi.idUsers)"
+                      >
+                        {{ choisi.fullName }}
+                        <app-icon name="close" size="sm" />
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div
+                class="multi-liste"
+                role="group"
+                aria-label="Sélection multiple des comptes"
+              >
+                @for (compte of candidatsFiltres(); track compte.idUsers) {
+                  <label
+                    class="check multi-option"
+                    [class.is-selected]="estSelectionne(compte.idUsers)"
+                    [class.is-off]="compte.status !== 'active'"
+                  >
+                    <input
+                      type="checkbox"
+                      [checked]="estSelectionne(compte.idUsers)"
+                      [disabled]="enCours()"
+                      (change)="basculerSelection(compte.idUsers)"
+                    />
+                    <span class="av">{{ compte.initials }}</span>
+                    <span class="detenteur-id">
+                      <b>{{ compte.fullName }}</b>
+                      <span>{{ compte.email }}</span>
+                    </span>
+                    @if (compte.status !== 'active') {
+                      <span class="status status-scheduled">
+                        {{ statusLabels[compte.status] }}
+                      </span>
+                    }
+                  </label>
+                } @empty {
+                  <p class="hint">Aucun compte ne correspond à cette recherche.</p>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <footer class="modal-foot">
+          <button class="btn" type="button" (click)="fermerDetenteurs()">Fermer</button>
+          @if (peutAttribuerDesDroits() && candidatsEligibles().length > 0) {
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="selectionIds().size === 0 || enCours()"
+              (click)="attribuerSelection()"
+            >
+              <app-icon name="plus" size="sm" />
+              Attribuer ({{ selectionIds().size }})
+            </button>
+          }
+        </footer>
+      </div>
+    </div>
+  }
+</div>

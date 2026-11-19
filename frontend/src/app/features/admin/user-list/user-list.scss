@@ -1,6 +1,7 @@
 /* Habilitations et utilisateurs — F-22. */
 
 @use '../../../../styles/design-system/type' as type;
+@use '../../../../styles/design-system/roles' as roles;
 
 :host {
   display: contents;
@@ -507,10 +508,12 @@
 
 /* ---------- Creation d'un compte ---------- */
 
-.creation {
-  flex: none;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
+.modal {
+  width: min(560px, 100%);
+}
+
+.modal-alerte {
+  margin: 14px 14px 0;
 }
 
 .creation-grid {
@@ -518,13 +521,29 @@
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 14px;
   padding: 14px;
+  align-items: start;
 }
 
-.creation-foot {
+.input.is-invalid {
+  @include roles.role('danger');
+  border-color: var(--hue);
+  background: var(--tint);
+}
+
+.input.is-invalid:focus {
+  border-color: var(--hue);
+  box-shadow: 0 0 0 3px var(--tint);
+}
+
+.field-error {
+  @include roles.role('danger');
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 0 14px;
+  align-items: center;
+  gap: 5px;
+  color: var(--deep);
+  font-size: var(--t-2xs);
+  font-weight: var(--w-semi);
+  line-height: var(--lh-snug);
 }
 
 /* ---------- Definition d'un mot de passe ---------- */

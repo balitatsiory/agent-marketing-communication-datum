@@ -32,75 +32,137 @@
     <!-- Création d'un compte. Pas d'invitation par courriel : le cahier des
          charges exclut le libre-service, donc l'administrateur pose lui-même
          le premier mot de passe et le transmet. -->
-    <section class="panel creation" aria-label="Créer un compte">
-      <div class="panel-head">
-        <h2>Nouveau compte</h2>
-        <span class="cap">Aucun droit n'est accordé à la création</span>
-      </div>
+    <div class="modal-back" (click)="fermerCreation()">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nc-titre"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-head">
+          <h2 id="nc-titre">Nouveau compte</h2>
+          <button
+            class="btn btn-icon btn-ghost"
+            type="button"
+            aria-label="Fermer"
+            (click)="fermerCreation()"
+          >
+            <app-icon name="close" size="sm" />
+          </button>
+        </div>
 
-      <div class="creation-grid">
-        <div class="field">
-          <label for="nc-prenom">Prénom</label>
-          <input
-            class="input"
-            id="nc-prenom"
-            type="text"
-            autocomplete="off"
-            [value]="nouveauCompte().first_name"
-            (input)="majNouveauCompte('first_name', $any($event.target).value)"
-          />
-        </div>
-        <div class="field">
-          <label for="nc-nom">Nom</label>
-          <input
-            class="input"
-            id="nc-nom"
-            type="text"
-            autocomplete="off"
-            [value]="nouveauCompte().last_name"
-            (input)="majNouveauCompte('last_name', $any($event.target).value)"
-          />
-        </div>
-        <div class="field">
-          <label for="nc-email">Adresse électronique</label>
-          <input
-            class="input"
-            id="nc-email"
-            type="email"
-            autocomplete="off"
-            [value]="nouveauCompte().email"
-            (input)="majNouveauCompte('email', $any($event.target).value)"
-          />
-        </div>
-        <div class="field">
-          <label for="nc-mdp">Mot de passe initial</label>
-          <input
-            class="input"
-            id="nc-mdp"
-            type="text"
-            autocomplete="new-password"
-            [attr.minlength]="motDePasseMin"
-            [value]="nouveauCompte().password"
-            (input)="majNouveauCompte('password', $any($event.target).value)"
-          />
-          <span class="hint">
-            {{ motDePasseMin }} caractères au moins. À transmettre à la personne.
-          </span>
-        </div>
-      </div>
+        <div class="modal-body">
+          @if (erreur(); as message) {
+            <p class="banner banner-error modal-alerte" role="alert">
+              <app-icon name="warn" size="sm" />
+              {{ message }}
+            </p>
+          }
 
-      <footer class="creation-foot">
-        <button class="btn" type="button" (click)="fermerCreation()">Annuler</button>
-        <button
-          class="btn btn-primary"
-          type="button"
-          [disabled]="!nouveauCompteValide() || enCours()"
-          (click)="creer()"
-        >
-          Créer le compte
-        </button>
-      </footer>
-    </section>
+          <div class="creation-grid">
+            <div class="field">
+              <label for="nc-prenom">Prénom</label>
+              <input
+                #premierChampCreation
+                class="input"
+                [class.is-invalid]="erreursCreation().first_name !== null"
+                [attr.aria-invalid]="erreursCreation().first_name !== null"
+                id="nc-prenom"
+                type="text"
+                autocomplete="off"
+                [value]="nouveauCompte().first_name"
+                (input)="majNouveauCompte('first_name', $any($event.target).value)"
+                (blur)="marquerTouche('first_name')"
+              />
+              @if (erreursCreation().first_name; as msg) {
+                <span class="field-error" role="alert">
+                  <app-icon name="warn" size="sm" />
+                  {{ msg }}
+                </span>
+              }
+            </div>
+            <div class="field">
+              <label for="nc-nom">Nom</label>
+              <input
+                class="input"
+                [class.is-invalid]="erreursCreation().last_name !== null"
+                [attr.aria-invalid]="erreursCreation().last_name !== null"
+                id="nc-nom"
+                type="text"
+                autocomplete="off"
+                [value]="nouveauCompte().last_name"
+                (input)="majNouveauCompte('last_name', $any($event.target).value)"
+                (blur)="marquerTouche('last_name')"
+              />
+              @if (erreursCreation().last_name; as msg) {
+                <span class="field-error" role="alert">
+                  <app-icon name="warn" size="sm" />
+                  {{ msg }}
+                </span>
+              }
+            </div>
+            <div class="field">
+              <label for="nc-email">Adresse électronique</label>
+              <input
+                class="input"
+                [class.is-invalid]="erreursCreation().email !== null"
+                [attr.aria-invalid]="erreursCreation().email !== null"
+                id="nc-email"
+                type="email"
+                autocomplete="off"
+                [value]="nouveauCompte().email"
+                (input)="majNouveauCompte('email', $any($event.target).value)"
+                (blur)="marquerTouche('email')"
+              />
+              @if (erreursCreation().email; as msg) {
+                <span class="field-error" role="alert">
+                  <app-icon name="warn" size="sm" />
+                  {{ msg }}
+                </span>
+              }
+            </div>
+            <div class="field">
+              <label for="nc-mdp">Mot de passe initial</label>
+              <input
+                class="input"
+                [class.is-invalid]="erreursCreation().password !== null"
+                [attr.aria-invalid]="erreursCreation().password !== null"
+                id="nc-mdp"
+                type="text"
+                autocomplete="new-password"
+                [attr.minlength]="motDePasseMin"
+                [value]="nouveauCompte().password"
+                (input)="majNouveauCompte('password', $any($event.target).value)"
+                (blur)="marquerTouche('password')"
+              />
+              @if (erreursCreation().password; as msg) {
+                <span class="field-error" role="alert">
+                  <app-icon name="warn" size="sm" />
+                  {{ msg }}
+                </span>
+              } @else {
+                <span class="hint">
+                  {{ motDePasseMin }} caractères au moins. À transmettre à la personne.
+                </span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <footer class="modal-foot">
+          <button class="btn" type="button" (click)="fermerCreation()">Annuler</button>
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="!nouveauCompteValide() || enCours()"
+            (click)="creer()"
+          >
+            Créer le compte
+          </button>
+        </footer>
+      </div>
+    </div>
   }
 
   @if (chargement()) {
@@ -227,12 +289,20 @@
                     <label for="pw-nouveau">Nouveau mot de passe</label>
                     <input
                       class="input"
+                      [class.is-invalid]="erreurMotDePasse() !== null"
+                      [attr.aria-invalid]="erreurMotDePasse() !== null"
                       id="pw-nouveau"
                       type="text"
                       autocomplete="new-password"
                       [value]="nouveauMotDePasse()"
                       (input)="nouveauMotDePasse.set($any($event.target).value)"
                     />
+                    @if (erreurMotDePasse(); as msg) {
+                      <span class="field-error" role="alert">
+                        <app-icon name="warn" size="sm" />
+                        {{ msg }}
+                      </span>
+                    }
                   </div>
                   <button
                     class="btn btn-primary"
