@@ -10,6 +10,7 @@ reste fiable :
 
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from alembic.config import Config
@@ -25,6 +26,7 @@ from sqlalchemy.ext.asyncio import (
 from alembic import command
 from app.core.config import get_settings
 from app.core.database import get_session
+from app.core.storage import StockageLocal, get_stockage
 from app.main import create_app
 
 
@@ -74,14 +76,27 @@ async def session(moteur_de_test: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
-    """Client HTTP branché sur l'application, avec la session de test."""
+def stockage_de_test(tmp_path: Path) -> StockageLocal:
+    """Stockage jetable, propre à chaque test.
+
+    Sans cette substitution, les tests écriraient dans le dossier de travail
+    du dépôt, et une suite interrompue y laisserait des fichiers.
+    """
+    return StockageLocal(tmp_path / "medias", base_url="https://medias.test")
+
+
+@pytest.fixture
+async def client(
+    session: AsyncSession, stockage_de_test: StockageLocal
+) -> AsyncIterator[AsyncClient]:
+    """Client HTTP branché sur l'application, avec la session et le stockage de test."""
     application = create_app()
 
     async def session_de_test() -> AsyncIterator[AsyncSession]:
         yield session
 
     application.dependency_overrides[get_session] = session_de_test
+    application.dependency_overrides[get_stockage] = lambda: stockage_de_test
 
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client_de_test:

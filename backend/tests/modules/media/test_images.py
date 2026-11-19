@@ -95,6 +95,10 @@ class TestDimensions:
     def test_les_dimensions_sont_lues(self) -> None:
         assert dimensions(image_bruitee(40, 25, "PNG"), pixels_max=1_000_000) == (40, 25)
 
+    # Pillow avertit lui aussi au-delà de la limite qu'on lui a fixée : c'est
+    # exactement ce que ce test provoque, et l'avertissement n'a pas à encombrer
+    # la sortie de la suite.
+    @pytest.mark.filterwarnings("ignore::PIL.Image.DecompressionBombWarning")
     def test_au_dela_de_la_limite_de_pixels_l_image_est_refusee(self) -> None:
         with pytest.raises(ImageTropGrandeError) as capture:
             dimensions(image_bruitee(40, 25, "PNG"), pixels_max=500)

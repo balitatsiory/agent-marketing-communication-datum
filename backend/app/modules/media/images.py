@@ -136,7 +136,7 @@ def _encoder(image: Image.Image, format_pillow: str, qualite: int | None) -> byt
     options: dict[str, object] = {"optimize": True}
     if qualite is not None:
         options["quality"] = qualite
-    image.save(tampon, format=format_pillow, **options)  # type: ignore[arg-type]
+    image.save(tampon, format=format_pillow, **options)
     return tampon.getvalue()
 
 
