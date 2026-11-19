@@ -22,14 +22,16 @@ import {
   GenerationTone,
   captionLength,
 } from '../../../core/models/generation';
+import { MediaApi } from '../../../core/api/media.api';
 import {
-  MEDIA_REFERENCE_ROLE_LABELS,
-  MEDIA_REFERENCE_ROLES,
-  MediaReferenceRole,
+  MediaReferenceNature,
+  MediaReferenceView,
+  toMediaReferenceNature,
+  toMediaReferenceView,
+  toMediaView,
 } from '../../../core/models/media-reference';
 import { PUBLICATION_FORMAT_LABELS, PublicationFormat } from '../../../core/models/publication';
 import { SocialNetworkCode } from '../../../core/models/social-network';
-import { MediaReferenceStore } from '../../../core/services/media-reference-store';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
 import { NetworkLogo } from '../../../shared/network-logo/network-logo';
@@ -43,8 +45,8 @@ const STEPS = [
   { n: 5, label: 'Récapitulatif' },
 ] as const;
 
-/** Filtre par rôle dans la pop-up des médias de référence. */
-type RoleFilter = 'all' | MediaReferenceRole;
+/** Filtre par nature dans la pop-up des médias de référence. */
+type RoleFilter = string;
 
 /** Cadrage et dimensions cibles selon le format de publication. */
 interface FormatVisualSpec {
@@ -106,7 +108,7 @@ const ANGLES = ['Annonce', 'Bénéfice', 'Question'] as const;
   styleUrl: './publication-generator-v2.scss',
 })
 export class PublicationGeneratorV2 {
-  private readonly mediaStore = inject(MediaReferenceStore);
+  private readonly mediaApi = inject(MediaApi);
   private readonly createdObjectUrls: string[] = [];
 
   protected readonly steps = STEPS;
@@ -117,8 +119,6 @@ export class PublicationGeneratorV2 {
   protected readonly formatBounds = FORMAT_BOUNDS;
   protected readonly formats = Object.keys(PUBLICATION_FORMAT_LABELS) as PublicationFormat[];
   protected readonly remainingGenerations = REMAINING_GENERATIONS;
-  protected readonly roleLabels = MEDIA_REFERENCE_ROLE_LABELS;
-  protected readonly roles = MEDIA_REFERENCE_ROLES;
   protected readonly angles = ANGLES;
   protected readonly quickPrompts = RETOUCH_QUICK_PROMPTS;
 
@@ -150,12 +150,13 @@ export class PublicationGeneratorV2 {
   protected readonly hashtagsMin = signal(8);
   protected readonly hashtagsMax = signal(12);
   protected readonly useKnowledgeBase = signal(true);
-  protected readonly referenceIds = signal<ReadonlySet<number>>(new Set([1, 2]));
+  protected readonly referenceIds = signal<ReadonlySet<number>>(new Set());
 
-  protected readonly library = this.mediaStore.everything;
+  private readonly natures = signal<readonly MediaReferenceNature[]>([]);
+  protected readonly library = signal<readonly MediaReferenceView[]>([]);
 
   protected readonly references = computed(() =>
-    this.library().filter((entry) => this.referenceIds().has(entry.id)),
+    this.library().filter((entry) => this.referenceIds().has(entry.idMediaReferences)),
   );
 
   /* ---------- la bibliothèque (pop-up) ---------- */
@@ -170,30 +171,30 @@ export class PublicationGeneratorV2 {
     const all = this.library();
     return [
       { key: 'all' as RoleFilter, label: 'Tous', count: all.length },
-      ...this.roles.map((role) => ({
-        key: role as RoleFilter,
-        label: this.roleLabels[role],
-        count: all.filter((entry) => entry.role === role).length,
+      ...this.natures().map((nature) => ({
+        key: nature.code as RoleFilter,
+        label: nature.label,
+        count: all.filter((entry) => entry.natureCode === nature.code).length,
       })),
     ];
   });
 
-  /** La recherche porte sur le nom du fichier, le rôle et la description. */
+  /** La recherche porte sur le libellé, la nature et la description. */
   protected readonly libraryResults = computed(() => {
     const roleFilter = this.libraryRoleFilter();
     const needle = this.librarySearch().trim().toLowerCase();
     let list = this.library();
 
     if (roleFilter !== 'all') {
-      list = list.filter((entry) => entry.role === roleFilter);
+      list = list.filter((entry) => entry.natureCode === roleFilter);
     }
 
     if (!needle) return list;
     return list.filter(
       (entry) =>
-        entry.fileName.toLowerCase().includes(needle) ||
-        entry.description.toLowerCase().includes(needle) ||
-        this.roleLabels[entry.role].toLowerCase().includes(needle),
+        entry.label.toLowerCase().includes(needle) ||
+        (entry.description?.toLowerCase().includes(needle) ?? false) ||
+        entry.natureLabel.toLowerCase().includes(needle),
     );
   });
 
@@ -260,6 +261,28 @@ export class PublicationGeneratorV2 {
         URL.revokeObjectURL(url);
       }
     });
+    void this.chargerReferences();
+  }
+
+  private async chargerReferences(): Promise<void> {
+    try {
+      const [naturesDto, refsPage, mediasPage] = await Promise.all([
+        this.mediaApi.natures(),
+        this.mediaApi.listReferences({ page: 1, size: 200 }, false),
+        this.mediaApi.list({ page: 1, size: 200 }, false),
+      ]);
+      const natures = naturesDto.map(toMediaReferenceNature).sort((a, b) => a.sortOrder - b.sortOrder);
+      const mediasParId = new Map(mediasPage.items.map((m) => [m.id_media, toMediaView(m)]));
+      const naturesParCode = new Map(natures.map((n) => [n.code, n]));
+      this.natures.set(natures);
+      this.library.set(
+        refsPage.items
+          .filter((r) => r.is_active && r.deleted_at === null)
+          .map((r) => toMediaReferenceView(r, mediasParId, naturesParCode)),
+      );
+    } catch {
+      // Silencieux si l'API n'est pas joignable ou si le compte n'a pas le droit.
+    }
   }
 
   /* ---------- navigation ---------- */

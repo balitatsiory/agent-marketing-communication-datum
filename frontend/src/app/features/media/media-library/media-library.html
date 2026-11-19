@@ -1,0 +1,319 @@
+<app-topbar [trail]="['Publier', 'Médiathèque']">
+  <button
+    class="btn btn-primary"
+    type="button"
+    [disabled]="!peutGererMedias() || enCours()"
+    (click)="ouvrirDepot()"
+  >
+    <app-icon name="plus" size="sm" />
+    Déposer un média
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Médiathèque</h1>
+      <p class="sub">
+        Images et vidéos de l'équipe. Une image de plus de 8 Mo est automatiquement compressée à la réception.
+      </p>
+    </div>
+  </div>
+
+  @if (erreur(); as message) {
+    <p class="banner banner-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm" type="button" (click)="recharger()">Réessayer</button>
+    </p>
+  }
+
+  @if (avis(); as message) {
+    <p class="notice" role="status">
+      <app-icon name="check" size="sm" />
+      {{ message }}
+    </p>
+  }
+
+  <div class="toolbar" role="toolbar" aria-label="Recherche et filtres">
+    <div class="searchbox">
+      <app-icon name="search" size="sm" />
+      <input
+        type="search"
+        placeholder="Rechercher par nom…"
+        aria-label="Rechercher un média par nom"
+        [value]="recherche()"
+        (input)="recherche.set($any($event.target).value)"
+      />
+    </div>
+
+    <div class="chips" role="group" aria-label="Filtrer par état">
+      @for (option of filtres; track option) {
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="filtre() === option"
+          (click)="filtre.set(option)"
+        >
+          {{ libellesFiltre[option] }}
+          <span class="n">{{ compteurs()[option] }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (chargement()) {
+    <section class="panel">
+      <div class="empty">
+        <h2>Chargement</h2>
+        <p>Lecture des fichiers de la médiathèque.</p>
+      </div>
+    </section>
+  } @else {
+    <div class="grille">
+      @for (media of resultats(); track media.idMedia) {
+        <article class="panel vignette" [class.is-archived]="media.isArchived">
+          <div class="vignette-apercu">
+            @if (media.isImage && media.url) {
+              <img [src]="media.url" [alt]="media.displayName" loading="lazy" />
+            } @else if (media.isVideo && media.url) {
+              <video [src]="media.url" preload="metadata" muted></video>
+            } @else {
+              <app-icon [name]="media.isVideo ? 'video' : 'image'" size="lg" />
+            }
+            @if (media.isArchived) {
+              <span class="status status-draft vignette-badge">Archivé</span>
+            }
+          </div>
+
+          <div class="vignette-corps">
+            @if (renommageId() === media.idMedia) {
+              <div class="renommage">
+                <div class="field">
+                  <label [attr.for]="'renommer-' + media.idMedia">Nom du média</label>
+                  <input
+                    class="input"
+                    [id]="'renommer-' + media.idMedia"
+                    type="text"
+                    [value]="nouveauNom()"
+                    (input)="nouveauNom.set($any($event.target).value)"
+                    (keydown.enter)="enregistrerRenommage(media)"
+                  />
+                </div>
+                <div class="vignette-actions">
+                  <button class="btn btn-sm" type="button" (click)="annulerRenommage()">
+                    Annuler
+                  </button>
+                  <button
+                    class="btn btn-sm btn-primary"
+                    type="button"
+                    [disabled]="!nouveauNom().trim() || enCours()"
+                    (click)="enregistrerRenommage(media)"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <b class="vignette-nom" [attr.title]="media.displayName">{{ media.displayName }}</b>
+
+              <div class="vignette-meta num">
+                <span>{{ media.sizeLabel }}</span>
+                @if (media.dimensionsLabel; as dims) {
+                  <span>· {{ dims }}</span>
+                }
+                <span>· {{ media.fileType }}</span>
+              </div>
+
+              <div class="vignette-actions">
+                @if (!media.isArchived) {
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    [disabled]="!peutGererMedias() || enCours()"
+                    (click)="ouvrirRenommage(media)"
+                  >
+                    <app-icon name="pencil" size="sm" />
+                    Renommer
+                  </button>
+
+                  @if (archivageId() === media.idMedia) {
+                    <button class="btn btn-sm" type="button" (click)="renoncerArchivage()">
+                      Renoncer
+                    </button>
+                    <button
+                      class="btn btn-sm btn-danger"
+                      type="button"
+                      [disabled]="enCours()"
+                      (click)="archiver(media)"
+                    >
+                      Confirmer
+                    </button>
+                  } @else {
+                    <button
+                      class="btn btn-sm"
+                      type="button"
+                      [disabled]="!peutGererMedias() || enCours()"
+                      (click)="demanderArchivage(media.idMedia)"
+                    >
+                      Archiver
+                    </button>
+                  }
+                }
+
+                @if (media.isArchived && peutPurger()) {
+                  @if (purgeId() === media.idMedia) {
+                    <button class="btn btn-sm" type="button" (click)="renoncerPurge()">
+                      Renoncer
+                    </button>
+                    <button
+                      class="btn btn-sm btn-danger"
+                      type="button"
+                      [disabled]="enCours()"
+                      (click)="purger(media)"
+                    >
+                      Confirmer la purge
+                    </button>
+                  } @else {
+                    <button
+                      class="btn btn-sm btn-danger"
+                      type="button"
+                      [disabled]="enCours()"
+                      (click)="demanderPurge(media.idMedia)"
+                    >
+                      Purger
+                    </button>
+                  }
+                }
+              </div>
+            }
+          </div>
+        </article>
+      } @empty {
+        <section class="panel grille-vide">
+          <div class="empty">
+            <app-icon name="image" size="lg" />
+            <h2>Aucun média</h2>
+            <p>Aucun fichier ne correspond aux critères sélectionnés.</p>
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+  @if (depotOuvert()) {
+    <div class="modal-back" (click)="fermerDepot()">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="depot-titre"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-head">
+          <h2 id="depot-titre">Déposer un média</h2>
+          <button
+            class="btn btn-icon btn-ghost"
+            type="button"
+            aria-label="Fermer"
+            [disabled]="progression() !== null"
+            (click)="fermerDepot()"
+          >
+            <app-icon name="close" size="sm" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          @if (erreurDepot(); as message) {
+            <p class="banner banner-error modal-alerte" role="alert">
+              <app-icon name="warn" size="sm" />
+              {{ message }}
+            </p>
+          }
+
+          <div class="depot-grille">
+            <div class="field">
+              <label for="depot-fichier">Fichier</label>
+              <input
+                #premierChampDepot
+                class="input"
+                id="depot-fichier"
+                type="file"
+                [disabled]="progression() !== null"
+                (change)="auChoixFichier($event)"
+              />
+            </div>
+
+            <div class="field">
+              <label for="depot-nom">Nom d'affichage (facultatif)</label>
+              <input
+                class="input"
+                id="depot-nom"
+                type="text"
+                autocomplete="off"
+                [value]="nomDepot()"
+                [disabled]="progression() !== null"
+                (input)="nomDepot.set($any($event.target).value)"
+              />
+            </div>
+
+            @if (fichierSelectionne(); as fichier) {
+              <div class="depot-apercu">
+                @if (typeApercu() === 'image' && apercuLocal()) {
+                  <img [src]="apercuLocal()" [alt]="fichier.name" />
+                } @else if (typeApercu() === 'video' && apercuLocal()) {
+                  <video [src]="apercuLocal()" controls muted></video>
+                } @else {
+                  <div class="depot-apercu-neutre">
+                    <app-icon name="files" size="lg" />
+                  </div>
+                }
+                <div class="depot-apercu-meta num">
+                  <b>{{ fichier.name }}</b>
+                  <span>{{ poidsFichierSelectionne() }}</span>
+                </div>
+              </div>
+            }
+
+            @if (progression() !== null) {
+              <div class="progression-bloc">
+                <div class="progression-entete num">
+                  <span>Envoi en cours…</span>
+                  <b>{{ progression() }} %</b>
+                </div>
+                <div
+                  class="progression-barre"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  [attr.aria-valuenow]="progression()"
+                >
+                  <div class="progression-remplissage" [style.width.%]="progression()"></div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <footer class="modal-foot">
+          <button
+            class="btn"
+            type="button"
+            [disabled]="progression() !== null"
+            (click)="fermerDepot()"
+          >
+            Annuler
+          </button>
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="!fichierSelectionne() || enCours()"
+            (click)="deposer()"
+          >
+            Déposer
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+</div>

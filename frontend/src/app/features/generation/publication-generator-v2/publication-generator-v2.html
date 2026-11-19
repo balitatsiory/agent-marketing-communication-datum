@@ -166,21 +166,21 @@
             </button>
           </div>
 
-          @for (entry of references(); track entry.id) {
+          @for (entry of references(); track entry.idMediaReferences) {
             <div class="ref-row">
               <span class="ref-thumb" aria-hidden="true">
-                @if (entry.previewUrl) {
-                  <img [src]="entry.previewUrl" [alt]="entry.fileName" />
+                @if (entry.media?.url; as url) {
+                  <img [src]="url" [alt]="entry.label" />
                 }
               </span>
               <span class="ref-body">
                 <span class="ref-name">
-                  <b>{{ entry.fileName }}</b>
-                  <span class="tag">{{ roleLabels[entry.role] }}</span>
+                  <b>{{ entry.label }}</b>
+                  <span class="tag">{{ entry.natureLabel }}</span>
                 </span>
                 <span class="ref-desc">{{ entry.description }}</span>
               </span>
-              <button class="btn btn-sm btn-ghost" type="button" (click)="removeReference(entry.id)">
+              <button class="btn btn-sm btn-ghost" type="button" (click)="removeReference(entry.idMediaReferences)">
                 Retirer
               </button>
             </div>
@@ -430,26 +430,26 @@
 
           @if (references().length > 0) {
             <div class="ref-grid">
-              @for (entry of references(); track entry.id) {
+              @for (entry of references(); track entry.idMediaReferences) {
                 <div class="ref-row">
                   <span class="ref-thumb" aria-hidden="true">
-                    @if (entry.previewUrl) {
-                      <img [src]="entry.previewUrl" [alt]="entry.fileName" />
+                    @if (entry.media?.url; as url) {
+                      <img [src]="url" [alt]="entry.label" />
                     }
                   </span>
                   <span class="ref-body">
                     <span class="ref-name">
-                      <b>{{ entry.fileName }}</b>
-                      <span class="tag">{{ roleLabels[entry.role] }}</span>
+                      <b>{{ entry.label }}</b>
+                      <span class="tag">{{ entry.natureLabel }}</span>
                     </span>
-                    <span class="ref-desc" [attr.title]="entry.description">
+                    <span class="ref-desc" [attr.title]="entry.description ?? ''">
                       {{ entry.description }}
                     </span>
                   </span>
                   <button
                     class="btn btn-sm btn-ghost"
                     type="button"
-                    (click)="removeReference(entry.id)"
+                    (click)="removeReference(entry.idMediaReferences)"
                   >
                     Retirer
                   </button>
@@ -763,20 +763,20 @@
     </p>
 
     <div class="sheet-grid">
-      @for (entry of libraryResults(); track entry.id) {
+      @for (entry of libraryResults(); track entry.idMediaReferences) {
         <button
           class="lib"
           type="button"
-          [class.is-on]="libraryDraft().has(entry.id)"
-          [attr.aria-pressed]="libraryDraft().has(entry.id)"
-          (click)="toggleDraft(entry.id)"
+          [class.is-on]="libraryDraft().has(entry.idMediaReferences)"
+          [attr.aria-pressed]="libraryDraft().has(entry.idMediaReferences)"
+          (click)="toggleDraft(entry.idMediaReferences)"
         >
           <span class="lib-thumb" aria-hidden="true">
-            @if (entry.previewUrl) {
-              <img [src]="entry.previewUrl" [alt]="entry.fileName" loading="lazy" />
+            @if (entry.media?.url; as url) {
+              <img [src]="url" [alt]="entry.label" loading="lazy" />
             }
-            <span class="lib-check" [class.is-checked]="libraryDraft().has(entry.id)">
-              @if (libraryDraft().has(entry.id)) {
+            <span class="lib-check" [class.is-checked]="libraryDraft().has(entry.idMediaReferences)">
+              @if (libraryDraft().has(entry.idMediaReferences)) {
                 <app-icon name="check" size="sm" />
               } @else {
                 <app-icon name="plus" size="sm" />
@@ -784,8 +784,8 @@
             </span>
           </span>
           <span class="lib-body">
-            <span class="lib-name">{{ entry.fileName }}</span>
-            <span class="tag">{{ roleLabels[entry.role] }}</span>
+            <span class="lib-name">{{ entry.label }}</span>
+            <span class="tag">{{ entry.natureLabel }}</span>
             <span class="lib-desc">{{ entry.description }}</span>
           </span>
         </button>
