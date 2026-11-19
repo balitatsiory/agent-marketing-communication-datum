@@ -28,3 +28,19 @@ cryptography>=42.0             # chiffrement des secrets de plateformes (Fernet)
 
 # --- appels sortants ---
 httpx>=0.27,<1.0
+
+# --- stockage d'objets ---
+# Cloudflare R2 parle le protocole S3 : le client est celui d'AWS, pointé sur
+# l'adresse R2 du compte. boto3 est synchrone, mais la signature d'URL et les
+# appels de controle ne font pas d'entree-sortie bloquante longue ; le depot
+# d'un fichier, lui, passe par un fil d'execution separe (run_in_threadpool),
+# pour ne pas immobiliser la boucle evenementielle.
+boto3>=1.35,<2.0
+
+# --- traitement d'images ---
+# Compression au-dela de 8 Mo, et lecture des dimensions au depot.
+pillow>=10.4,<12.0
+
+# --- formulaires multipart ---
+# Necessaire a FastAPI pour lire un fichier depose (UploadFile).
+python-multipart>=0.0.9,<1.0

@@ -42,6 +42,31 @@ class Settings(BaseSettings):
     # Liste d'origines séparées par des virgules ; voir la propriété cors_origins.
     CORS_ORIGINS: str = ""
 
+    # --- stockage des médias ---
+    # « local » écrit dans un dossier du poste : c'est le mode des tests et du
+    # développement, pour que la suite de tests ne dépende ni du réseau ni
+    # d'identifiants Cloudflare. « r2 » est le mode réel.
+    STORAGE_BACKEND: Literal["local", "r2"] = "local"
+    STORAGE_LOCAL_DIR: str = "var/medias"
+
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: SecretStr | None = None
+    R2_SECRET_ACCESS_KEY: SecretStr | None = None
+    R2_BUCKET: str = ""
+    # Domaine public du seau. La conception sert les médias par URL publique :
+    # aucune signature n'est donc nécessaire en lecture.
+    R2_PUBLIC_BASE_URL: str = ""
+
+    # --- limites des médias ---
+    # 8 Mo est le plafond de ce qui est RANGÉ : au-delà, l'image est compressée
+    # pour y revenir, elle n'est pas refusée (architecture v1.4 du 21/10/2026).
+    MEDIA_MAX_STORED_BYTES: int = 8 * 1024 * 1024
+    # Garde-fou de SOUMISSION, au-delà duquel le dépôt est refusé sans être lu
+    # jusqu'au bout. Repris du même document, où il porte la mention « à valider ».
+    MEDIA_MAX_UPLOAD_BYTES: int = 50 * 1024 * 1024
+    # 36 millions de pixels : limite du même document, reprise de LinkedIn.
+    MEDIA_MAX_PIXELS: int = 36_000_000
+
     @property
     def cors_origins(self) -> list[str]:
         """Origines autorisées, converties depuis la chaîne séparée par des virgules."""
@@ -82,7 +107,43 @@ class Settings(BaseSettings):
         if self.REFRESH_TOKEN_DAYS < 1:
             raise ValueError("REFRESH_TOKEN_DAYS doit valoir au moins 1.")
 
+        # Un dépôt qui échouerait faute d'identifiants se verrait au premier
+        # fichier envoyé, en pleine utilisation. On le refuse au démarrage.
+        if self.STORAGE_BACKEND == "r2":
+            manquants = [
+                nom
+                for nom, valeur in (
+                    ("R2_ACCOUNT_ID", self.R2_ACCOUNT_ID),
+                    ("R2_ACCESS_KEY_ID", self.R2_ACCESS_KEY_ID),
+                    ("R2_SECRET_ACCESS_KEY", self.R2_SECRET_ACCESS_KEY),
+                    ("R2_BUCKET", self.R2_BUCKET),
+                )
+                if not valeur
+            ]
+            if manquants:
+                raise ValueError(
+                    "STORAGE_BACKEND vaut « r2 » mais ces réglages manquent : "
+                    + ", ".join(manquants)
+                    + ". Les créer dans le tableau de bord Cloudflare, section R2 "
+                    "puis « Manage R2 API Tokens »."
+                )
+
+        if self.MEDIA_MAX_STORED_BYTES > self.MEDIA_MAX_UPLOAD_BYTES:
+            raise ValueError(
+                "MEDIA_MAX_STORED_BYTES dépasse MEDIA_MAX_UPLOAD_BYTES : un fichier "
+                "serait refusé à la soumission avant d'avoir pu être compressé."
+            )
+
         return self
+
+    @property
+    def r2_endpoint_url(self) -> str:
+        """Adresse S3 du compte R2.
+
+        R2 n'a pas de régions : boto3 en exige une, elle vaut « auto » et
+        n'est pas utilisée.
+        """
+        return f"https://{self.R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 
 @lru_cache

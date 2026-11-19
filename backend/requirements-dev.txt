@@ -5,3 +5,7 @@ ruff>=0.6
 mypy>=1.11
 pytest>=8.0
 pytest-asyncio>=0.24
+
+# Types de boto3, qui n'en embarque pas : sans eux mypy --strict echoue sur
+# chaque appel au client S3.
+boto3-stubs[s3]>=1.35
