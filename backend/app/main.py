@@ -62,6 +62,13 @@ TAGS = [
             "débranchement des comptes réseaux sociaux (module 05)."
         ),
     },
+    {
+        "name": "publications",
+        "description": (
+            "Formats, création, validation humaine et diffusion réelle sur "
+            "Facebook via Meta Graph API (module 08)."
+        ),
+    },
 ]
 
 
