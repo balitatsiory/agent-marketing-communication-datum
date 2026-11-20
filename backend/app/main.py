@@ -55,6 +55,13 @@ TAGS = [
         "name": "technique",
         "description": "Points de contrôle de l'API.",
     },
+    {
+        "name": "reseaux-sociaux",
+        "description": (
+            "Plateformes, états, raccordement, vérification Meta Graph API et "
+            "débranchement des comptes réseaux sociaux (module 05)."
+        ),
+    },
 ]
 
 

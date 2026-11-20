@@ -1,5 +1,15 @@
 <app-topbar [trail]="['Mesurer', 'Réseaux & plateformes']">
-  <button class="btn btn-primary" type="button">
+  <button
+    class="btn btn-primary"
+    type="button"
+    [disabled]="!peutGerer() || enCours()"
+    [attr.title]="
+      peutGerer()
+        ? 'Raccorder un nouveau compte réseau social'
+        : 'Ce geste demande le droit de gérer les comptes de réseaux.'
+    "
+    (click)="ouvrirConnexion()"
+  >
     <app-icon name="plus" size="sm" />
     Connecter un compte
   </button>
@@ -10,93 +20,644 @@
     <div>
       <h1>Réseaux &amp; plateformes</h1>
       <p class="sub">
-        {{ counts().connected }} comptes connectés sur {{ counts().all }} ·
-        {{ totals().publications }} publications ·
-        {{ totals().followers | number: '1.0-0' : 'fr' }} abonnés · 30 derniers jours
+        {{ totaux().connectes }} comptes connectés sur {{ totaux().total }} ·
+        {{ totaux().publications30j }} publications ·
+        {{ totaux().abonnes | number: '1.0-0' : 'fr' }} abonnés · 30 derniers jours
       </p>
     </div>
+  </div>
 
+  @if (erreur(); as message) {
+    <p class="banner banner-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm" type="button" (click)="recharger()">Réessayer</button>
+    </p>
+  }
+
+  @if (avis(); as message) {
+    <p class="banner" role="status">
+      <app-icon name="check" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm btn-ghost" type="button" (click)="avis.set(null)">Fermer</button>
+    </p>
+  }
+
+  <!-- Synthèse chiffrée (comptes connectés uniquement) -->
+  <section class="stats" aria-label="Synthèse des comptes connectés">
+    <div class="stat">
+      <span class="label">Comptes connectés</span>
+      <span class="v">{{ totaux().connectes }} / {{ totaux().total }}</span>
+      <span class="d">Seuls les comptes connectés publient</span>
+    </div>
+    <div class="stat">
+      <span class="label">Abonnés cumulés</span>
+      <span class="v">{{ totaux().abonnes | number: '1.0-0' : 'fr' }}</span>
+      <span class="d">Stock · dernier relevé connu</span>
+    </div>
+    <div class="stat">
+      <span class="label">Vues (30 jours)</span>
+      <span class="v">{{ totaux().vues30j | number: '1.0-0' : 'fr' }}</span>
+      <span class="d">Flux sommable · hors portée</span>
+    </div>
+    <div class="stat">
+      <span class="label">Publications parues</span>
+      <span class="v">{{ totaux().publications30j }}</span>
+      <span class="d">30 derniers jours · comptes connectés</span>
+    </div>
+  </section>
+
+  <!-- Barre de filtres : 4 statuts + plateforme + recherche -->
+  <div class="toolbar filters-bar">
     <div class="chips">
-      @for (option of filters; track option) {
-        <button class="chip" type="button" [class.is-on]="filter() === option" (click)="filter.set(option)">
-          {{ filterLabels[option] }}
-          <span class="n">{{ counts()[option] }}</span>
+      <button
+        class="chip"
+        type="button"
+        [class.is-on]="filtreStatut() === 'all'"
+        (click)="filtreStatut.set('all')"
+      >
+        Tous
+        <span class="n">{{ compteursStatuts()['all'] ?? 0 }}</span>
+      </button>
+      @for (st of statuts(); track st.code) {
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="filtreStatut() === st.code"
+          (click)="filtreStatut.set(st.code)"
+        >
+          {{ st.label }}
+          <span class="n">{{ compteursStatuts()[st.code] ?? 0 }}</span>
         </button>
       }
     </div>
+
+    <div class="filters-right">
+      <select
+        class="select plat-select"
+        aria-label="Filtrer par plateforme"
+        [value]="filtrePlateforme()"
+        (change)="filtrePlateforme.set($any($event.target).value)"
+      >
+        <option value="all">Toutes les plateformes</option>
+        @for (plat of plateformes(); track plat.code) {
+          <option [value]="plat.code">{{ plat.label }}</option>
+        }
+      </select>
+
+      <div class="searchbox">
+        <app-icon name="search" size="sm" />
+        <input
+          type="search"
+          placeholder="Rechercher un compte…"
+          aria-label="Rechercher un compte"
+          [value]="recherche()"
+          (input)="recherche.set($any($event.target).value)"
+        />
+      </div>
+    </div>
   </div>
 
-  <div class="nets">
-    @for (network of results(); track network.code) {
-      <article class="net" [class.is-off]="!network.isConnected">
-        <!-- identité -->
-        <div class="net-id">
-          <span class="net-mark"><app-network-logo [network]="network.code" size="lg" /></span>
-          <span class="net-who">
-            <b>{{ network.label }}</b>
-            <span>{{ network.accountKind }} · {{ network.accountName }}</span>
-          </span>
-        </div>
-
-        <!-- les trois chiffres -->
-        <div class="net-stats">
-          <div class="net-stat">
-            <span class="label">Publications</span>
-            <span class="v" [class.off]="!network.isConnected">{{ network.publicationCount }}</span>
-          </div>
-          <div class="net-stat">
-            <span class="label">Abonnés</span>
-            <span class="v" [class.off]="!network.isConnected">
-              {{ network.followerCount | number: '1.0-0' : 'fr' }}
+  <!-- Liste des comptes -->
+  @if (chargement()) {
+    <section class="panel">
+      <div class="empty">
+        <h2>Chargement</h2>
+        <p>Lecture des comptes raccordés et des capacités de chaque plateforme.</p>
+      </div>
+    </section>
+  } @else {
+    <div class="nets">
+      @for (compte of resultats(); track compte.id_social_accounts) {
+        <article class="net" [class.is-off]="compte.status_code !== 'active'">
+          <!-- Identité -->
+          <div class="net-id">
+            <span class="net-mark">
+              <app-network-logo [network]="codeReseau(compte.platform_code)" size="lg" />
+            </span>
+            <span class="net-who">
+              <span class="net-title">
+                <b>{{ compte.account_display_name }}</b>
+                <span class="status" [class]="classeStatut(compte.status_code)">
+                  {{ compte.status_label }}
+                </span>
+              </span>
+              <span class="net-sub">
+                {{ compte.platform_label }}
+                @if (compte.account_username; as handle) {
+                  · {{ handle }}
+                }
+              </span>
+              @if (compte.credential_mode === 'inherited' && compte.parent_display_name) {
+                <span class="net-inherited">
+                  Clés héritées de {{ compte.parent_display_name }}
+                </span>
+              }
             </span>
           </div>
-          <div class="net-stat">
-            <span class="label">Vues profil</span>
-            <span class="v" [class.off]="!network.isConnected">
-              {{ network.profileViewCount | number: '1.0-0' : 'fr' }}
-            </span>
-          </div>
-        </div>
 
-        <!-- actions -->
-        <div class="net-acts">
-          @if (network.profileUrl; as url) {
-            <a class="btn" [href]="url" target="_blank" rel="noopener noreferrer">
-              Voir la page
-              <app-icon name="external" size="sm" />
+          <!-- Trois chiffres clés adaptés aux capacités de la plateforme -->
+          <div class="net-stats">
+            <div class="net-stat">
+              <span class="label">Abonnés</span>
+              @if (!mesureSupportee(compte.platform_code, 'followers')) {
+                <span class="v-muted">Non fourni par {{ compte.platform_label }}</span>
+              } @else if (compte.metrics.followers === null) {
+                <span class="v-muted">Pas encore relevé</span>
+              } @else {
+                <span class="v" [class.off]="compte.status_code !== 'active'">
+                  {{ compte.metrics.followers | number: '1.0-0' : 'fr' }}
+                </span>
+              }
+            </div>
+
+            <div class="net-stat">
+              <span class="label">Vues 30j</span>
+              @if (!mesureSupportee(compte.platform_code, 'views')) {
+                <span class="v-muted">Non fourni par {{ compte.platform_label }}</span>
+              } @else if (compte.metrics.views_30d === null) {
+                <span class="v-muted">Pas encore relevé</span>
+              } @else {
+                <span class="v" [class.off]="compte.status_code !== 'active'">
+                  {{ compte.metrics.views_30d | number: '1.0-0' : 'fr' }}
+                </span>
+              }
+            </div>
+
+            <div class="net-stat">
+              <span class="label">Interactions 30j</span>
+              @if (!mesureSupportee(compte.platform_code, 'interactions')) {
+                <span class="v-muted">Non fourni par {{ compte.platform_label }}</span>
+              } @else if (compte.metrics.interactions_30d === null) {
+                <span class="v-muted">Pas encore relevé</span>
+              } @else {
+                <span class="v" [class.off]="compte.status_code !== 'active'">
+                  {{ compte.metrics.interactions_30d | number: '1.0-0' : 'fr' }}
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="net-acts">
+            <a class="btn btn-primary" [routerLink]="['/reseaux', compte.id_social_accounts]">
+              Gérer le compte
             </a>
-          } @else {
-            <button class="btn" type="button" disabled title="Aucune adresse de profil renseignée">
-              Voir la page
-              <app-icon name="external" size="sm" />
-            </button>
-          }
-          <button class="btn" type="button">Gérer le compte</button>
-        </div>
 
-        <!-- pied : fraîcheur de la collecte, ou adresse manquante -->
-        <div class="net-foot">
-          @if (network.profileUrl; as url) {
-            <span class="net-host num">{{ hostOf(url) }}</span>
-          } @else {
-            <span class="net-host num is-missing">adresse de profil à renseigner</span>
-          }
-          <span class="net-sync num">statistiques du {{ network.lastSyncLabel }}</span>
-        </div>
+            @if (compte.profile_url; as url) {
+              <a class="btn" [href]="url" target="_blank" rel="noopener noreferrer">
+                Voir la page
+                <app-icon name="external" size="sm" />
+              </a>
+            } @else {
+              <button class="btn" type="button" disabled title="Aucune adresse de profil renseignée">
+                Voir la page
+                <app-icon name="external" size="sm" />
+              </button>
+            }
 
-        @if (network.connectionNote; as note) {
-          <div class="net-alert">
+            @if (peutVerifier(compte)) {
+              <button
+                class="btn"
+                type="button"
+                [disabled]="verificationEnCoursId() !== null || enCours()"
+                title="Appeler Meta Graph API pour vérifier la validité du jeton et de la page"
+                (click)="verifier(compte)"
+              >
+                <app-icon name="check" size="sm" />
+                {{
+                  verificationEnCoursId() === compte.id_social_accounts
+                    ? 'Vérification…'
+                    : 'Vérifier'
+                }}
+              </button>
+            }
+
+            @if (peutGerer() && compte.credential_mode === 'own') {
+              <button
+                class="btn"
+                type="button"
+                [disabled]="enCours()"
+                (click)="ouvrirConnexion(compte)"
+              >
+                {{ compte.status_code === 'disconnected' ? 'Rebrancher' : 'Reconnecter' }}
+              </button>
+            }
+
+            @if (peutGerer() && compte.status_code !== 'disconnected') {
+              <button
+                class="btn btn-danger"
+                type="button"
+                [disabled]="enCours()"
+                (click)="demanderDebranchement(compte)"
+              >
+                Débrancher
+              </button>
+            }
+          </div>
+
+          <!-- Pied de carte -->
+          <div class="net-foot">
+            @if (compte.profile_url; as url) {
+              <span class="net-host num">{{ hoteDe(url) }}</span>
+            } @else {
+              <span class="net-host num is-missing">adresse de profil à renseigner</span>
+            }
+            <span>ID : {{ compte.account_external_id }}</span>
+            <span>· {{ compte.metrics.posts_30d }} publications (30j)</span>
+            <span class="net-sync num">
+              relevé : {{ formaterDateCourte(compte.metrics.last_metric_date) }}
+            </span>
+          </div>
+
+          <!-- Alerte issue de social_account_error_causes -->
+          @if (compte.error_cause; as cause) {
+            <div class="net-alert">
+              <app-icon name="warn" size="sm" />
+              <div class="net-alert-body">
+                <span>
+                  <strong>{{ cause.label }}</strong> — {{ cause.recommended_action }}
+                </span>
+                @if (compte.current_error_message; as brut) {
+                  <details class="net-raw">
+                    <summary>Détail technique renvoyé par le réseau</summary>
+                    <code>{{ brut }}</code>
+                  </details>
+                }
+              </div>
+              @if (peutGerer() && compte.credential_mode === 'own') {
+                <button
+                  class="btn btn-primary btn-sm"
+                  type="button"
+                  (click)="ouvrirConnexion(compte)"
+                >
+                  {{
+                    compte.status_code === 'authorization_incomplete'
+                      ? 'Compléter les permissions'
+                      : 'Reconnecter'
+                  }}
+                </button>
+              }
+            </div>
+          }
+        </article>
+      } @empty {
+        <section class="panel">
+          <div class="empty">
+            <h2>Aucun compte raccordé</h2>
+            @if (comptes().length === 0) {
+              <p>
+                Connectez un premier compte (Facebook, Instagram, LinkedIn ou TikTok) pour suivre
+                son état et ses statistiques dans IAGORA.
+              </p>
+              @if (peutGerer()) {
+                <button class="btn btn-primary" type="button" (click)="ouvrirConnexion()">
+                  <app-icon name="plus" size="sm" />
+                  Connecter un compte
+                </button>
+              }
+            } @else {
+              <p>Aucun compte ne correspond aux filtres sélectionnés.</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</div>
+
+<!-- ============================================================
+     Modale : Connecter / Reconnecter un compte réseau social
+     ============================================================ -->
+@if (modaleOuverte()) {
+  <div class="modal-back" (click)="fermerModale()">
+    <div
+      class="modal modal-connect"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="connect-titre"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <div>
+          <h2 id="connect-titre">
+            @if (compteAReconnecter(); as cible) {
+              Reconnecter « {{ cible.account_display_name }} »
+            } @else {
+              Connecter un compte réseau social
+            }
+          </h2>
+        </div>
+        <button
+          class="btn btn-icon btn-ghost"
+          type="button"
+          aria-label="Fermer"
+          (click)="fermerModale()"
+        >
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <!-- Sélecteur de mode : Saisie manuelle (actif en local) vs OAuth (URL HTTPS requise) -->
+      <div class="mode-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="mode-tab"
+          [class.is-on]="modeRaccordement() === 'manual'"
+          [attr.aria-selected]="modeRaccordement() === 'manual'"
+          (click)="modeRaccordement.set('manual')"
+        >
+          Saisie manuelle
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="mode-tab"
+          [class.is-on]="modeRaccordement() === 'oauth'"
+          [attr.aria-selected]="modeRaccordement() === 'oauth'"
+          (click)="modeRaccordement.set('oauth')"
+        >
+          Raccordement OAuth
+        </button>
+      </div>
+
+      <div class="modal-body modal-pad">
+        @if (erreurModale(); as message) {
+          <p class="banner banner-error" role="alert">
             <app-icon name="warn" size="sm" />
-            {{ note }}
-            <button class="btn btn-primary btn-sm" type="button">Reconnecter</button>
+            {{ message }}
+          </p>
+        }
+
+        @if (modeRaccordement() === 'manual') {
+          <div class="form-section">
+            <div class="section-label">1. Identité du compte</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="sa-platform">Plateforme</label>
+                <select
+                  #premierChampModal
+                  class="select"
+                  id="sa-platform"
+                  [disabled]="compteAReconnecter() !== null"
+                  [value]="formulaire().platform_code"
+                  (change)="majChamp('platform_code', $any($event.target).value)"
+                >
+                  @for (plat of plateformes(); track plat.code) {
+                    <option [value]="plat.code">
+                      {{ plat.label }}{{ plat.is_enabled ? '' : ' (désactivée)' }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="sa-name">Nom d'affichage</label>
+                <input
+                  class="input"
+                  id="sa-name"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Ex. Datum Academy"
+                  [disabled]="compteAReconnecter() !== null"
+                  [value]="formulaire().account_display_name"
+                  (input)="majChamp('account_display_name', $any($event.target).value)"
+                />
+              </div>
+
+              <div class="field">
+                <label for="sa-username">Nom d'utilisateur (facultatif)</label>
+                <input
+                  class="input"
+                  id="sa-username"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Ex. @datum.academy"
+                  [disabled]="compteAReconnecter() !== null"
+                  [value]="formulaire().account_username"
+                  (input)="majChamp('account_username', $any($event.target).value)"
+                />
+              </div>
+
+              <div class="field">
+                <label for="sa-ext-id">Identifiant externe chez le réseau</label>
+                <input
+                  class="input input-code"
+                  id="sa-ext-id"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="Ex. 61593583736321"
+                  [disabled]="compteAReconnecter() !== null"
+                  [value]="formulaire().account_external_id"
+                  (input)="majChamp('account_external_id', $any($event.target).value)"
+                />
+              </div>
+
+              <div class="field field-full">
+                <label for="sa-url">Adresse publique de la page (facultatif)</label>
+                <input
+                  class="input"
+                  id="sa-url"
+                  type="url"
+                  autocomplete="off"
+                  placeholder="https://www.facebook.com/…"
+                  [disabled]="compteAReconnecter() !== null"
+                  [value]="formulaire().profile_url"
+                  (input)="majChamp('profile_url', $any($event.target).value)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="form-section">
+            <div class="section-label">2. Authentification et clés d'accès</div>
+
+            <div class="segmented mode-cles" role="radiogroup" aria-label="Mode de clés">
+              <button
+                type="button"
+                [class.is-on]="formulaire().credential_mode === 'own'"
+                [disabled]="compteAReconnecter() !== null"
+                (click)="majChamp('credential_mode', 'own')"
+              >
+                Clés propres (own)
+              </button>
+              <button
+                type="button"
+                [class.is-on]="formulaire().credential_mode === 'inherited'"
+                [disabled]="compteAReconnecter() !== null || comptesParentsEligibles().length === 0"
+                (click)="majChamp('credential_mode', 'inherited')"
+              >
+                Clés héritées (inherited)
+              </button>
+            </div>
+
+            @if (formulaire().credential_mode === 'inherited') {
+              <div class="field">
+                <label for="sa-parent">Compte parent détenteur du jeton</label>
+                <select
+                  class="select"
+                  id="sa-parent"
+                  [value]="formulaire().id_social_accounts_parent ?? ''"
+                  (change)="majParent($any($event.target).value)"
+                >
+                  @for (parent of comptesParentsEligibles(); track parent.id_social_accounts) {
+                    <option [value]="parent.id_social_accounts">
+                      {{ parent.platform_label }} — {{ parent.account_display_name }} ({{
+                        parent.account_external_id
+                      }})
+                    </option>
+                  }
+                </select>
+                <span class="hint">
+                  Aucun jeton à saisir : un compte hérité partage le jeton actif de sa page
+                  parente.
+                </span>
+              </div>
+            } @else {
+              <div class="form-grid">
+                <div class="field field-full">
+                  <label for="sa-token">Jeton d'accès (access_token)</label>
+                  <input
+                    class="input input-code"
+                    id="sa-token"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Collez le jeton délivré par la plateforme"
+                    [value]="formulaire().access_token"
+                    (input)="majChamp('access_token', $any($event.target).value)"
+                  />
+                  <span class="hint">
+                    Chiffré par Fernet côté serveur avant enregistrement. Jamais réaffiché.
+                  </span>
+                </div>
+
+                <div class="field field-full">
+                  <label for="sa-refresh">Jeton de rafraîchissement (facultatif)</label>
+                  <input
+                    class="input input-code"
+                    id="sa-refresh"
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Optionnel (inutile pour un jeton de page Meta)"
+                    [value]="formulaire().refresh_token"
+                    (input)="majChamp('refresh_token', $any($event.target).value)"
+                  />
+                </div>
+
+                <div class="field">
+                  <label for="sa-kind">Type de jeton</label>
+                  <select
+                    class="select"
+                    id="sa-kind"
+                    [value]="formulaire().token_kind"
+                    (change)="majChamp('token_kind', $any($event.target).value)"
+                  >
+                    <option value="page">page (jeton de page)</option>
+                    <option value="user">user (jeton utilisateur)</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label for="sa-obtained">Date d'obtention</label>
+                  <input
+                    class="input"
+                    id="sa-obtained"
+                    type="date"
+                    [value]="formulaire().obtained_at"
+                    (input)="majChamp('obtained_at', $any($event.target).value)"
+                  />
+                </div>
+
+                <div class="field field-full">
+                  <label for="sa-expires">Date d'expiration (facultative)</label>
+                  <input
+                    class="input"
+                    id="sa-expires"
+                    type="date"
+                    [value]="formulaire().access_expires_at"
+                    (input)="majChamp('access_expires_at', $any($event.target).value)"
+                  />
+                  <span class="hint">
+                    Laissez vide si le jeton n'expire pas (cas d'un jeton de page Meta).
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="banner">
+            <app-icon name="warn" size="sm" />
+            <span>
+              Le raccordement OAuth par redirection nécessite une URL de retour HTTPS publique
+              déclarée chez chaque plateforme. Utilisez l'onglet « Saisie manuelle » tant que
+              l'application tourne en local.
+            </span>
           </div>
         }
-      </article>
-    } @empty {
-      <div class="empty">
-        <h2>Aucun compte</h2>
-        <p>Aucun compte ne correspond à ce filtre.</p>
       </div>
-    }
+
+      <footer class="modal-foot">
+        <button class="btn" type="button" (click)="fermerModale()">Annuler</button>
+        @if (modeRaccordement() === 'manual') {
+          <button
+            class="btn btn-primary"
+            type="button"
+            [disabled]="!formulaireValide() || enCours()"
+            (click)="soumettreRaccordement()"
+          >
+            {{
+              compteAReconnecter() ? 'Enregistrer le nouveau jeton' : 'Enregistrer le compte'
+            }}
+          </button>
+        }
+      </footer>
+    </div>
   </div>
-</div>
+}
+
+<!-- ============================================================
+     Modale : Confirmation de débranchement volontaire
+     ============================================================ -->
+@if (compteADebrancher(); as cible) {
+  <div class="modal-back" (click)="compteADebrancher.set(null)">
+    <div
+      class="modal modal-disconnect"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="disconnect-titre"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="modal-head">
+        <h2 id="disconnect-titre">Débrancher « {{ cible.account_display_name }} » ?</h2>
+        <button
+          class="btn btn-icon btn-ghost"
+          type="button"
+          aria-label="Fermer"
+          (click)="compteADebrancher.set(null)"
+        >
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body modal-pad">
+        <p class="disconnect-text">
+          Les jetons actifs de ce compte seront révoqués et le planificateur cessera immédiatement
+          toute publication. L'historique des statistiques et des publications parues est conservé.
+        </p>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn" type="button" (click)="compteADebrancher.set(null)">Annuler</button>
+        <button
+          class="btn btn-danger"
+          type="button"
+          [disabled]="enCours()"
+          (click)="confirmerDebranchement()"
+        >
+          Confirmer le débranchement
+        </button>
+      </footer>
+    </div>
+  </div>
+}

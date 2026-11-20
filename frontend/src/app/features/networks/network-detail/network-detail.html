@@ -1,0 +1,503 @@
+<app-topbar [trail]="filAriane()">
+  <a class="btn" routerLink="/reseaux">Retour aux réseaux</a>
+</app-topbar>
+
+<div class="page">
+  @if (erreur(); as message) {
+    <p class="banner banner-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      {{ message }}
+    </p>
+  }
+
+  @if (avis(); as message) {
+    <p class="banner" role="status">
+      <app-icon name="check" size="sm" />
+      {{ message }}
+      <button class="btn btn-sm btn-ghost" type="button" (click)="avis.set(null)">Fermer</button>
+    </p>
+  }
+
+  @if (chargement()) {
+    <section class="panel">
+      <div class="empty">
+        <h2>Chargement</h2>
+        <p>Lecture de la fiche compte et de ses statistiques.</p>
+      </div>
+    </section>
+  } @else if (compte(); as c) {
+    <!-- En-tête de la fiche compte -->
+    <section class="panel head-card">
+      <div class="head-top">
+        <div class="head-id">
+          <span class="net-mark">
+            <app-network-logo [network]="codeReseau(c.platform_code)" size="lg" />
+          </span>
+          <div class="head-who">
+            <div class="head-title">
+              <h1>{{ c.account_display_name }}</h1>
+              <span class="status" [class]="classeStatut(c.status_code)">{{ c.status_label }}</span>
+            </div>
+            <p class="head-sub">
+              {{ c.platform_label }}
+              @if (c.account_username; as handle) {
+                · {{ handle }}
+              }
+              · ID externe : <code>{{ c.account_external_id }}</code>
+            </p>
+            @if (c.credential_mode === 'inherited' && c.id_social_accounts_parent) {
+              <p class="head-inherited">
+                Clés héritées de
+                <a class="link" [routerLink]="['/reseaux', c.id_social_accounts_parent]">
+                  {{ c.parent_display_name }}
+                </a>
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="head-acts">
+          @if (c.profile_url; as url) {
+            <a class="btn" [href]="url" target="_blank" rel="noopener noreferrer">
+              Voir la page
+              <app-icon name="external" size="sm" />
+            </a>
+          }
+          @if (peutGerer() && estMeta() && c.status_code !== 'disconnected') {
+            <button
+              class="btn"
+              type="button"
+              [disabled]="actionEnCours() !== null"
+              (click)="verifierCompte()"
+            >
+              <app-icon name="check" size="sm" />
+              {{ actionEnCours() === 'verify' ? 'Vérification…' : 'Vérifier le jeton' }}
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="actionEnCours() !== null"
+              (click)="actualiserStatistiques()"
+            >
+              <app-icon name="chart" size="sm" />
+              {{ actionEnCours() === 'stats' ? 'Collecte…' : 'Actualiser les stats' }}
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (c.error_cause; as cause) {
+        <div class="head-alert">
+          <app-icon name="warn" size="sm" />
+          <div class="head-alert-body">
+            <span><strong>{{ cause.label }}</strong> — {{ cause.recommended_action }}</span>
+            @if (c.current_error_message; as brut) {
+              <details class="raw-err">
+                <summary>Message brut renvoyé par le réseau</summary>
+                <code>{{ brut }}</code>
+              </details>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Barre d'onglets -->
+      <nav class="tabs" aria-label="Sections du compte">
+        <button
+          type="button"
+          class="tab"
+          [class.is-on]="onglet() === 'stats'"
+          (click)="onglet.set('stats')"
+        >
+          <app-icon name="chart" size="sm" />
+          Statistiques
+        </button>
+        <button
+          type="button"
+          class="tab"
+          [class.is-on]="onglet() === 'tokens'"
+          (click)="onglet.set('tokens')"
+        >
+          <app-icon name="sliders" size="sm" />
+          Autorisations &amp; jetons
+          <span class="tab-count">{{ c.credential_mode === 'inherited' ? 'hérité' : jetons().length }}</span>
+        </button>
+        <button
+          type="button"
+          class="tab"
+          [class.is-on]="onglet() === 'syncs'"
+          (click)="onglet.set('syncs')"
+        >
+          <app-icon name="history" size="sm" />
+          Journal des passages
+          <span class="tab-count">{{ passages().length }}</span>
+        </button>
+        <button
+          type="button"
+          class="tab"
+          [class.is-on]="onglet() === 'posts'"
+          (click)="onglet.set('posts')"
+        >
+          <app-icon name="files" size="sm" />
+          Publications parues
+          <span class="tab-count">{{ posts().length }}</span>
+        </button>
+      </nav>
+    </section>
+
+    <!-- ==========================================================
+         ONGLET 1 : STATISTIQUES
+         ========================================================== -->
+    @if (onglet() === 'stats') {
+      <section class="stats-grid" aria-label="Indicateurs du compte">
+        @for (m of typesMesures(); track m.code) {
+          <button
+            type="button"
+            class="stat-card"
+            [class.is-on]="typeMesureActif()?.code === m.code"
+            (click)="mesureActive.set(m.code)"
+          >
+            <div class="stat-top">
+              <span class="label">{{ m.label }}</span>
+              <span class="nature-pill">
+                {{ m.nature === 'stock' ? 'stock' : (m.is_summable ? 'cumulable' : 'non cumulable') }}
+              </span>
+            </div>
+            @if (!m.supported_by_platform) {
+              <span class="stat-empty">Non fourni par {{ c.platform_label }}</span>
+            } @else if (valeurCarteMesure(m); as val) {
+              <span class="stat-val">{{ val | number: '1.0-0' : 'fr' }}</span>
+            } @else {
+              <span class="stat-empty">Pas encore relevé</span>
+            }
+            <span class="stat-sub">
+              @if (m.platform_metric_name; as nomApi) {
+                API : <code>{{ nomApi }}</code>
+              } @else {
+                Mesure absente sur ce réseau
+              }
+            </span>
+          </button>
+        }
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Évolution — {{ typeMesureActif()?.label ?? 'Statistiques' }}</h2>
+            @if (typeMesureActif()?.description; as desc) {
+              <p class="panel-sub">{{ desc }}</p>
+            }
+          </div>
+
+          <div class="segmented" role="group" aria-label="Période">
+            <button type="button" [class.is-on]="periode() === 7" (click)="changerPeriode(7)">
+              7 j
+            </button>
+            <button type="button" [class.is-on]="periode() === 30" (click)="changerPeriode(30)">
+              30 j
+            </button>
+            <button type="button" [class.is-on]="periode() === 90" (click)="changerPeriode(90)">
+              90 j
+            </button>
+          </div>
+        </div>
+
+        <div class="chart-wrap">
+          @if (graphique(); as g) {
+            <svg [attr.viewBox]="'0 0 ' + g.largeur + ' ' + g.hauteur" class="chart-svg">
+              @for (grad of g.graduations; track grad.y) {
+                <line
+                  [attr.x1]="g.padG"
+                  [attr.y1]="grad.y"
+                  [attr.x2]="g.largeur - g.padD"
+                  [attr.y2]="grad.y"
+                  class="chart-grid"
+                />
+                <text [attr.x]="g.padG - 8" [attr.y]="grad.y + 4" text-anchor="end" class="chart-axis">
+                  {{ grad.valeur | number: '1.0-0' : 'fr' }}
+                </text>
+              }
+              <polygon [attr.points]="g.aire" class="chart-area" />
+              <polyline [attr.points]="g.ligne" class="chart-line" />
+              @for (p of g.pts; track p.etiquetteDate + p.x) {
+                <g>
+                  <circle [attr.cx]="p.x" [attr.cy]="p.y" r="4" class="chart-dot">
+                    <title>{{ p.etiquetteDate }} : {{ p.valeur | number: '1.0-0' : 'fr' }}</title>
+                  </circle>
+                  <text [attr.x]="p.x" [attr.y]="g.hauteur - 8" text-anchor="middle" class="chart-axis">
+                    {{ p.etiquetteDate }}
+                  </text>
+                </g>
+              }
+            </svg>
+          } @else {
+            <div class="empty">
+              <h2>Aucun relevé sur les {{ periode() }} derniers jours</h2>
+              @if (typeMesureActif() && !typeMesureActif()!.supported_by_platform) {
+                <p>
+                  La mesure « {{ typeMesureActif()!.label }} » n'est pas exposée par l'API
+                  {{ c.platform_label }}.
+                </p>
+              } @else {
+                <p>
+                  Lancez « Actualiser les stats » en haut de la fiche pour collecter les relevés
+                  auprès de {{ c.platform_label }}.
+                </p>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ==========================================================
+         ONGLET 2 : AUTORISATIONS & JETONS
+         ========================================================== -->
+    @if (onglet() === 'tokens') {
+      @if (c.credential_mode === 'inherited' && c.id_social_accounts_parent) {
+        <section class="panel">
+          <div class="empty">
+            <h2>Clés héritées du compte parent</h2>
+            <p>
+              Ce compte ne possède aucune ligne propre dans <code>social_account_tokens</code> :
+              il partage le jeton actif de <strong>{{ c.parent_display_name }}</strong>.
+            </p>
+            <a class="btn btn-primary" [routerLink]="['/reseaux', c.id_social_accounts_parent]">
+              Ouvrir la fiche du compte parent
+            </a>
+          </div>
+        </section>
+      } @else {
+        @if (jetonActif(); as actif) {
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Jeton actif</h2>
+              <span class="status status-published">Actif · chiffré Fernet</span>
+            </div>
+            <div class="token-meta">
+              <div class="meta-cell">
+                <span class="label">Type</span>
+                <strong>{{ actif.token_kind ?? 'non précisé' }}</strong>
+              </div>
+              <div class="meta-cell">
+                <span class="label">Délivré le</span>
+                <strong>{{ formaterDateHeure(actif.obtained_at) }}</strong>
+              </div>
+              <div class="meta-cell">
+                <span class="label">Expiration</span>
+                <strong>
+                  {{ actif.access_expires_at ? formaterDateHeure(actif.access_expires_at) : "N'expire pas" }}
+                </strong>
+              </div>
+              <div class="meta-cell">
+                <span class="label">Autorisé par</span>
+                <strong>{{ actif.created_by_name ?? 'Tâche automatique' }}</strong>
+              </div>
+            </div>
+            @if (actif.granted_permissions.length > 0) {
+              <div class="scopes-wrap">
+                <span class="label">Permissions relevées</span>
+                <div class="chips">
+                  @for (sc of actif.granted_permissions; track sc) {
+                    <span class="scope-pill">{{ sc }}</span>
+                  }
+                </div>
+              </div>
+            }
+          </section>
+        }
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Historique des délivrances</h2>
+            <span class="panel-sub">{{ jetons().length }} délivrance(s)</span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>État</th>
+                  <th>Type</th>
+                  <th>Délivré le</th>
+                  <th>Fin de validité</th>
+                  <th>Auteur</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of jetons(); track t.id_social_account_tokens) {
+                  <tr>
+                    <td>
+                      @if (t.is_active) {
+                        <span class="status status-published">Actif</span>
+                      } @else if (t.revoked_at) {
+                        <span class="status status-failed">Révoqué</span>
+                      } @else {
+                        <span class="status status-draft">Remplacé</span>
+                      }
+                    </td>
+                    <td><code>{{ t.token_kind ?? '—' }}</code></td>
+                    <td class="num">{{ formaterDateHeure(t.obtained_at) }}</td>
+                    <td class="num">
+                      @if (t.revoked_at) {
+                        Révoqué le {{ formaterDateHeure(t.revoked_at) }}
+                      } @else if (t.superseded_at) {
+                        Remplacé le {{ formaterDateHeure(t.superseded_at) }}
+                      } @else if (t.access_expires_at) {
+                        {{ formaterDateHeure(t.access_expires_at) }}
+                      } @else {
+                        Sans expiration
+                      }
+                    </td>
+                    <td>{{ t.created_by_name ?? 'Automatique' }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5">Aucune délivrance de clés enregistrée.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    }
+
+    <!-- ==========================================================
+         ONGLET 3 : JOURNAL DES PASSAGES
+         ========================================================== -->
+    @if (onglet() === 'syncs') {
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Carnet des passages du collecteur</h2>
+          <div class="chips">
+            @for (k of ['all', 'statistics', 'events', 'token_check']; track k) {
+              <button
+                type="button"
+                class="chip"
+                [class.is-on]="filtrePassage() === k"
+                (click)="filtrePassage.set(k)"
+              >
+                {{ k === 'all' ? 'Toutes les sortes' : libelleSortePassage(k) }}
+              </button>
+            }
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Sorte</th>
+                <th>Début</th>
+                <th>Issue</th>
+                <th>Marque-page</th>
+                <th>Cause d'erreur</th>
+                <th>Déclencheur</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of passagesFiltres(); track p.id_social_account_syncs) {
+                <tr>
+                  <td>{{ libelleSortePassage(p.sync_kind) }}</td>
+                  <td class="num">{{ formaterDateHeure(p.started_at) }}</td>
+                  <td>
+                    <span class="status" [class]="classeIssue(p.sync_outcome)">
+                      {{ libelleIssue(p.sync_outcome) }}
+                    </span>
+                  </td>
+                  <td class="num">{{ formaterDateCourte(p.covered_until_date) }}</td>
+                  <td>{{ p.error_cause_label ?? '—' }}</td>
+                  <td>{{ p.triggered_by_name ?? 'Automatique' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6">Aucun passage enregistré pour ce compte.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    <!-- ==========================================================
+         ONGLET 4 : PUBLICATIONS PARUES
+         ========================================================== -->
+    @if (onglet() === 'posts') {
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Publications parues sur ce compte</h2>
+            <span class="panel-sub">{{ posts().length }} publication(s)</span>
+          </div>
+          @if (peutGerer() && estMeta() && c.status_code !== 'disconnected') {
+            <button
+              class="btn btn-primary btn-sm"
+              type="button"
+              [disabled]="actionEnCours() !== null"
+              (click)="importerPosts()"
+            >
+              <app-icon name="download" size="sm" />
+              {{ actionEnCours() === 'posts' ? 'Import en cours…' : 'Importer depuis ' + c.platform_label }}
+            </button>
+          }
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Identifiant réseau</th>
+                <th>Parue le</th>
+                <th>État sur le réseau</th>
+                <th class="num">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (post of posts(); track post.id_social_posts) {
+                <tr>
+                  <td><code>{{ post.post_external_id }}</code></td>
+                  <td class="num">{{ formaterDateHeure(post.published_at) }}</td>
+                  <td>
+                    @if (post.deleted_on_platform_at) {
+                      <span class="status status-failed">
+                        Supprimé (constaté le {{ formaterDateCourte(post.deleted_on_platform_at) }})
+                      </span>
+                    } @else if (post.archived_on_platform_at) {
+                      <span class="status status-scheduled">
+                        Archivé ({{ post.archived_by_name ?? 'déclaré' }})
+                      </span>
+                    } @else {
+                      <span class="status status-published">En ligne</span>
+                    }
+                  </td>
+                  <td class="num post-acts">
+                    @if (post.permalink; as lien) {
+                      <a class="btn btn-sm" [href]="lien" target="_blank" rel="noopener noreferrer">
+                        Ouvrir
+                        <app-icon name="external" size="sm" />
+                      </a>
+                    }
+                    @if (peutGerer() && !post.archived_on_platform_at && !post.deleted_on_platform_at) {
+                      <button
+                        class="btn btn-sm"
+                        type="button"
+                        [disabled]="actionEnCours() !== null"
+                        (click)="declarerPostArchive(post)"
+                      >
+                        Déclarer archivé
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="4">Aucune publication parue n'est encore tracée sur ce compte.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</div>

@@ -1,4 +1,4 @@
-/* Réseaux & plateformes — maquette 6b : un réseau = un bloc empilé large. */
+/* Réseaux & plateformes — liste des comptes et modale de raccordement (module 05). */
 
 @use '../../../../styles/design-system/type' as type;
 
@@ -25,6 +25,23 @@
   margin-top: 2px;
 }
 
+.filters-bar {
+  justify-content: space-between;
+}
+
+.filters-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.plat-select {
+  width: auto;
+  height: 38px;
+  min-width: 190px;
+}
+
 .nets {
   display: flex;
   flex-direction: column;
@@ -41,7 +58,7 @@
   gap: 20px;
   flex-wrap: wrap;
 }
-/* Compte à reconnecter : bordure en pointillés, comme un brouillon. */
+/* Compte non connecté : bordure en pointillés pour le distinguer d'un coup d'œil. */
 .net.is-off {
   border-style: dashed;
   border-color: var(--border-2);
@@ -51,8 +68,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 224px;
-  flex: none;
+  min-width: 240px;
+  flex: 1 1 240px;
 }
 
 .net-mark {
@@ -72,21 +89,31 @@
 .net-who {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
-.net-who b {
-  font-size: 16px;
+.net-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.net-who > span {
+.net-title b {
+  font-size: var(--t-md);
+}
+.net-sub {
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: var(--t-xs);
   color: var(--muted);
+}
+.net-inherited {
+  font-size: var(--t-2xs);
+  color: var(--accent-deep);
 }
 
 .net-stats {
-  flex: 1;
-  min-width: 300px;
+  flex: 1 1 300px;
+  min-width: 280px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
@@ -97,13 +124,18 @@
   gap: 2px;
 }
 .net-stat .v {
-  font-size: 19px;
+  font-size: var(--t-lg);
+  font-weight: var(--w-bold);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
-/* Chiffres figés depuis l'expiration du jeton : ils ne valent plus rien. */
 .net-stat .v.off {
   color: var(--muted);
+}
+.net-stat .v-muted {
+  font-size: var(--t-xs);
+  color: var(--muted);
+  font-style: italic;
 }
 
 .net-acts {
@@ -111,6 +143,7 @@
   align-items: center;
   gap: 8px;
   flex: none;
+  flex-wrap: wrap;
 }
 
 .net-foot {
@@ -119,8 +152,10 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  font-size: 9.5px;
+  font-size: var(--t-2xs);
   color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .net-host.is-missing {
   color: var(--wait);
@@ -138,7 +173,7 @@
   margin-top: 2px;
   padding-top: 12px;
   color: var(--err);
-  font-size: 13px;
+  font-size: var(--t-sm);
   line-height: 1.45;
 }
 .net-alert .btn {
@@ -148,11 +183,111 @@
 .net-alert app-icon {
   flex: none;
 }
+.net-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.net-raw {
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+.net-raw summary {
+  cursor: pointer;
+}
+.net-raw code {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ground);
+  border: 1px solid var(--border);
+  font-family: var(--f-code);
+  color: var(--ink-2);
+  word-break: break-word;
+}
 
-/* Sous 1080 px, les actions passent sous les chiffres plutôt que de les
-   comprimer : trois nombres illisibles ne valent pas une ligne gagnée. */
+/* ---------- Modales ---------- */
+
+.modal-connect {
+  width: min(640px, 100%);
+}
+.modal-disconnect {
+  width: min(460px, 100%);
+}
+.modal-pad {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--ground);
+}
+.mode-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: var(--w-semi);
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.mode-tab.is-on {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.section-label {
+  @include type.caps-label;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.field-full {
+  grid-column: 1 / -1;
+}
+.input-code {
+  font-family: var(--f-code);
+  font-size: var(--t-sm);
+}
+.hint {
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+.mode-cles {
+  align-self: flex-start;
+}
+.disconnect-text {
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin: 0;
+}
+
 @media (max-width: 1080px) {
   .net-acts {
     flex-basis: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }
