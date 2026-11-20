@@ -159,6 +159,12 @@ export const routes: Routes = [
       { path: 'newsletter', pathMatch: 'full', redirectTo: 'newsletter/envois' },
 
       {
+        path: 'reseaux/:id',
+        title: 'Fiche compte réseau social · IAGORA',
+        loadComponent: () =>
+          import('./features/networks/network-detail/network-detail').then((m) => m.NetworkDetail),
+      },
+      {
         path: 'reseaux',
         title: 'Réseaux & plateformes · IAGORA',
         loadComponent: () =>
