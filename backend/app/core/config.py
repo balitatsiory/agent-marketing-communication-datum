@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Liste d'origines séparées par des virgules ; voir la propriété cors_origins.
     CORS_ORIGINS: str = ""
 
+    # --- connecteurs Meta (facultatifs : servent à appeler /debug_token) ---
+    META_APP_ID: str = ""
+    META_APP_SECRET: SecretStr | None = None
+
     # --- stockage des médias ---
     # « local » écrit dans un dossier du poste : c'est le mode des tests et du
     # développement, pour que la suite de tests ne dépende ni du réseau ni

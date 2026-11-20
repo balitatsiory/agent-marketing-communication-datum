@@ -17,6 +17,7 @@ from typing import Any
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import get_settings
 from app.core.errors import ApiError, NotAuthenticatedError
@@ -106,3 +107,21 @@ def decode_access_token(jeton: str) -> int:
 def refresh_expiry() -> datetime:
     """Date d'expiration d'un jeton de renouvellement émis maintenant."""
     return datetime.now(UTC) + timedelta(days=get_settings().REFRESH_TOKEN_DAYS)
+
+
+def _fernet() -> Fernet:
+    cle = get_settings().TOKEN_ENCRYPTION_KEY.get_secret_value().encode("utf-8")
+    return Fernet(cle)
+
+
+def encrypt_token(clair: str) -> str:
+    """Chiffre un secret de plateforme par Fernet avant stockage en base."""
+    return _fernet().encrypt(clair.encode("utf-8")).decode("ascii")
+
+
+def decrypt_token(chiffre: str) -> str:
+    """Déchiffre un secret de plateforme lu depuis la base."""
+    try:
+        return _fernet().decrypt(chiffre.encode("ascii")).decode("utf-8")
+    except InvalidToken as erreur:
+        raise ApiError("invalid_encrypted_token", "Secret de plateforme illisible.", 500) from erreur

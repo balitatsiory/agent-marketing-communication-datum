@@ -33,7 +33,15 @@ COMPTES = [
         "mot_de_passe": "Dev-Admin-2026",
         "first_name": "Ana",
         "last_name": "Administratrice",
-        "droits": ["manage_users", "manage_permissions"],
+        "droits": [
+            "manage_users",
+            "manage_permissions",
+            "manage_media",
+            "manage_media_reference",
+            "purge_media",
+            "manage_social_accounts",
+            "read_social_statistics",
+        ],
         "is_active": True,
         "archive": False,
         "sert_a": "le parcours administrateur",
@@ -88,39 +96,48 @@ async def semer() -> int:
                 text("SELECT id_users FROM users WHERE lower(email) = lower(:e)"),
                 {"e": compte["email"]},
             )
-            if existe.first() is not None:
+            ligne = existe.first()
+            if ligne is not None:
                 deja_la += 1
-                continue
-
-            resultat = await session.execute(
-                text(
-                    """
-                    INSERT INTO users
-                        (email, password_hash, first_name, last_name, is_active, deleted_at)
-                    VALUES
-                        (:email, :empreinte, :prenom, :nom, :actif,
-                         CASE WHEN :archive THEN now() ELSE NULL END)
-                    RETURNING id_users
-                    """
-                ),
-                {
-                    "email": compte["email"],
-                    "empreinte": hash_password(str(compte["mot_de_passe"])),
-                    "prenom": compte["first_name"],
-                    "nom": compte["last_name"],
-                    "actif": compte["is_active"],
-                    "archive": compte["archive"],
-                },
-            )
-            id_users = int(resultat.scalar_one())
-            crees += 1
+                id_users = int(ligne[0])
+            else:
+                resultat = await session.execute(
+                    text(
+                        """
+                        INSERT INTO users
+                            (email, password_hash, first_name, last_name, is_active, deleted_at)
+                        VALUES
+                            (:email, :empreinte, :prenom, :nom, :actif,
+                             CASE WHEN :archive THEN now() ELSE NULL END)
+                        RETURNING id_users
+                        """
+                    ),
+                    {
+                        "email": compte["email"],
+                        "empreinte": hash_password(str(compte["mot_de_passe"])),
+                        "prenom": compte["first_name"],
+                        "nom": compte["last_name"],
+                        "actif": compte["is_active"],
+                        "archive": compte["archive"],
+                    },
+                )
+                id_users = int(resultat.scalar_one())
+                crees += 1
 
             for code in compte["droits"]:  # type: ignore[union-attr]
                 await session.execute(
                     text(
                         """
                         INSERT INTO user_permissions (id_users, id_permissions)
-                        SELECT :i, id_permissions FROM permissions WHERE code = :c
+                        SELECT :i, p.id_permissions
+                        FROM permissions p
+                        WHERE p.code = :c
+                          AND NOT EXISTS (
+                              SELECT 1 FROM user_permissions up
+                              WHERE up.id_users = :i
+                                AND up.id_permissions = p.id_permissions
+                                AND up.deleted_at IS NULL
+                          )
                         """
                     ),
                     {"i": id_users, "c": code},

@@ -164,6 +164,9 @@ class SocialAccount(Base):
     )
     account_display_name: Mapped[str] = mapped_column(String(255))
     account_username: Mapped[str | None] = mapped_column(String(120))
+    profile_url: Mapped[str | None] = mapped_column(
+        String(512), comment="Adresse publique de la page ou du profil."
+    )
     credential_mode: Mapped[str] = mapped_column(
         String(20), comment="own (cles a son nom) | inherited (cles du compte parent)."
     )
