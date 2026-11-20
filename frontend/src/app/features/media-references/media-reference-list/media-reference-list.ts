@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   computed,
   effect,
@@ -15,6 +16,7 @@ import {
   MediaReferenceNature,
   MediaReferenceView,
   MediaView,
+  formaterPoids,
   toMediaReferenceNature,
   toMediaReferenceView,
   toMediaView,
@@ -30,14 +32,18 @@ type ModeEditeur =
   | { readonly mode: 'declarer' }
   | { readonly mode: 'modifier'; readonly reference: MediaReferenceView };
 
+type SourceMediaReference = 'bibliotheque' | 'importer';
+
 /**
  * Médias de référence — branchés sur `/api/v1/media-references` et
  * `/api/v1/media-reference-natures`.
  *
- * Un média de référence ne naît jamais automatiquement au dépôt : un fichier
- * est d'abord déposé dans la médiathèque (`/medias`), puis explicitement
- * déclaré ici avec sa nature (`GET /media-reference-natures`), son libellé et
- * sa description facultative.
+ * Un média de référence peut être déclaré de deux façons depuis la fenêtre
+ * modale :
+ * - en sélectionnant une image déjà présente dans la médiathèque ;
+ * - ou en important directement un nouveau fichier : le client enchaîne alors
+ *   `POST /api/v1/media` puis `POST /api/v1/media-references` sans inventer de
+ *   route combinée côté serveur.
  */
 @Component({
   selector: 'app-media-reference-list',
@@ -46,7 +52,9 @@ type ModeEditeur =
   templateUrl: './media-reference-list.html',
   styleUrl: './media-reference-list.scss',
   host: {
-    '(document:keydown.escape)': 'fermerModale()',
+    '(document:keydown.escape)': 'auEchap()',
+    '(document:keydown.arrowleft)': 'auFlecheGauche($event)',
+    '(document:keydown.arrowright)': 'auFlecheDroite($event)',
   },
 })
 export class MediaReferenceList {
@@ -54,6 +62,8 @@ export class MediaReferenceList {
   private readonly session = inject(Session);
   private readonly premierChampModale =
     viewChild<ElementRef<HTMLElement>>('premierChampModale');
+  private readonly boutonFermerDetail =
+    viewChild<ElementRef<HTMLButtonElement>>('boutonFermerDetail');
 
   private readonly naturesBrutes = signal<readonly MediaReferenceNature[]>([]);
   private readonly referencesBrutes = signal<readonly MediaReferenceDto[]>([]);
@@ -67,11 +77,21 @@ export class MediaReferenceList {
   protected readonly recherche = signal('');
   protected readonly filtreNature = signal<string>('tous');
 
+  /** Fenêtre modale de détail d'une référence. */
+  private readonly detailId = signal<number | null>(null);
+
   /** Fenêtre modale de déclaration ou de modification. */
   protected readonly editeur = signal<ModeEditeur | null>(null);
   protected readonly erreurModale = signal<string | null>(null);
+  protected readonly modeSource = signal<SourceMediaReference>('bibliotheque');
   protected readonly rechercheMedia = signal('');
   protected readonly idMediaChoisi = signal<number | null>(null);
+
+  /** Import direct d'un nouveau fichier dans la modale de déclaration. */
+  protected readonly fichierImporte = signal<File | null>(null);
+  protected readonly apercuLocal = signal<string | null>(null);
+  protected readonly progression = signal<number | null>(null);
+
   protected readonly codeNatureChoisi = signal<string | null>(null);
   protected readonly libelleSaisi = signal('');
   protected readonly descriptionSaisie = signal('');
@@ -81,6 +101,9 @@ export class MediaReferenceList {
 
   protected readonly peutGererReferences = computed(() =>
     this.session.has('manage_media_reference'),
+  );
+  protected readonly peutDeposerMedia = computed(() =>
+    this.session.has('manage_media'),
   );
 
   protected readonly natures = computed<readonly MediaReferenceNature[]>(() =>
@@ -124,6 +147,22 @@ export class MediaReferenceList {
     });
   });
 
+  protected readonly referenceDetail = computed<MediaReferenceView | null>(
+    () => this.references().find((r) => r.idMediaReferences === this.detailId()) ?? null,
+  );
+
+  protected readonly indexDetail = computed<number>(() => {
+    const id = this.detailId();
+    if (id === null) return -1;
+    return this.resultats().findIndex((r) => r.idMediaReferences === id);
+  });
+
+  protected readonly peutDetailPrecedent = computed(() => this.indexDetail() > 0);
+  protected readonly peutDetailSuivant = computed(() => {
+    const idx = this.indexDetail();
+    return idx >= 0 && idx < this.resultats().length - 1;
+  });
+
   /**
    * Médias de la bibliothèque pouvant être déclarés comme référence : images
    * non archivées qui ne font pas déjà l'objet d'une référence active.
@@ -142,10 +181,18 @@ export class MediaReferenceList {
     return eligibles.filter((m) => m.displayName.toLowerCase().includes(terme));
   });
 
+  protected readonly poidsFichierImporte = computed(() => {
+    const fichier = this.fichierImporte();
+    return fichier ? formaterPoids(fichier.size) : '';
+  });
+
   protected readonly formulaireValide = computed(() => {
     const mode = this.editeur();
     if (!mode) return false;
-    if (mode.mode === 'declarer' && this.idMediaChoisi() === null) return false;
+    if (mode.mode === 'declarer') {
+      if (this.modeSource() === 'bibliotheque' && this.idMediaChoisi() === null) return false;
+      if (this.modeSource() === 'importer' && this.fichierImporte() === null) return false;
+    }
     return (
       this.codeNatureChoisi() !== null &&
       this.libelleSaisi().trim().length > 0 &&
@@ -157,6 +204,10 @@ export class MediaReferenceList {
     effect(() => {
       this.premierChampModale()?.nativeElement.focus();
     });
+    effect(() => {
+      this.boutonFermerDetail()?.nativeElement.focus();
+    });
+    inject(DestroyRef).onDestroy(() => this.libererApercu());
     void this.charger();
   }
 
@@ -183,13 +234,74 @@ export class MediaReferenceList {
     void this.charger();
   }
 
+  protected descriptionNature(code: string): string | null {
+    return this.natures().find((n) => n.code === code)?.description ?? null;
+  }
+
+  // ------------------------------------------------ navigation clavier modales
+
+  protected auEchap(): void {
+    if (this.editeur()) {
+      this.fermerModale();
+      return;
+    }
+    if (this.referenceDetail()) {
+      this.fermerDetail();
+    }
+  }
+
+  protected auFlecheGauche(evenement: Event): void {
+    if (!this.referenceDetail() || this.editeur()) return;
+    evenement.preventDefault();
+    this.detailPrecedent();
+  }
+
+  protected auFlecheDroite(evenement: Event): void {
+    if (!this.referenceDetail() || this.editeur()) return;
+    evenement.preventDefault();
+    this.detailSuivant();
+  }
+
+  // ------------------------------------------------ détail d'une référence (pop-up)
+
+  protected ouvrirDetail(reference: MediaReferenceView): void {
+    this.detailId.set(reference.idMediaReferences);
+  }
+
+  protected fermerDetail(): void {
+    this.detailId.set(null);
+  }
+
+  protected detailPrecedent(): void {
+    const idx = this.indexDetail();
+    if (idx > 0) {
+      this.detailId.set(this.resultats()[idx - 1].idMediaReferences);
+    }
+  }
+
+  protected detailSuivant(): void {
+    const idx = this.indexDetail();
+    if (idx >= 0 && idx < this.resultats().length - 1) {
+      this.detailId.set(this.resultats()[idx + 1].idMediaReferences);
+    }
+  }
+
+  protected ouvrirModificationDepuisDetail(reference: MediaReferenceView): void {
+    this.fermerDetail();
+    this.ouvrirModification(reference);
+  }
+
   // ------------------------------------------- déclaration et modification
 
   protected ouvrirDeclaration(): void {
+    this.libererApercu();
     this.erreurModale.set(null);
     this.avis.set(null);
     this.rechercheMedia.set('');
     this.idMediaChoisi.set(null);
+    this.fichierImporte.set(null);
+    this.progression.set(null);
+    this.modeSource.set(this.mediasEligibles().length > 0 ? 'bibliotheque' : 'importer');
     this.codeNatureChoisi.set(this.natures()[0]?.code ?? null);
     this.libelleSaisi.set('');
     this.descriptionSaisie.set('');
@@ -198,6 +310,7 @@ export class MediaReferenceList {
   }
 
   protected ouvrirModification(reference: MediaReferenceView): void {
+    this.libererApercu();
     this.erreurModale.set(null);
     this.avis.set(null);
     this.idMediaChoisi.set(reference.idMedia);
@@ -210,7 +323,16 @@ export class MediaReferenceList {
 
   protected fermerModale(): void {
     if (this.enCours()) return;
+    this.libererApercu();
+    this.fichierImporte.set(null);
+    this.progression.set(null);
     this.editeur.set(null);
+    this.erreurModale.set(null);
+  }
+
+  protected changerModeSource(mode: SourceMediaReference): void {
+    if (this.enCours()) return;
+    this.modeSource.set(mode);
     this.erreurModale.set(null);
   }
 
@@ -218,6 +340,32 @@ export class MediaReferenceList {
     this.idMediaChoisi.set(media.idMedia);
     if (!this.libelleSaisi().trim()) {
       this.libelleSaisi.set(media.displayName);
+    }
+  }
+
+  protected auChoixFichier(evenement: Event): void {
+    const champ = evenement.target as HTMLInputElement;
+    const fichier = champ.files?.[0] ?? null;
+    this.libererApercu();
+    this.erreurModale.set(null);
+    this.fichierImporte.set(fichier);
+
+    if (fichier) {
+      if (!this.libelleSaisi().trim()) {
+        this.libelleSaisi.set(fichier.name);
+      }
+      if (fichier.type.startsWith('image/')) {
+        this.apercuLocal.set(URL.createObjectURL(fichier));
+      }
+    }
+    champ.value = '';
+  }
+
+  private libererApercu(): void {
+    const url = this.apercuLocal();
+    if (url) {
+      URL.revokeObjectURL(url);
+      this.apercuLocal.set(null);
     }
   }
 
@@ -233,7 +381,21 @@ export class MediaReferenceList {
       const description = this.descriptionSaisie().trim() || null;
 
       if (etat.mode === 'declarer') {
-        const idMedia = this.idMediaChoisi();
+        let idMedia = this.idMediaChoisi();
+
+        if (this.modeSource() === 'importer') {
+          const fichier = this.fichierImporte();
+          if (!fichier) return;
+          this.progression.set(0);
+          const mediaDto = await this.api.upload(fichier, libelle, (pct) => {
+            this.progression.set(pct);
+          });
+          const mediaVue = toMediaView(mediaDto);
+          this.bibliotheque.update((courants) => [mediaVue, ...courants]);
+          idMedia = mediaVue.idMedia;
+          this.progression.set(null);
+        }
+
         if (idMedia === null) return;
         const creee = await this.api.createReference({
           id_media: idMedia,
@@ -242,6 +404,8 @@ export class MediaReferenceList {
           description,
         });
         this.referencesBrutes.update((courantes) => [creee, ...courantes]);
+        this.libererApercu();
+        this.fichierImporte.set(null);
         this.editeur.set(null);
         this.avis.set(`« ${creee.label} » a été déclaré comme média de référence.`);
       } else {
@@ -261,6 +425,7 @@ export class MediaReferenceList {
       }
     } catch (erreur) {
       this.erreurModale.set(traduireErreurMedia(erreur));
+      this.progression.set(null);
     } finally {
       this.enCours.set(false);
     }
@@ -284,6 +449,9 @@ export class MediaReferenceList {
     try {
       await this.api.archiveReference(reference.idMediaReferences);
       this.retraitId.set(null);
+      if (this.detailId() === reference.idMediaReferences) {
+        this.detailId.set(null);
+      }
       this.referencesBrutes.update((courantes) =>
         courantes.filter((r) => r.id_media_references !== reference.idMediaReferences),
       );

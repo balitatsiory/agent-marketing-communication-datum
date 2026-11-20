@@ -72,8 +72,18 @@
   } @else {
     <div class="grille">
       @for (media of resultats(); track media.idMedia) {
-        <article class="panel vignette" [class.is-archived]="media.isArchived">
-          <div class="vignette-apercu">
+        <article
+          class="panel vignette"
+          [class.is-archived]="media.isArchived"
+          (click)="ouvrirDetail(media)"
+        >
+          <div
+            class="vignette-apercu"
+            tabindex="0"
+            role="button"
+            [attr.aria-label]="'Voir les détails de ' + media.displayName"
+            (keydown.enter)="ouvrirDetail(media)"
+          >
             @if (media.isImage && media.url) {
               <img [src]="media.url" [alt]="media.displayName" loading="lazy" />
             } @else if (media.isVideo && media.url) {
@@ -84,11 +94,15 @@
             @if (media.isArchived) {
               <span class="status status-draft vignette-badge">Archivé</span>
             }
+            <span class="vignette-zoom" aria-hidden="true">
+              <app-icon [name]="media.isVideo ? 'video' : 'image'" size="sm" />
+              Détails
+            </span>
           </div>
 
           <div class="vignette-corps">
             @if (renommageId() === media.idMedia) {
-              <div class="renommage">
+              <div class="renommage" (click)="$event.stopPropagation()">
                 <div class="field">
                   <label [attr.for]="'renommer-' + media.idMedia">Nom du média</label>
                   <input
@@ -125,7 +139,7 @@
                 <span>· {{ media.fileType }}</span>
               </div>
 
-              <div class="vignette-actions">
+              <div class="vignette-actions" (click)="$event.stopPropagation()">
                 @if (!media.isArchived) {
                   <button
                     class="btn btn-sm"
@@ -201,6 +215,254 @@
     </div>
   }
 
+  <!-- ============================================================
+       Pop-up d'aperçu et de détails d'un média
+       ============================================================ -->
+  @if (mediaDetail(); as media) {
+    <div class="modal-back" (click)="fermerDetail()">
+      <div
+        class="modal modal-detail"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-media-titre"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="modal-head">
+          <div class="detail-entete-titre">
+            <div class="detail-entete-badges">
+              @if (media.isArchived) {
+                <span class="status status-draft">Archivé</span>
+              } @else {
+                <span class="status status-published">Actif</span>
+              }
+              @if (indexDetail() >= 0) {
+                <span class="detail-compteur num">
+                  {{ indexDetail() + 1 }} / {{ resultats().length }}
+                </span>
+              }
+            </div>
+            <h2 id="detail-media-titre">{{ media.displayName }}</h2>
+          </div>
+
+          <div class="detail-entete-actions">
+            @if (media.url) {
+              <a
+                class="btn btn-sm"
+                [href]="media.url"
+                target="_blank"
+                rel="noopener"
+              >
+                <app-icon name="external" size="sm" />
+                Ouvrir le fichier
+              </a>
+            }
+            <button
+              #boutonFermerDetail
+              class="btn btn-icon btn-ghost"
+              type="button"
+              aria-label="Fermer"
+              (click)="fermerDetail()"
+            >
+              <app-icon name="close" size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <div class="modal-body detail-corps">
+          <div class="detail-scene">
+            @if (media.isImage && media.url) {
+              <img [src]="media.url" [alt]="media.displayName" />
+            } @else if (media.isVideo && media.url) {
+              <video [src]="media.url" controls></video>
+            } @else {
+              <div class="detail-scene-vide">
+                <app-icon [name]="media.isVideo ? 'video' : 'image'" size="lg" />
+                <span>Aperçu indisponible</span>
+              </div>
+            }
+          </div>
+
+          <aside class="detail-fiche" aria-label="Détails du média">
+            @if (renommageId() === media.idMedia) {
+              <div class="renommage">
+                <div class="field">
+                  <label for="detail-renommer-input">Nom d'affichage</label>
+                  <input
+                    class="input"
+                    id="detail-renommer-input"
+                    type="text"
+                    [value]="nouveauNom()"
+                    (input)="nouveauNom.set($any($event.target).value)"
+                    (keydown.enter)="enregistrerRenommage(media)"
+                  />
+                </div>
+                <div class="vignette-actions">
+                  <button class="btn btn-sm" type="button" (click)="annulerRenommage()">
+                    Annuler
+                  </button>
+                  <button
+                    class="btn btn-sm btn-primary"
+                    type="button"
+                    [disabled]="!nouveauNom().trim() || enCours()"
+                    (click)="enregistrerRenommage(media)"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="detail-champ">
+                <span class="label">Nom d'affichage</span>
+                <div class="detail-nom-ligne">
+                  <b>{{ media.displayName }}</b>
+                  @if (!media.isArchived) {
+                    <button
+                      class="btn btn-sm"
+                      type="button"
+                      [disabled]="!peutGererMedias() || enCours()"
+                      (click)="ouvrirRenommage(media)"
+                    >
+                      <app-icon name="pencil" size="sm" />
+                      Renommer
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="detail-liste">
+              <div class="detail-ligne">
+                <span class="label">Identifiant</span>
+                <span class="num">#{{ media.idMedia }}</span>
+              </div>
+
+              <div class="detail-ligne">
+                <span class="label">Type MIME</span>
+                <span class="num">{{ media.fileType }}</span>
+              </div>
+
+              <div class="detail-ligne">
+                <span class="label">Dimensions</span>
+                <span class="num">{{ media.dimensionsLabel ?? 'Non mesurées' }}</span>
+              </div>
+
+              <div class="detail-ligne">
+                <span class="label">Poids</span>
+                <span class="num">
+                  {{ media.sizeLabel }} ({{ media.sizeBytes.toLocaleString('fr-FR') }} octets)
+                </span>
+              </div>
+
+              @if (media.isVideo && media.videoDurationSeconds !== null) {
+                <div class="detail-ligne">
+                  <span class="label">Durée</span>
+                  <span class="num">{{ media.videoDurationSeconds }} s</span>
+                </div>
+              }
+
+              <div class="detail-ligne">
+                <span class="label">Origine</span>
+                <span>{{ media.sourceLabel }}</span>
+              </div>
+
+              <div class="detail-ligne">
+                <span class="label">Déposé le</span>
+                <span class="num">{{ media.createdAtFullLabel }}</span>
+              </div>
+
+              @if (media.deletedAtLabel; as dateArchivage) {
+                <div class="detail-ligne">
+                  <span class="label">Archivé le</span>
+                  <span class="num">{{ dateArchivage }}</span>
+                </div>
+              }
+            </div>
+
+            <div class="detail-actions">
+              @if (!media.isArchived) {
+                @if (archivageId() === media.idMedia) {
+                  <button class="btn btn-sm" type="button" (click)="renoncerArchivage()">
+                    Renoncer
+                  </button>
+                  <button
+                    class="btn btn-sm btn-danger"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="archiver(media)"
+                  >
+                    Confirmer l'archivage
+                  </button>
+                } @else {
+                  <button
+                    class="btn btn-sm"
+                    type="button"
+                    [disabled]="!peutGererMedias() || enCours()"
+                    (click)="demanderArchivage(media.idMedia)"
+                  >
+                    Archiver ce média
+                  </button>
+                }
+              }
+
+              @if (media.isArchived && peutPurger()) {
+                @if (purgeId() === media.idMedia) {
+                  <button class="btn btn-sm" type="button" (click)="renoncerPurge()">
+                    Renoncer
+                  </button>
+                  <button
+                    class="btn btn-sm btn-danger"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="purger(media)"
+                  >
+                    Confirmer la purge définitive
+                  </button>
+                } @else {
+                  <button
+                    class="btn btn-sm btn-danger"
+                    type="button"
+                    [disabled]="enCours()"
+                    (click)="demanderPurge(media.idMedia)"
+                  >
+                    Purger définitivement
+                  </button>
+                }
+              }
+            </div>
+          </aside>
+        </div>
+
+        <footer class="modal-foot detail-pied">
+          <div class="detail-nav">
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="!peutDetailPrecedent()"
+              (click)="detailPrecedent()"
+            >
+              <app-icon name="chevron" size="sm" class="chev-gauche" />
+              Précédent
+            </button>
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="!peutDetailSuivant()"
+              (click)="detailSuivant()"
+            >
+              Suivant
+              <app-icon name="chevron" size="sm" class="chev-droite" />
+            </button>
+          </div>
+
+          <button class="btn" type="button" (click)="fermerDetail()">Fermer</button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  <!-- ============================================================
+       Pop-up de dépôt d'un média
+       ============================================================ -->
   @if (depotOuvert()) {
     <div class="modal-back" (click)="fermerDepot()">
       <div
