@@ -8,106 +8,121 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+
+import { toApiError } from '../../../core/api/api-error';
+import { MediaApi } from '../../../core/api/media.api';
 import {
-  CAPTION_LIMITS,
-  FORMAT_BOUNDS,
-  MediaKind,
-  acceptsFormat,
-} from '../../../core/data/platform-formats.data';
-import { SOCIAL_NETWORKS } from '../../../core/data/social-networks.data';
-import { PUBLICATION_FORMAT_LABELS, PublicationFormat } from '../../../core/models/publication';
+  PublicationDto,
+  PublicationFormatDto,
+  PublicationsApi,
+} from '../../../core/api/publications.api';
+import {
+  SocialAccountDto,
+  SocialAccountsApi,
+  SocialPlatformDto,
+} from '../../../core/api/social-accounts.api';
+import { FORMAT_BOUNDS, MediaKind } from '../../../core/data/platform-formats.data';
+import { PublicationFormat } from '../../../core/models/publication';
+import { SocialNetworkCode } from '../../../core/models/social-network';
 import {
   MEETING_PUBLICATION_TYPE_LABELS,
   MeetingPublicationType,
   Webinar,
   publicationTypesFor,
 } from '../../../core/models/webinar';
+import { Session } from '../../../core/services/session';
 import { WebinarStore } from '../../../core/services/webinar-store';
-import { SocialNetworkCode } from '../../../core/models/social-network';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
 import { NetworkLogo } from '../../../shared/network-logo/network-logo';
 
-/** Moment d'envoi. */
 type Timing = 'now' | 'scheduled';
 
-/** Un média importé par l'utilisateur. */
 interface MediaItem {
   readonly id: number;
+  readonly file: File;
   readonly name: string;
   readonly kind: MediaKind;
-  /** URL d'objet, créée à l'import et révoquée au retrait. */
   readonly url: SafeUrl;
-  /** Même URL sous forme de chaîne, pour la révoquer. */
   readonly rawUrl: string;
   readonly sizeLabel: string;
-  /** Taille brute, qui sert à repérer un doublon. */
   readonly sizeBytes: number;
-  /** Durée formatée, pour une vidéo seulement. */
   readonly durationLabel: string | null;
   readonly durationSeconds: number | null;
 }
 
-/** Décalage d'Antananarivo par rapport à GMT, en heures. */
 const LOCAL_UTC_OFFSET = 3;
+const RESEAUX_CONNUS: ReadonlySet<string> = new Set([
+  'facebook',
+  'instagram',
+  'linkedin',
+  'youtube',
+  'tiktok',
+]);
+
+function dateDemainIso(): string {
+  const d = new Date(Date.now() + 24 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
- * Créer une publication — maquette 3a.
+ * Créer une publication (/publications/nouvelle) — Module 08 branché sur l'API.
  *
- * L'ordre des quatre étapes est une décision de conception, pas une
- * préférence d'écran : format → réseaux → médias → légendes.
- *
- * Le format vient en premier parce qu'il ne se devine pas. Un Reel et
- * une vidéo de fil portent le même fichier ; une story et un post aussi.
- * Seule l'intention de l'utilisateur les distingue, et aucune détection
- * sur les fichiers déposés ne peut la remplacer. Le format choisi filtre
- * ensuite les réseaux ciblables, et le couple format + réseaux fixe les
- * contraintes du dépôt : nombre de médias, nature de fichier, durée.
- * L'utilisateur ne peut donc pas déposer un fichier qui sera refusé.
- *
- * Une publication ne porte qu'un seul format, commun à tous les réseaux
- * visés : un Reel sur Instagram et un carrousel sur LinkedIn font deux
- * publications. C'est pourquoi changer de format réinitialise tout.
- *
- * L'import est réel : les fichiers sont lus par le navigateur et la durée
- * d'une vidéo est relevée sur le fichier. Rien ne quitte le poste.
+ * Ordre imposé par la conception : format → comptes actifs → médias → légendes →
+ * soumission à la validation → approbation humaine → diffusion réelle (Facebook).
  */
 @Component({
   selector: 'app-publication-composer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Topbar, Icon, NetworkLogo],
+  imports: [FormsModule, RouterLink, Topbar, Icon, NetworkLogo],
   templateUrl: './publication-composer.html',
   styleUrl: './publication-composer.scss',
 })
 export class PublicationComposer {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly publicationsApi = inject(PublicationsApi);
+  private readonly socialAccountsApi = inject(SocialAccountsApi);
+  private readonly mediaApi = inject(MediaApi);
+  private readonly session = inject(Session);
 
-  protected readonly networks = SOCIAL_NETWORKS.filter((network) => network.isConnected);
-  protected readonly formats = Object.keys(PUBLICATION_FORMAT_LABELS) as PublicationFormat[];
-  protected readonly formatLabels = PUBLICATION_FORMAT_LABELS;
-  protected readonly bounds = FORMAT_BOUNDS;
   protected readonly trail: readonly string[] = ['Publier', 'Créer une publication'];
+
+  /* ---------- données chargées depuis l'API ---------- */
+
+  protected readonly formatsApi = signal<readonly PublicationFormatDto[]>([]);
+  protected readonly plateformesApi = signal<readonly SocialPlatformDto[]>([]);
+  protected readonly comptesActifs = signal<readonly SocialAccountDto[]>([]);
+  protected readonly chargementInit = signal(true);
+  protected readonly erreurApi = signal<string | null>(null);
+
+  protected readonly peutCreer = computed(() => this.session.has('create_publications'));
+  protected readonly peutRelire = computed(() => this.session.has('review_publications'));
+  protected readonly peutPublier = computed(() => this.session.has('publish_publications'));
+
+  protected readonly plateformesParCode = computed(() => {
+    const carte = new Map<string, SocialPlatformDto>();
+    for (const p of this.plateformesApi()) carte.set(p.code, p);
+    return carte;
+  });
 
   /* ---------- 1 · format ---------- */
 
-  protected readonly format = signal<PublicationFormat | null>(null);
-
-  /** Format en attente de confirmation, quand le changement efface du travail. */
-  protected readonly pendingFormat = signal<PublicationFormat | null>(null);
+  protected readonly format = signal<PublicationFormatDto | null>(null);
+  protected readonly pendingFormat = signal<PublicationFormatDto | null>(null);
   protected readonly resetNotice = signal<string | null>(null);
 
-  /** Bornes du format retenu. Sans format, rien n'est permis. */
-  protected readonly activeBounds = computed(() => {
-    const format = this.format();
-    return format ? FORMAT_BOUNDS[format] : null;
+  protected readonly activeAccepts = computed<readonly MediaKind[]>(() => {
+    const f = this.format();
+    if (!f) return [];
+    const borne = FORMAT_BOUNDS[f.code as PublicationFormat];
+    return borne ? borne.accepts : ['image'];
   });
 
-  /** Ce format attend-il des médias ? « Texte seul » n'en attend aucun. */
-  protected readonly wantsMedia = computed(() => (this.activeBounds()?.maxMediaCount ?? 0) > 0);
+  protected readonly wantsMedia = computed(() => (this.format()?.max_media_count ?? 0) > 0);
 
-  /** Types de fichiers ouverts au sélecteur, selon le format. */
   protected readonly acceptAttribute = computed(() => {
-    const accepts = this.activeBounds()?.accepts ?? [];
+    const accepts = this.activeAccepts();
     const parts: string[] = [];
     if (accepts.includes('image')) parts.push('image/*');
     if (accepts.includes('video')) parts.push('video/*');
@@ -115,16 +130,16 @@ export class PublicationComposer {
     return parts.join(',');
   });
 
-  /**
-   * Choisit un format.
-   *
-   * Changer de format réinitialise les réseaux, les médias et les
-   * légendes : ils dépendent tous du format. On demande confirmation
-   * seulement s'il y a quelque chose à perdre — sinon le clic serait
-   * ralenti pour rien.
-   */
-  protected chooseFormat(next: PublicationFormat): void {
-    if (this.format() === next) return;
+  protected hintFormat(f: PublicationFormatDto): string {
+    const borne = FORMAT_BOUNDS[f.code as PublicationFormat];
+    if (borne) return borne.hint;
+    if (f.max_media_count === 0) return 'sans média';
+    if (f.min_media_count === f.max_media_count) return `${f.max_media_count} média`;
+    return `${f.min_media_count} à ${f.max_media_count} médias`;
+  }
+
+  protected chooseFormat(next: PublicationFormatDto): void {
+    if (this.format()?.code === next.code) return;
     if (this.format() === null || !this.hasWorkToLose()) {
       this.applyFormat(next);
       return;
@@ -138,7 +153,7 @@ export class PublicationComposer {
     this.applyFormat(next);
     this.pendingFormat.set(null);
     this.resetNotice.set(
-      `Format passé à « ${this.formatLabels[next].toLowerCase()} » : réseaux, médias et légendes ont été réinitialisés.`,
+      `Format passé à « ${next.label.toLowerCase()} » : comptes, médias et légendes ont été réinitialisés.`,
     );
   }
 
@@ -146,62 +161,58 @@ export class PublicationComposer {
     this.pendingFormat.set(null);
   }
 
-  /** Y a-t-il une saisie que le changement de format effacerait ? */
   private hasWorkToLose(): boolean {
     return (
       this.media().length > 0 ||
-      this.selectedNetworks().size > 0 ||
-      Object.values(this.captions()).some((text) => text.trim().length > 0)
+      this.selectedAccountIds().size > 0 ||
+      Object.values(this.captions()).some((text) => (text ?? '').trim().length > 0)
     );
   }
 
-  private applyFormat(next: PublicationFormat): void {
+  private applyFormat(next: PublicationFormatDto): void {
     for (const item of this.media()) URL.revokeObjectURL(item.rawUrl);
     this.media.set([]);
-    this.selectedNetworks.set(new Set());
+    this.selectedAccountIds.set(new Set());
     this.captions.set({});
     this.importError.set(null);
     this.format.set(next);
   }
 
-  /* ---------- 2 · réseaux ---------- */
+  /* ---------- 2 · comptes réseaux sociaux actifs ---------- */
 
-  protected readonly selectedNetworks = signal<ReadonlySet<SocialNetworkCode>>(new Set());
+  protected readonly selectedAccountIds = signal<ReadonlySet<number>>(new Set());
 
-  /** Ce réseau accepte-t-il le format retenu ? */
-  protected isNetworkAvailable(code: SocialNetworkCode): boolean {
-    const format = this.format();
-    return format !== null && acceptsFormat(code, format);
+  protected isAccountAvailable(compte: SocialAccountDto): boolean {
+    const fmt = this.format();
+    return fmt !== null && fmt.platforms.includes(compte.platform_code);
   }
 
-  /** Pourquoi un réseau est fermé — affiché à côté de son nom. */
-  protected networkReason(code: SocialNetworkCode): string {
-    const format = this.format();
-    if (!format) return 'Choisissez un format.';
-    return `${this.formatLabels[format]} n'est pas accepté ici.`;
+  protected accountReason(compte: SocialAccountDto): string {
+    const fmt = this.format();
+    if (!fmt) return 'Choisissez un format.';
+    return `${fmt.label} n'est pas accepté sur ${compte.platform_label}.`;
   }
 
-  protected toggleNetwork(code: SocialNetworkCode): void {
-    if (!this.isNetworkAvailable(code)) return;
-    this.selectedNetworks.update((current) => {
+  protected toggleAccount(compte: SocialAccountDto): void {
+    if (!this.isAccountAvailable(compte)) return;
+    this.selectedAccountIds.update((current) => {
       const next = new Set(current);
-      if (!next.delete(code)) next.add(code);
+      if (!next.delete(compte.id_social_accounts)) next.add(compte.id_social_accounts);
       return next;
     });
-    // L'aperçu doit rester sur un réseau réellement visé.
-    const selected = [...this.selectedNetworks()];
-    if (selected.length && !this.selectedNetworks().has(this.previewNetwork())) {
-      this.previewNetwork.set(selected[0]);
+    const selected = this.selectedAccounts();
+    if (selected.length && !this.selectedAccountIds().has(this.previewAccountId() ?? -1)) {
+      this.previewAccountId.set(selected[0].id_social_accounts);
     }
   }
 
-  protected readonly selectedNetworkList = computed(() =>
-    this.networks.filter((network) => this.selectedNetworks().has(network.code)),
+  protected readonly selectedAccounts = computed(() =>
+    this.comptesActifs().filter((c) => this.selectedAccountIds().has(c.id_social_accounts)),
   );
 
-  protected readonly selectedNetworkLabels = computed(() =>
-    this.selectedNetworkList().map((network) => network.label),
-  );
+  protected codeReseau(code: string): SocialNetworkCode {
+    return (RESEAUX_CONNUS.has(code) ? code : 'facebook') as SocialNetworkCode;
+  }
 
   /* ---------- 3 · médias ---------- */
 
@@ -212,23 +223,39 @@ export class PublicationComposer {
   private dragIndex: number | null = null;
 
   constructor() {
-    // Les URL d'objet survivent au composant : sans révocation, le
-    // navigateur garde les fichiers en mémoire jusqu'au rechargement.
     inject(DestroyRef).onDestroy(() => {
       for (const item of this.media()) URL.revokeObjectURL(item.rawUrl);
     });
+    void this.chargerReferentiels();
+  }
+
+  protected async chargerReferentiels(): Promise<void> {
+    this.chargementInit.set(true);
+    this.erreurApi.set(null);
+    try {
+      const [formats, plateformes, comptes] = await Promise.all([
+        this.publicationsApi.formats(),
+        this.socialAccountsApi.platforms(),
+        this.socialAccountsApi.list(),
+      ]);
+      this.formatsApi.set(formats);
+      this.plateformesApi.set(plateformes);
+      this.comptesActifs.set(comptes.filter((c) => c.status_code === 'active'));
+    } catch (err) {
+      this.erreurApi.set(toApiError(err).message);
+    } finally {
+      this.chargementInit.set(false);
+    }
   }
 
   protected readonly hasMedia = computed(() => this.media().length > 0);
   protected readonly mediaCount = computed(() => this.media().length);
 
-  /** Place restante avant le plafond du format. */
   protected readonly remainingSlots = computed(() => {
-    const max = this.activeBounds()?.maxMediaCount ?? 0;
+    const max = this.format()?.max_media_count ?? 0;
     return Math.max(0, max - this.media().length);
   });
 
-  /** Première vidéo importée — celle dont on affiche la durée. */
   protected readonly firstVideo = computed(
     () => this.media().find((item) => item.kind === 'video') ?? null,
   );
@@ -236,8 +263,6 @@ export class PublicationComposer {
   protected onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.addFiles(input.files);
-    // Remettre le champ à zéro : sans cela, réimporter le même fichier
-    // ne déclenche pas d'événement.
     input.value = '';
   }
 
@@ -256,26 +281,19 @@ export class PublicationComposer {
     this.isDragOver.set(false);
   }
 
-  /**
-   * Ajoute des fichiers, en appliquant les règles du format.
-   *
-   * Trois refus possibles, dits séparément : nature de fichier non
-   * attendue par le format, plafond atteint, et doublon. Un même média ne
-   * peut pas figurer deux fois dans un carrousel — la base l'interdit par
-   * une contrainte d'unicité, l'écran le dit avant.
-   */
   private addFiles(files: FileList | null): void {
-    const bounds = this.activeBounds();
-    if (!bounds || !files || files.length === 0) return;
+    const fmt = this.format();
+    if (!fmt || !files || files.length === 0) return;
     this.importError.set(null);
 
+    const accepts = this.activeAccepts();
     const wrongKind: string[] = [];
     const duplicates: string[] = [];
     let overflow = false;
 
     for (const file of Array.from(files)) {
       const kind = detectKind(file);
-      if (!kind || !bounds.accepts.includes(kind)) {
+      if (!kind || !accepts.includes(kind)) {
         wrongKind.push(file.name);
         continue;
       }
@@ -283,7 +301,7 @@ export class PublicationComposer {
         duplicates.push(file.name);
         continue;
       }
-      if (this.media().length >= bounds.maxMediaCount) {
+      if (this.media().length >= fmt.max_media_count) {
         overflow = true;
         continue;
       }
@@ -291,6 +309,7 @@ export class PublicationComposer {
       const rawUrl = URL.createObjectURL(file);
       const item: MediaItem = {
         id: this.nextMediaId++,
+        file,
         name: file.name,
         kind,
         url: this.sanitizer.bypassSecurityTrustUrl(rawUrl),
@@ -306,24 +325,19 @@ export class PublicationComposer {
 
     const messages: string[] = [];
     if (wrongKind.length) {
-      messages.push(
-        `${wrongKind.join(', ')} — ce format attend ${describeAccepts(bounds.accepts)}.`,
-      );
+      messages.push(`${wrongKind.join(', ')} — ce format attend ${describeAccepts(accepts)}.`);
     }
     if (duplicates.length) {
-      messages.push(
-        `${duplicates.join(', ')} — déjà dans la sélection. Un même média ne peut figurer qu'une fois.`,
-      );
+      messages.push(`${duplicates.join(', ')} — déjà dans la sélection.`);
     }
     if (overflow) {
       messages.push(
-        `Plafond atteint : ${bounds.maxMediaCount} média${bounds.maxMediaCount > 1 ? 's' : ''} au maximum pour ce format.`,
+        `Plafond atteint : ${fmt.max_media_count} média${fmt.max_media_count > 1 ? 's' : ''} au maximum.`,
       );
     }
     this.importError.set(messages.length ? messages.join(' ') : null);
   }
 
-  /** Relève la durée réelle du fichier vidéo, sans le lire. */
   private readDuration(item: MediaItem): void {
     const probe = document.createElement('video');
     probe.preload = 'metadata';
@@ -347,12 +361,6 @@ export class PublicationComposer {
     this.importError.set(null);
   }
 
-  /**
-   * Déplace un média dans l'ordre du carrousel.
-   *
-   * C'est ce geste qui fixe `carousel_position` : la position d'une
-   * vignette est son rang dans la liste, à partir de 1.
-   */
   protected moveMedia(from: number, to: number): void {
     if (to < 0 || to >= this.media().length || from === to) return;
     this.media.update((current) => {
@@ -378,79 +386,63 @@ export class PublicationComposer {
     this.dragIndex = null;
   }
 
-  /* ---------- 4 · légendes ---------- */
+  /* ---------- 4 · légendes (par compte cible) ---------- */
 
-  /**
-   * Une légende par réseau.
-   *
-   * La légende vit sur la cible, pas sur la publication : les limites de
-   * longueur diffèrent d'un réseau à l'autre, et une proposition générée
-   * par l'IA est produite par plateforme.
-   */
-  protected readonly captions = signal<Readonly<Partial<Record<SocialNetworkCode, string>>>>({});
+  protected readonly captions = signal<Readonly<Partial<Record<number, string>>>>({});
 
-  protected captionFor(code: SocialNetworkCode): string {
-    return this.captions()[code] ?? '';
+  protected captionFor(accountId: number): string {
+    return this.captions()[accountId] ?? '';
   }
 
-  protected setCaption(code: SocialNetworkCode, text: string): void {
-    this.captions.update((current) => ({ ...current, [code]: text }));
+  protected setCaption(accountId: number, text: string): void {
+    this.captions.update((current) => ({ ...current, [accountId]: text }));
   }
 
-  protected captionLimit(code: SocialNetworkCode): number {
-    return CAPTION_LIMITS[code];
+  protected captionLimit(platformCode: string): number {
+    return this.plateformesParCode().get(platformCode)?.max_description_length ?? 2200;
   }
 
-  protected isCaptionOverLimit(code: SocialNetworkCode): boolean {
-    return this.captionFor(code).length > CAPTION_LIMITS[code];
+  protected isCaptionOverLimit(compte: SocialAccountDto): boolean {
+    return this.captionFor(compte.id_social_accounts).length > this.captionLimit(compte.platform_code);
   }
 
-  /** Recopie une légende sur tous les autres réseaux visés. */
-  protected copyCaptionToAll(source: SocialNetworkCode): void {
-    const text = this.captionFor(source);
+  protected copyCaptionToAll(sourceAccountId: number): void {
+    const text = this.captionFor(sourceAccountId);
     this.captions.update((current) => {
       const next = { ...current };
-      for (const network of this.selectedNetworkList()) next[network.code] = text;
+      for (const acc of this.selectedAccounts()) next[acc.id_social_accounts] = text;
       return next;
     });
   }
 
   protected readonly hasEmptyCaption = computed(() =>
-    this.selectedNetworkList().some((network) => !this.captionFor(network.code).trim()),
+    this.selectedAccounts().some((acc) => !this.captionFor(acc.id_social_accounts).trim()),
   );
 
   protected readonly hasCaptionOverLimit = computed(() =>
-    this.selectedNetworkList().some((network) => this.isCaptionOverLimit(network.code)),
+    this.selectedAccounts().some((acc) => this.isCaptionOverLimit(acc)),
   );
 
   /* ---------- aperçu ---------- */
 
-  protected readonly previewNetwork = signal<SocialNetworkCode>('instagram');
+  protected readonly previewAccountId = signal<number | null>(null);
 
-  /** Rapport d'image de l'aperçu, selon le format retenu. */
   protected readonly previewRatio = computed(() => {
-    const format = this.format();
-    if (format === 'reel' || format === 'story') return '9 / 16';
-    if (format === 'video') return '16 / 9';
+    const code = this.format()?.code;
+    if (code === 'reel' || code === 'story') return '9 / 16';
+    if (code === 'video') return '16 / 9';
     return '4 / 5';
   });
 
-  /** Média montré dans l'aperçu : le premier de l'ordre retenu. */
   protected readonly previewMedia = computed(() => this.media()[0] ?? null);
 
-  protected readonly previewCaption = computed(() => this.captionFor(this.previewNetwork()));
+  protected readonly previewCaption = computed(() => {
+    const id = this.previewAccountId();
+    return id !== null ? this.captionFor(id) : '';
+  });
 
-  /* ---------- événement lié ---------- */
+  /* ---------- 5 · événement lié (maquette conservée) ---------- */
 
-  /**
-   * Lien facultatif avec un événement — une ligne de `meeting_publications`.
-   *
-   * L'ordre est celui de la décision du 11/11/2026 : on choisit l'événement
-   * d'abord, puis le type de publication. Le type reste grisé tant
-   * qu'aucun événement n'est choisi, et ses valeurs dépendent du statut de
-   * l'événement : promotion avant la séance, compte rendu ou rediffusion après.
-   * La vidéo d'une rediffusion s'importe à l'étape « Médias », comme toute vidéo.
-   */
   private readonly webinarStore = inject(WebinarStore);
   protected readonly typeLabels = MEETING_PUBLICATION_TYPE_LABELS;
   protected readonly webinarOptions = this.webinarStore.everything;
@@ -462,7 +454,6 @@ export class PublicationComposer {
     return id === null ? null : (this.webinarStore.findById(id) ?? null);
   });
 
-  /** Valeur de la liste déroulante, qui ne manipule que des chaînes. */
   protected readonly linkedWebinarKey = computed(() => String(this.linkedWebinarId() ?? ''));
 
   protected readonly availableTypes = computed<readonly MeetingPublicationType[]>(() => {
@@ -470,21 +461,11 @@ export class PublicationComposer {
     return webinar ? publicationTypesFor(webinar.status) : [];
   });
 
-  /** Fragment ajouté au message de confirmation quand un événement est lié. */
-  protected readonly linkedSummary = computed(() => {
-    const webinar = this.linkedWebinar();
-    const type = this.linkedType();
-    return webinar && type
-      ? `, liée à « ${webinar.title} » (${MEETING_PUBLICATION_TYPE_LABELS[type].toLowerCase()})`
-      : '';
-  });
-
   protected chooseWebinar(value: string): void {
     const id = value === '' ? null : Number(value);
     this.linkedWebinarId.set(id);
     const webinar = id === null ? null : (this.webinarStore.findById(id) ?? null);
     const types = webinar ? publicationTypesFor(webinar.status) : [];
-    // Un seul type possible : il est présélectionné. Sinon, l'utilisateur choisit.
     this.linkedType.set(types.length === 1 ? types[0] : null);
   }
 
@@ -498,30 +479,33 @@ export class PublicationComposer {
     return `${webinar.title} — ${when}${state}`;
   }
 
-  /* ---------- programmation et envoi ---------- */
+  /* ---------- 6 · programmation, soumission, validation et diffusion ---------- */
 
-  protected readonly timing = signal<Timing>('scheduled');
-  protected readonly scheduledDate = signal('2026-10-12');
+  protected readonly timing = signal<Timing>('now');
+  protected readonly scheduledDate = signal(dateDemainIso());
   protected readonly scheduledTime = signal('18:30');
 
   protected readonly isSummaryOpen = signal(false);
+  protected readonly envoiEnCours = signal(false);
+  protected readonly actionPubEnCours = signal<'approve' | 'publish' | null>(null);
+  protected readonly publicationCreee = signal<PublicationDto | null>(null);
   protected readonly successMessage = signal<string | null>(null);
-  protected readonly draftMessage = signal<string | null>(null);
 
-  protected readonly canSubmit = computed(() => this.blockers().length === 0);
+  protected readonly canSubmit = computed(
+    () => this.peutCreer() && this.blockers().length === 0 && !this.envoiEnCours(),
+  );
 
-  /** Ce qui manque encore, listé sous le bouton d'envoi. */
   protected readonly blockers = computed<readonly string[]>(() => {
-    const bounds = this.activeBounds();
+    const fmt = this.format();
     const missing: string[] = [];
-    if (!bounds) return ['un format'];
-    if (this.selectedNetworks().size === 0) missing.push('au moins un réseau');
-    if (this.mediaCount() < bounds.minMediaCount) {
-      const need = bounds.minMediaCount - this.mediaCount();
+    if (!fmt) return ['un format'];
+    if (this.selectedAccountIds().size === 0) missing.push('au moins un compte actif');
+    if (this.mediaCount() < fmt.min_media_count) {
+      const need = fmt.min_media_count - this.mediaCount();
       missing.push(`${need} média${need > 1 ? 's' : ''} de plus`);
     }
-    if (this.selectedNetworks().size > 0 && this.hasEmptyCaption()) {
-      missing.push('une légende pour chaque réseau');
+    if (this.selectedAccountIds().size > 0 && this.hasEmptyCaption()) {
+      missing.push('une légende pour chaque compte');
     }
     if (this.hasCaptionOverLimit()) missing.push('des légendes sous la limite');
     if (this.linkedWebinarId() !== null && this.linkedType() === null) {
@@ -530,73 +514,140 @@ export class PublicationComposer {
     return missing;
   });
 
-  /** Date et heure de programmation, telles que saisies (UTC+3). */
   protected readonly localSchedule = computed(() => {
     if (this.timing() === 'now') return 'dès validation';
     return `${formatDate(this.scheduledDate())} à ${this.scheduledTime()}`;
   });
 
-  /**
-   * La même échéance exprimée en GMT.
-   *
-   * Les plateformes raisonnent en UTC : afficher les deux évite de
-   * découvrir après coup qu'une publication est partie trois heures trop
-   * tôt.
-   */
   protected readonly gmtSchedule = computed(() => {
     if (this.timing() === 'now') return null;
+    const utc = this.scheduledIsoUtc();
+    if (!utc) return null;
+    return `${formatDate(utc.slice(0, 10))} à ${utc.slice(11, 16)} GMT`;
+  });
+
+  private scheduledIsoUtc(): string {
+    if (this.timing() === 'now') {
+      return new Date().toISOString();
+    }
     const [year, month, day] = this.scheduledDate().split('-').map(Number);
     const [hour, minute] = this.scheduledTime().split(':').map(Number);
-    if ([year, month, day, hour, minute].some(Number.isNaN)) return null;
-    const utc = new Date(Date.UTC(year, month - 1, day, hour - LOCAL_UTC_OFFSET, minute));
-    return `${formatDate(utc.toISOString().slice(0, 10))} à ${utc
-      .toISOString()
-      .slice(11, 16)} GMT`;
-  });
+    if ([year, month, day, hour, minute].some(Number.isNaN)) {
+      return new Date().toISOString();
+    }
+    return new Date(Date.UTC(year, month - 1, day, hour - LOCAL_UTC_OFFSET, minute)).toISOString();
+  }
 
   protected openSummary(): void {
     if (!this.canSubmit()) return;
-    this.successMessage.set(null);
+    this.erreurApi.set(null);
     this.isSummaryOpen.set(true);
   }
 
   protected closeSummary(): void {
+    if (this.envoiEnCours()) return;
     this.isSummaryOpen.set(false);
   }
 
-  /**
-   * Envoi simulé.
-   *
-   * Rien ne part : le message de confirmation le dit, plutôt que de
-   * laisser croire à une publication réelle.
-   */
-  protected confirmSend(): void {
-    const networks = this.selectedNetworkLabels().join(', ');
-    const when = this.timing() === 'now' ? 'dès validation' : this.localSchedule();
-    this.isSummaryOpen.set(false);
-    this.successMessage.set(
-      `Publication envoyée à la validation pour ${networks}, départ ${when}${this.linkedSummary()} — simulation, rien n'a été publié.`,
-    );
+  /** Upload réel des médias via /api/v1/media puis création de la publication via /api/v1/publications. */
+  protected async confirmSend(): Promise<void> {
+    const fmt = this.format();
+    if (!fmt || !this.canSubmit()) return;
+
+    this.envoiEnCours.set(true);
+    this.erreurApi.set(null);
+    this.successMessage.set(null);
+
+    try {
+      const mediaIds: number[] = [];
+      for (const item of this.media()) {
+        const uploaded = await this.mediaApi.upload(item.file, item.name);
+        mediaIds.push(uploaded.id_media);
+      }
+
+      const scheduledAt = this.scheduledIsoUtc();
+      const targets = this.selectedAccounts().map((acc) => ({
+        id_social_accounts: acc.id_social_accounts,
+        description: this.captionFor(acc.id_social_accounts).trim(),
+        scheduled_at: scheduledAt,
+      }));
+
+      const cree = await this.publicationsApi.create({
+        format_code: fmt.code,
+        media_ids: mediaIds,
+        targets,
+      });
+
+      this.publicationCreee.set(cree);
+      this.isSummaryOpen.set(false);
+      this.successMessage.set(
+        `Publication #${cree.id_publications} enregistrée et soumise à la validation humaine.`,
+      );
+    } catch (err) {
+      this.erreurApi.set(toApiError(err).message);
+      this.isSummaryOpen.set(false);
+    } finally {
+      this.envoiEnCours.set(false);
+    }
   }
 
-  protected saveDraft(): void {
-    const format = this.format();
-    const pieces = [
-      format ? this.formatLabels[format].toLowerCase() : 'sans format',
-      this.mediaCount()
-        ? `${this.mediaCount()} média${this.mediaCount() > 1 ? 's' : ''}`
-        : 'sans média',
-      this.selectedNetworks().size
-        ? `${this.selectedNetworks().size} réseau${this.selectedNetworks().size > 1 ? 'x' : ''}`
-        : 'sans réseau',
-    ];
-    this.draftMessage.set(
-      `Brouillon enregistré — ${pieces.join(', ')}. Simulation, rien n'a été envoyé.`,
-    );
+  protected async approuverPublication(): Promise<void> {
+    const pub = this.publicationCreee();
+    if (!pub || this.actionPubEnCours() !== null) return;
+    this.actionPubEnCours.set('approve');
+    this.erreurApi.set(null);
+    try {
+      const maj = await this.publicationsApi.approve(pub.id_publications);
+      this.publicationCreee.set(maj);
+      this.successMessage.set(
+        `Publication #${maj.id_publications} validée. Vous pouvez maintenant la diffuser.`,
+      );
+    } catch (err) {
+      this.erreurApi.set(toApiError(err).message);
+    } finally {
+      this.actionPubEnCours.set(null);
+    }
+  }
+
+  protected async publierMaintenant(): Promise<void> {
+    const pub = this.publicationCreee();
+    if (!pub || this.actionPubEnCours() !== null) return;
+    this.actionPubEnCours.set('publish');
+    this.erreurApi.set(null);
+    try {
+      const res = await this.publicationsApi.publish(pub.id_publications);
+      this.publicationCreee.set(res.publication);
+      if (res.ok) {
+        this.successMessage.set(`Diffusion réussie : ${res.message}`);
+      } else {
+        this.erreurApi.set(res.message);
+      }
+    } catch (err) {
+      this.erreurApi.set(toApiError(err).message);
+    } finally {
+      this.actionPubEnCours.set(null);
+    }
+  }
+
+  protected classeStatutPub(code: string): string {
+    switch (code) {
+      case 'published':
+        return 'status-published';
+      case 'approved':
+      case 'scheduled':
+        return 'status-review';
+      case 'pending_review':
+      case 'partially_published':
+        return 'status-scheduled';
+      case 'failed':
+      case 'needs_correction':
+        return 'status-failed';
+      default:
+        return 'status-draft';
+    }
   }
 }
 
-/** Nature d'un fichier, d'après son type MIME. */
 function detectKind(file: File): MediaKind | null {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
@@ -604,7 +655,6 @@ function detectKind(file: File): MediaKind | null {
   return null;
 }
 
-/** Phrase disant ce qu'un format accepte. */
 function describeAccepts(accepts: readonly MediaKind[]): string {
   const words = accepts.map((kind) =>
     kind === 'image' ? 'des images' : kind === 'video' ? 'une vidéo' : 'un PDF',
@@ -614,14 +664,12 @@ function describeAccepts(accepts: readonly MediaKind[]): string {
   return `${words.slice(0, -1).join(', ')} ou ${words[words.length - 1]}`;
 }
 
-/** Taille de fichier lisible. */
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} ko`;
   return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`;
 }
 
-/** Durée en minutes et secondes. */
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds)) return '—';
   const minutes = Math.floor(seconds / 60);
@@ -629,7 +677,6 @@ function formatDuration(seconds: number): string {
   return minutes > 0 ? `${minutes} min ${String(rest).padStart(2, '0')} s` : `${rest} s`;
 }
 
-/** Date au format « 12 octobre 2026 ». */
 function formatDate(iso: string): string {
   const date = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return iso;

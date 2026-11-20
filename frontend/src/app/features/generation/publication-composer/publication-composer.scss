@@ -766,3 +766,57 @@
   color: var(--muted);
   cursor: not-allowed;
 }
+
+/* ---------- Suivi post-soumission (validation + diffusion Facebook) ---------- */
+
+.pub-workflow {
+  margin-bottom: 16px;
+}
+
+.pub-wf-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pub-wf-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pub-wf-targets {
+  display: flex;
+  flex-direction: column;
+}
+
+.pub-wf-row {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pub-wf-who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-sm);
+}
+
+.pub-wf-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pub-wf-err {
+  font-size: var(--t-xs);
+  color: var(--err);
+}
