@@ -35,6 +35,33 @@ def _date_meta(end_time: str | None) -> date:
         return date.today()
 
 
+async def _resoudre_jeton_page_facebook(
+    client: httpx.AsyncClient,
+    base: str,
+    version: str,
+    page_id: str,
+    access_token: str,
+) -> str:
+    """Dérive le Page Access Token si le jeton enregistré est un User / System User Token.
+
+    Meta exige un Page Access Token pour `/insights` et `/published_posts` : si le
+    jeton fourni est un jeton utilisateur ou utilisateur système, `GET /{page_id}?fields=access_token`
+    renvoie le jeton de page correspondant. Si c'est déjà un jeton de page, on le garde.
+    """
+    try:
+        rep = await client.get(
+            f"{base}/{version}/{page_id}",
+            params={"fields": "access_token", "access_token": access_token},
+        )
+        if rep.status_code == 200:
+            corps = rep.json()
+            if isinstance(corps, dict) and isinstance(corps.get("access_token"), str) and corps["access_token"]:
+                return corps["access_token"]
+    except (httpx.HTTPError, ValueError):
+        pass
+    return access_token
+
+
 async def collecter_statistiques_meta(
     plateforme: SocialPlatform,
     account_external_id: str,
@@ -56,10 +83,18 @@ async def collecter_statistiques_meta(
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDES) as client:
+            jeton_appel = (
+                await _resoudre_jeton_page_facebook(
+                    client, base, version, account_external_id, access_token
+                )
+                if plateforme.code == "facebook"
+                else access_token
+            )
+
             # 1. Stock d'abonnés instantané sur le nœud Page / IG User
             rep_node = await client.get(
                 f"{base}/{version}/{account_external_id}",
-                params={"fields": "id,followers_count", "access_token": access_token},
+                params={"fields": "id,followers_count", "access_token": jeton_appel},
             )
             corps_node = rep_node.json() if rep_node.content else {}
             brut_combine["node"] = corps_node
@@ -114,7 +149,7 @@ async def collecter_statistiques_meta(
                     "period": "day",
                     "since": debut,
                     "until": fin,
-                    "access_token": access_token,
+                    "access_token": jeton_appel,
                 },
             )
             corps_ins = rep_ins.json() if rep_ins.content else {}
@@ -223,10 +258,17 @@ async def importer_posts_meta(
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDES) as client:
+            jeton_appel = (
+                await _resoudre_jeton_page_facebook(
+                    client, base, version, account_external_id, access_token
+                )
+                if plateforme.code == "facebook"
+                else access_token
+            )
             for url, fields in endpoints:
                 rep = await client.get(
                     url,
-                    params={"fields": fields, "limit": limite, "access_token": access_token},
+                    params={"fields": fields, "limit": limite, "access_token": jeton_appel},
                 )
                 corps = rep.json() if rep.content else {}
 
