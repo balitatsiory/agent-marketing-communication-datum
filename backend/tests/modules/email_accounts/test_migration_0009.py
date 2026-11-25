@@ -166,10 +166,14 @@ class TestContraintes:
             await session.execute(insertion, {"id": id_compte})
         await session.rollback()
 
-    async def test_l_historique_des_verifications_est_en_ajout_seul(
-        self, session: AsyncSession
-    ) -> None:
-        """UPDATE et DELETE sont retirés : une vérification passée ne se réécrit pas."""
+    async def test_une_verification_ne_se_reecrit_pas(self, session: AsyncSession) -> None:
+        """L'ajout seul est tenu par un déclencheur, pas par un REVOKE.
+
+        Un REVOKE ... FROM PUBLIC ne dit rien au PROPRIÉTAIRE des tables, qui
+        est justement le rôle de l'application : il garde ses privilèges. Seul
+        le déclencheur ferme la porte à tout le monde, et c'est ce que ce test
+        vérifie — avec le rôle qu'utilise réellement l'application.
+        """
         id_compte = await creer_compte(session, "historique@essai.fr")
         await session.execute(
             text(
@@ -180,16 +184,71 @@ class TestContraintes:
             ),
             {"id": id_compte},
         )
-        resultat = await session.execute(
+        await session.flush()
+
+        with pytest.raises(DBAPIError):
+            await session.execute(
+                text("UPDATE email_account_checks SET is_ok = false WHERE id_email_accounts = :id"),
+                {"id": id_compte},
+            )
+        await session.rollback()
+
+    async def test_une_verification_ne_s_efface_pas(self, session: AsyncSession) -> None:
+        """Le DELETE a son propre test : l'annulation du précédent effacerait la
+        ligne, et un déclencheur FOR EACH ROW ne se déclenche pas sur zéro ligne."""
+        id_compte = await creer_compte(session, "effacement@essai.fr")
+        await session.execute(
             text(
                 """
-                SELECT privilege_type FROM information_schema.table_privileges
-                WHERE table_name = 'email_account_checks' AND grantee = 'PUBLIC'
-                  AND privilege_type IN ('UPDATE', 'DELETE')
+                INSERT INTO email_account_checks (id_email_accounts, kind, is_ok, message)
+                VALUES (:id, 'connection', true, 'Connexion authentifiee.')
                 """
-            )
+            ),
+            {"id": id_compte},
         )
-        assert resultat.scalars().all() == []
+        await session.flush()
+
+        with pytest.raises(DBAPIError):
+            await session.execute(
+                text("DELETE FROM email_account_checks WHERE id_email_accounts = :id"),
+                {"id": id_compte},
+            )
+        await session.rollback()
+
+    async def test_un_mot_de_passe_se_remplace_mais_ne_s_efface_pas(
+        self, session: AsyncSession
+    ) -> None:
+        """L'UPDATE reste permis — c'est ainsi qu'un mot de passe est remplacé —
+        mais le DELETE est refusé, cascade comprise : un compte s'archive."""
+        id_compte = await creer_compte(session, "secret-tenu@essai.fr")
+        await session.execute(
+            text(
+                """
+                INSERT INTO email_account_credentials
+                    (id_email_accounts, password_encrypted, password_masked)
+                VALUES (:id, 'gAAAAA-chiffre', '••••••••')
+                """
+            ),
+            {"id": id_compte},
+        )
+        await session.flush()
+
+        # Remplacement : permis.
+        await session.execute(
+            text(
+                "UPDATE email_account_credentials SET superseded_at = now() "
+                "WHERE id_email_accounts = :id"
+            ),
+            {"id": id_compte},
+        )
+        await session.flush()
+
+        with pytest.raises(DBAPIError):
+            await session.execute(
+                text("DELETE FROM email_account_credentials WHERE id_email_accounts = :id"),
+                {"id": id_compte},
+            )
+        await session.rollback()
 
     async def test_une_nature_de_verification_inconnue_est_refusee(
         self, session: AsyncSession

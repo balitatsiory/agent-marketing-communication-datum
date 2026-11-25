@@ -7,6 +7,10 @@ Trois tables :
 
 Insère également le droit `manage_email_accounts` (module 07, sort_order 700).
 
+Les deux historiques sont tenus en ajout seul par un déclencheur, et non par
+un simple REVOKE : l'application est propriétaire de ces tables, et un
+propriétaire garde ses privilèges malgré un REVOKE ... FROM PUBLIC.
+
 Révision : 0009
 Révision précédente : 0008
 """
@@ -374,11 +378,43 @@ def upgrade() -> None:
         "FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
     )
 
-    # Les deux historiques sont en AJOUT SEUL : le rôle applicatif ne doit pas
-    # pouvoir réécrire une vérification passée. Le remplacement d'un mot de
-    # passe est la seule exception, et il porte sur les colonnes de dates.
+    # Les deux historiques sont en AJOUT SEUL.
+    #
+    # Le REVOKE seul ne suffirait PAS : l'application cree ces tables, elle en
+    # est donc proprietaire, et un proprietaire garde ses privileges apres un
+    # REVOKE ... FROM PUBLIC. Il ne ferme la porte qu'aux autres roles.
+    #
+    # Le declencheur, lui, tient quel que soit le role, proprietaire compris.
+    # C'est lui qui fait respecter la regle des historiques de IAdocs/rules.md.
     op.execute("REVOKE UPDATE, DELETE ON email_account_checks FROM PUBLIC")
     op.execute("REVOKE DELETE ON email_account_credentials FROM PUBLIC")
+
+    op.execute(
+        """
+        CREATE FUNCTION refuser_reecriture() RETURNS trigger AS $$
+        BEGIN
+            RAISE EXCEPTION
+                'La table % est en ajout seul : ni UPDATE ni DELETE.', TG_TABLE_NAME
+                USING ERRCODE = 'check_violation';
+        END;
+        $$ LANGUAGE plpgsql
+        """
+    )
+    # Une verification passee ne se reecrit pas et ne s'efface pas.
+    op.execute(
+        "CREATE TRIGGER trg_email_account_checks_ajout_seul "
+        "BEFORE UPDATE OR DELETE ON email_account_checks "
+        "FOR EACH ROW EXECUTE FUNCTION refuser_reecriture()"
+    )
+    # Un mot de passe se remplace (superseded_at) ou se retire (revoked_at) :
+    # l'UPDATE reste donc permis ici, et le DELETE seul est refuse. Un compte
+    # ne se supprime pas non plus, puisque la suppression en cascade bute sur
+    # ce declencheur : conformement a la regle du projet, on archive.
+    op.execute(
+        "CREATE TRIGGER trg_email_account_credentials_ajout_seul "
+        "BEFORE DELETE ON email_account_credentials "
+        "FOR EACH ROW EXECUTE FUNCTION refuser_reecriture()"
+    )
 
     op.execute(
         """
@@ -409,9 +445,20 @@ def downgrade() -> None:
     )
     op.execute("DELETE FROM permissions WHERE code = 'manage_email_accounts'")
     op.execute("DROP TRIGGER IF EXISTS trg_email_accounts_updated_at ON email_accounts")
+    # Les declencheurs d'ajout seul refuseraient la suppression des tables ?
+    # Non : DROP TABLE n'emet ni UPDATE ni DELETE par ligne. On les retire
+    # quand meme avec leur fonction, pour ne rien laisser derriere.
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_email_account_checks_ajout_seul ON email_account_checks"
+    )
+    op.execute(
+        "DROP TRIGGER IF EXISTS trg_email_account_credentials_ajout_seul "
+        "ON email_account_credentials"
+    )
     op.drop_table("email_account_checks")
     op.drop_index("uq_email_account_credentials_actif", table_name="email_account_credentials")
     op.drop_table("email_account_credentials")
     op.drop_index("uq_email_accounts_defaut", table_name="email_accounts")
     op.drop_index("uq_email_accounts_identifiant", table_name="email_accounts")
     op.drop_table("email_accounts")
+    op.execute("DROP FUNCTION IF EXISTS refuser_reecriture()")

@@ -132,15 +132,24 @@ export class SenderAccounts {
       return;
     }
     try {
-      this.checks.set(await this.api.checks(id));
+      const lignes = await this.api.checks(id);
+      // Deux chargements peuvent se croiser : passer d'un compte à l'autre
+      // laisse la première requête en vol, et si elle répond en dernier elle
+      // afficherait l'historique de A sous le nom de B. Seule la réponse du
+      // compte encore ouvert est retenue.
+      if (this.selected() === id) this.checks.set(lignes);
     } catch (erreur) {
-      this.error.set(toApiError(erreur).message);
+      if (this.selected() === id) this.error.set(toApiError(erreur).message);
     }
   }
 
   protected async select(id: number): Promise<void> {
+    if (this.selected() === id) return;
     this.selected.set(id);
     this.report.set(null);
+    // Vidé tout de suite : mieux vaut un volet vide qu'un historique qui
+    // appartient encore au compte précédent.
+    this.checks.set([]);
     await this.chargerHistorique(id);
   }
 
@@ -149,6 +158,7 @@ export class SenderAccounts {
   // -------------------------------------------------------------------------
 
   protected ouvrirCreation(): void {
+    if (this.busy()) return;
     this.editing.set(null);
     this.draft.set(brouillonVide());
   }
@@ -171,7 +181,15 @@ export class SenderAccounts {
     });
   }
 
+  /**
+   * Fermer pendant un enregistrement est refusé.
+   *
+   * Sans cela, fermer puis rouvrir un brouillon pendant l'appel ferait
+   * disparaître la SECONDE saisie au retour de la première : la fermeture
+   * qui suit l'enregistrement ne sait pas quelle fenêtre elle referme.
+   */
   protected fermerFormulaire(): void {
+    if (this.busy()) return;
     this.draft.set(null);
     this.editing.set(null);
   }
@@ -253,7 +271,8 @@ export class SenderAccounts {
           timeout_seconds: brouillon.timeout_seconds,
         });
       }
-      this.fermerFormulaire();
+      this.draft.set(null);
+      this.editing.set(null);
       await this.recharger();
     } catch (erreur) {
       this.error.set(toApiError(erreur).message);
@@ -272,6 +291,7 @@ export class SenderAccounts {
   }
 
   protected fermerMotDePasse(): void {
+    if (this.busy()) return;
     this.passwordFor.set(null);
     this.newPassword.set('');
   }
@@ -285,7 +305,8 @@ export class SenderAccounts {
     try {
       const resultat = await this.api.setPassword(id, this.newPassword());
       this.report.set({ ok: resultat.verified, message: resultat.message });
-      this.fermerMotDePasse();
+      this.passwordFor.set(null);
+      this.newPassword.set('');
       await this.recharger();
     } catch (erreur) {
       this.error.set(toApiError(erreur).message);
@@ -320,6 +341,7 @@ export class SenderAccounts {
   }
 
   protected fermerMessageDeTest(): void {
+    if (this.busy()) return;
     this.testFor.set(null);
     this.testRecipient.set('');
   }
@@ -335,7 +357,8 @@ export class SenderAccounts {
     try {
       const resultat = await this.api.sendTestMessage(id, destinataire);
       this.report.set({ ok: resultat.verified, message: resultat.message });
-      this.fermerMessageDeTest();
+      this.testFor.set(null);
+      this.testRecipient.set('');
       this.selected.set(id);
       await this.recharger();
     } catch (erreur) {

@@ -17,6 +17,7 @@ n'existe donc pas.
 
 import logging
 from datetime import UTC, datetime
+from email.headerregistry import Address
 from email.message import EmailMessage
 
 from sqlalchemy import select, update
@@ -352,9 +353,14 @@ async def modifier_compte(
     if "timeout_seconds" in champs and champs["timeout_seconds"] is not None:
         compte.timeout_seconds = int(champs["timeout_seconds"])
 
-    await _refuser_doublon(
-        session, compte.host, compte.port, compte.username, sauf=compte.id_email_accounts
-    )
+    # `no_autoflush` est indispensable ici : le compte porte déjà ses nouvelles
+    # valeurs en mémoire, et sans cela le SELECT de contrôle les écrirait en
+    # base AVANT de les avoir contrôlées. L'index unique partiel les refuserait,
+    # et l'IntegrityError sortirait en 500 au lieu du 409 attendu.
+    with session.no_autoflush:
+        await _refuser_doublon(
+            session, compte.host, compte.port, compte.username, sauf=compte.id_email_accounts
+        )
 
     # Serveur, port, mode ou identifiant changés : la dernière vérification ne
     # dit plus rien de la configuration actuelle. Mieux vaut un compte « non
@@ -403,6 +409,13 @@ async def remplacer_mot_de_passe(
         )
     )
     compte.id_users_changed_by = par.id_users
+
+    # La dernière vérification parlait de l'ANCIEN mot de passe : la garder
+    # afficherait un feu vert pour un secret qui n'est plus en service. Si une
+    # vérification suit, `_consigner` repose ces trois champs juste après.
+    compte.last_verified_at = None
+    compte.last_verify_ok = None
+    compte.last_verify_message = None
     await session.flush()
 
     resultat: SmtpResult | None = None
@@ -564,8 +577,13 @@ def _message_de_test(compte: EmailAccount, donnees: EmailAccountTestMessage) -> 
 
     message = EmailMessage()
     message["Subject"] = sujet
+    # `Address` plutôt qu'un f-string : un nom affiché qui contient une virgule
+    # — « Datum Academy, SARL » — produirait sinon deux adresses aux yeux du
+    # serveur, et aiosmtplib tire l'expéditeur de l'enveloppe de cet en-tête.
     message["From"] = (
-        f"{compte.from_name} <{compte.from_email}>" if compte.from_name else compte.from_email
+        Address(display_name=compte.from_name, addr_spec=compte.from_email)
+        if compte.from_name
+        else Address(addr_spec=compte.from_email)
     )
     message["To"] = donnees.recipient_email
     if compte.reply_to_email:

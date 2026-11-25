@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decrypt_token
 from app.modules.email_accounts.constants import MANAGE_EMAIL_ACCOUNTS
-from app.modules.email_accounts.models import EmailAccountCredential
+from app.modules.email_accounts.models import EmailAccount, EmailAccountCredential
+from app.modules.email_accounts.schemas import EmailAccountTestMessage
+from app.modules.email_accounts.service import _message_de_test
 from app.modules.email_accounts.smtp_client import SmtpResult
 from tests.conftest import entete
 
@@ -416,3 +418,102 @@ class TestVerifications:
         assert corps["security"] == "starttls"
         assert corps["last_verify_ok"] is None
         assert corps["last_verified_at"] is None
+
+
+class TestCorrectionsDeRelecture:
+    """Les cas relevés en relecture : chacun aurait dû être couvert d'emblée."""
+
+    async def test_renommer_un_compte_vers_un_identifiant_pris_renvoie_409(
+        self,
+        client: AsyncClient,
+        fabrique_utilisateur,  # type: ignore[no-untyped-def]
+        connexion,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Le conflit doit sortir en 409, et non en 500.
+
+        Le compte porte déjà ses nouvelles valeurs en mémoire quand le contrôle
+        s'exécute : sans `no_autoflush`, la requête de contrôle les écrirait en
+        base d'abord, et l'index unique les refuserait avant qu'on ait pu lever
+        l'erreur métier.
+        """
+        admin = await fabrique_utilisateur(droits=[MANAGE_EMAIL_ACCOUNTS])
+        jetons = await connexion(admin.email)
+
+        with _verification(CONNEXION_OK):
+            premier = await client.post(
+                "/api/v1/email-accounts", headers=entete(jetons), json=compte_a_creer()
+            )
+            second = await client.post(
+                "/api/v1/email-accounts",
+                headers=entete(jetons),
+                json=compte_a_creer(
+                    label="Datum Academy — information",
+                    username="info@datum-academy.fr",
+                    from_email="info@datum-academy.fr",
+                ),
+            )
+        assert premier.status_code == 201, premier.text
+        id_second = second.json()["account"]["id_email_accounts"]
+
+        collision = await client.patch(
+            f"/api/v1/email-accounts/{id_second}",
+            headers=entete(jetons),
+            json={"username": "contact@datum-academy.fr"},
+        )
+        assert collision.status_code == 409, collision.text
+        assert collision.json()["error"]["code"] == "conflict"
+
+    async def test_changer_le_mot_de_passe_sans_test_annule_la_verification(
+        self,
+        client: AsyncClient,
+        fabrique_utilisateur,  # type: ignore[no-untyped-def]
+        connexion,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Un feu vert obtenu avec l'ancien mot de passe ne vaut pas pour le nouveau."""
+        admin = await fabrique_utilisateur(droits=[MANAGE_EMAIL_ACCOUNTS])
+        jetons = await connexion(admin.email)
+
+        with _verification(CONNEXION_OK):
+            creation = await client.post(
+                "/api/v1/email-accounts", headers=entete(jetons), json=compte_a_creer()
+            )
+        id_compte = creation.json()["account"]["id_email_accounts"]
+        assert creation.json()["account"]["last_verify_ok"] is True
+
+        rotation = await client.post(
+            f"/api/v1/email-accounts/{id_compte}/password",
+            headers=entete(jetons),
+            json={"password": "Autre-Secret-IONOS-2027", "verify_immediately": False},
+        )
+        assert rotation.status_code == 200, rotation.text
+        compte = rotation.json()["account"]
+        assert rotation.json()["verified"] is False
+        assert compte["last_verify_ok"] is None
+        assert compte["last_verified_at"] is None
+        assert compte["last_verify_message"] is None
+
+    async def test_un_nom_affiche_avec_virgule_ne_casse_pas_l_expediteur(self) -> None:
+        """« Datum Academy, SARL » ne doit pas devenir deux adresses.
+
+        aiosmtplib tire l'expéditeur de l'enveloppe de cet en-tête : une virgule
+        laissée nue y ferait passer la fin du nom pour un second destinataire.
+        """
+        compte = EmailAccount(
+            label="Essai",
+            host="smtp.ionos.fr",
+            port=465,
+            security="ssl_tls",
+            username="contact@datum-academy.fr",
+            from_email="contact@datum-academy.fr",
+            from_name="Datum Academy, SARL",
+            reply_to_email=None,
+            timeout_seconds=20,
+        )
+        message = _message_de_test(
+            compte, EmailAccountTestMessage(recipient_email="essai@datum-academy.fr")
+        )
+        expediteurs = message["From"].addresses
+        assert len(expediteurs) == 1
+        assert expediteurs[0].addr_spec == "contact@datum-academy.fr"
+        assert expediteurs[0].display_name == "Datum Academy, SARL"
+        assert '"Datum Academy, SARL"' in str(message["From"])

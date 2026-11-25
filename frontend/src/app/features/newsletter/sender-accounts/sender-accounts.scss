@@ -89,6 +89,15 @@
   color: var(--muted);
 }
 
+/* Le bouton d'historique ferme la ligne d'en-tête, à droite du serveur. */
+.acc-hist {
+  margin-left: auto;
+}
+.acc-hist[aria-pressed='true'] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
 .acc-facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

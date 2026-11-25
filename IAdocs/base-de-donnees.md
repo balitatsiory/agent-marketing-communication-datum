@@ -229,8 +229,8 @@ Comptes d'envoi SMTP (IONOS et autres). Le mot de passe n'est pas ici : il vit c
 - `fk_email_accounts_id_users_changed_by_users` — FOREIGN KEY (id_users_changed_by) REFERENCES users(id_users)
 - `fk_email_accounts_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
 - `pk_email_accounts` — PRIMARY KEY (id_email_accounts)
-- `uq_email_accounts_defaut` — UNIQUE (deleted_at IS NULL) WHERE (is_default AND (deleted_at IS NULL))
-- `uq_email_accounts_identifiant` — UNIQUE (deleted_at IS NULL) WHERE (deleted_at IS NULL)
+- `uq_email_accounts_defaut` — UNIQUE (is_default) WHERE is_default AND deleted_at IS NULL
+- `uq_email_accounts_identifiant` — UNIQUE (host, port, username) WHERE deleted_at IS NULL
 
 ### `email_account_credentials`
 
@@ -253,7 +253,8 @@ Mots de passe des comptes d'envoi, chiffres par Fernet. Un changement cree une n
 - `fk_email_account_credentials_id_email_accounts_email_accounts` — FOREIGN KEY (id_email_accounts) REFERENCES email_accounts(id_email_accounts) ON DELETE CASCADE
 - `fk_email_account_credentials_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
 - `pk_email_account_credentials` — PRIMARY KEY (id_email_account_credentials)
-- `uq_email_account_credentials_actif` — UNIQUE (revoked_at IS NULL) WHERE ((superseded_at IS NULL) AND (revoked_at IS NULL))
+- `uq_email_account_credentials_actif` — UNIQUE (id_email_accounts) WHERE superseded_at IS NULL AND revoked_at IS NULL
+- `trg_email_account_credentials_ajout_seul` — déclencheur : DELETE refusé. L'UPDATE reste permis, un mot de passe se remplace (`superseded_at`) ou se retire (`revoked_at`).
 
 ### `email_account_checks`
 
@@ -277,3 +278,4 @@ Historique des verifications d'un compte d'envoi : connexion authentifiee ou mes
 - `fk_email_account_checks_id_email_accounts_email_accounts` — FOREIGN KEY (id_email_accounts) REFERENCES email_accounts(id_email_accounts) ON DELETE CASCADE
 - `fk_email_account_checks_id_users_checked_by_users` — FOREIGN KEY (id_users_checked_by) REFERENCES users(id_users)
 - `pk_email_account_checks` — PRIMARY KEY (id_email_account_checks)
+- `trg_email_account_checks_ajout_seul` — déclencheur : UPDATE et DELETE refusés. Une vérification passée ne se réécrit pas.

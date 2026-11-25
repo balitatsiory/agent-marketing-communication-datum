@@ -14,7 +14,9 @@ compte a cessé de fonctionner — précisément ce qu'on cherche quand les envo
 s'arrêtent du jour au lendemain.
 
 Les contraintes, index et commentaires sont déclarés ici À L'IDENTIQUE de la
-migration 0009 : `alembic check` échoue sur le moindre écart.
+migration 0009 : `alembic check` échoue sur le moindre écart. Ce que les
+modèles ne portent pas, et que seule la migration pose : le déclencheur
+`updated_at` et les deux déclencheurs d'ajout seul des historiques.
 """
 
 from datetime import datetime

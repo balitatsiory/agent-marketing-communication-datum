@@ -170,11 +170,17 @@ async def _fermer(session: aiosmtplib.SMTP) -> None:
 
     Un QUIT refusé par un serveur qui a déjà coupé n'apprend rien à
     l'utilisateur : le résultat de l'échange est déjà établi.
+
+    `close()` est dans un `finally` parce qu'un QUIT refusé lève AVANT
+    qu'aiosmtplib ne ferme le transport : sans cela, la socket resterait
+    ouverte à chaque serveur qui répond mal au congé.
     """
     try:
         await session.quit()
     except Exception:
         logger.debug("Fermeture SMTP sans réponse du serveur", exc_info=True)
+    finally:
+        session.close()
 
 
 def _millisecondes_depuis(depart: float) -> int:

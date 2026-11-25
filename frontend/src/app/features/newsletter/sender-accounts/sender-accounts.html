@@ -84,6 +84,18 @@
               <span class="acc-srv num">
                 {{ compte.host }}:{{ compte.port }} · {{ modeLisible(compte) }}
               </span>
+              <!-- La fiche entière est cliquable, mais une fiche ne se met pas au
+                   clavier : ce bouton est le seul chemin pour qui n'a pas de
+                   souris. Il reste hors du bloc des actions, qui demande un droit. -->
+              <button
+                class="btn btn-sm acc-hist"
+                type="button"
+                [attr.aria-pressed]="selected() === compte.id_email_accounts"
+                (click)="select(compte.id_email_accounts); $event.stopPropagation()"
+              >
+                <app-icon name="history" size="sm" />
+                Voir les vérifications
+              </button>
             </header>
 
             <dl class="acc-facts">
