@@ -7,6 +7,7 @@ KEY_KIND_STANDARD = "standard"
 KEY_KINDS = (KEY_KIND_MANAGEMENT, KEY_KIND_STANDARD)
 
 PROVIDER_SORTS = ("price", "throughput", "latency", "exacto")
+REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh")
 
 TASK_TEXT_GENERATION = "text-generation"
 TASK_IMAGE_DESCRIPTION = "image-description"

@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 
 export type OpenRouterKeyKind = 'management' | 'standard';
 export type OpenRouterProviderSort = 'price' | 'throughput' | 'latency' | 'exacto';
+export type AiReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type AiTaskCode =
   | 'text-generation'
   | 'image-description'
@@ -207,12 +208,14 @@ export interface AiTaskAssignmentDto {
   readonly openrouter_model_id: string | null;
   readonly id_ai_workspaces: number | null;
   readonly workspace_name: string | null;
+  readonly reasoning_effort: AiReasoningEffort | null;
   readonly updated_at: string;
 }
 
 export interface AiTaskAssignmentUpdateRequest {
   readonly id_ai_models: number | null;
   readonly id_ai_workspaces?: number | null;
+  readonly reasoning_effort?: AiReasoningEffort | null;
 }
 
 @Injectable({ providedIn: 'root' })

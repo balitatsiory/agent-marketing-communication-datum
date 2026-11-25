@@ -12,6 +12,7 @@ import type { EChartsOption } from 'echarts';
 import { toApiError } from '../../../core/api/api-error';
 import {
   AiModelDto,
+  AiReasoningEffort,
   AiTaskAssignmentDto,
   AiTaskCode,
   AiWorkspaceDto,
@@ -31,6 +32,16 @@ export type V2MainTab = 'dashboard' | 'workspaces' | 'models' | 'keys';
 const MAX_DISPLAYED_MODELS = 100;
 const CHART_PALETTE = ['#4f46e5', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
+const REASONING_EFFORT_OPTIONS: readonly { readonly value: AiReasoningEffort | ''; readonly label: string }[] = [
+  { value: '', label: 'Par défaut du modèle' },
+  { value: 'none', label: 'Aucun (none)' },
+  { value: 'minimal', label: 'Minimal' },
+  { value: 'low', label: 'Faible (low)' },
+  { value: 'medium', label: 'Moyen (medium)' },
+  { value: 'high', label: 'Élevé (high)' },
+  { value: 'xhigh', label: 'Maximum (xhigh)' },
+];
+
 @Component({
   selector: 'app-ai-models-v2',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +53,7 @@ export class AiModelsV2 implements OnInit {
   private readonly api = inject(OpenRouterApi);
 
   /* ---------- Navigation & états globaux ---------- */
+  protected readonly reasoningEffortOptions = REASONING_EFFORT_OPTIONS;
   protected readonly activeTab = signal<V2MainTab>('dashboard');
   protected readonly loading = signal<boolean>(true);
   protected readonly busyAction = signal<string | null>(null);
@@ -728,6 +740,7 @@ export class AiModelsV2 implements OnInit {
       const updated = await this.api.updateAssignment(assignment.task_code as AiTaskCode, {
         id_ai_models: idModel,
         id_ai_workspaces: assignment.id_ai_workspaces,
+        reasoning_effort: assignment.reasoning_effort,
       });
       this.assignments.update((list) =>
         list.map((a) => (a.task_code === updated.task_code ? updated : a)),
@@ -742,6 +755,38 @@ export class AiModelsV2 implements OnInit {
     } finally {
       this.busyAction.set(null);
     }
+  }
+
+  protected async onReasoningEffortChange(
+    assignment: AiTaskAssignmentDto,
+    effortRaw: string,
+  ): Promise<void> {
+    const effort = (effortRaw || null) as AiReasoningEffort | null;
+    this.busyAction.set(`assign-${assignment.task_code}`);
+    this.errorMessage.set(null);
+    try {
+      const updated = await this.api.updateAssignment(assignment.task_code as AiTaskCode, {
+        id_ai_models: assignment.id_ai_models,
+        id_ai_workspaces: assignment.id_ai_workspaces,
+        reasoning_effort: effort,
+      });
+      this.assignments.update((list) =>
+        list.map((a) => (a.task_code === updated.task_code ? updated : a)),
+      );
+      const label =
+        REASONING_EFFORT_OPTIONS.find((o) => o.value === (updated.reasoning_effort ?? ''))?.label ??
+        'Par défaut';
+      this.flashNotice(`Effort de raisonnement pour ${updated.task_label} : ${label}.`);
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    } finally {
+      this.busyAction.set(null);
+    }
+  }
+
+  protected formatReasoningEffort(effort: AiReasoningEffort | null): string {
+    if (!effort) return 'Défaut';
+    return REASONING_EFFORT_OPTIONS.find((o) => o.value === effort)?.label ?? effort;
   }
 
   /* ---------- Formatters ---------- */

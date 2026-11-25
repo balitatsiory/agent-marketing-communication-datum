@@ -265,11 +265,16 @@ async def test_workspaces_et_modeles_openrouter(
         r_assign = await client.put(
             "/api/v1/openrouter/assignments/text-generation",
             headers=entete(jetons),
-            json={"id_ai_models": model_id, "id_ai_workspaces": ws_id},
+            json={
+                "id_ai_models": model_id,
+                "id_ai_workspaces": ws_id,
+                "reasoning_effort": "high",
+            },
         )
         assert r_assign.status_code == 200, r_assign.text
         assert r_assign.json()["openrouter_model_id"] == "anthropic/claude-3.5-sonnet"
         assert r_assign.json()["workspace_name"] == "IAGORA Production"
+        assert r_assign.json()["reasoning_effort"] == "high"
 
 
 async def test_tableau_de_bord_finops_openrouter(

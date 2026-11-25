@@ -33,7 +33,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.modules.ai_models.constants import KEY_KINDS, PROVIDER_SORTS, TASK_CODES
+from app.modules.ai_models.constants import (
+    KEY_KINDS,
+    PROVIDER_SORTS,
+    REASONING_EFFORTS,
+    TASK_CODES,
+)
 
 
 class OpenRouterApiKey(Base):
@@ -188,6 +193,12 @@ class AiTaskAssignment(Base):
             "task_code IN ('" + "', '".join(TASK_CODES) + "')",
             name="task_code",
         ),
+        CheckConstraint(
+            "reasoning_effort IS NULL OR reasoning_effort IN ('"
+            + "', '".join(REASONING_EFFORTS)
+            + "')",
+            name="reasoning_effort",
+        ),
         {
             "comment": (
                 "Affectation du modele OpenRouter actif pour chaque tache metier "
@@ -203,6 +214,13 @@ class AiTaskAssignment(Base):
     )
     id_ai_workspaces: Mapped[int | None] = mapped_column(
         ForeignKey("ai_workspaces.id_ai_workspaces", name="fk_ai_task_assignments_id_ai_workspaces")
+    )
+    reasoning_effort: Mapped[str | None] = mapped_column(
+        String(20),
+        comment=(
+            "Effort de raisonnement OpenRouter (none, minimal, low, medium, high, xhigh). "
+            "Nul = comportement par defaut du modele."
+        ),
     )
     id_users_changed_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id_users", name="fk_ai_task_assignments_id_users_changed_by_users")
