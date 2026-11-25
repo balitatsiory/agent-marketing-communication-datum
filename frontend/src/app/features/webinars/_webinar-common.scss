@@ -1,0 +1,153 @@
+/* Mise en page et mouvements communs aux écrans Webinaires.
+   Reprend la grammaire des maquettes 12a et 12b. */
+
+@use '../../../styles/design-system/type' as type;
+
+@mixin screen {
+  :host {
+    display: contents;
+  }
+
+  .page {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 22px 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .page > * {
+    flex: none;
+  }
+
+  .page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .page-head h1 {
+    @include type.page-title;
+  }
+
+  .page-head .sub {
+    color: var(--muted);
+    font-size: var(--t-xs);
+    margin-top: 2px;
+  }
+
+  .notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ok);
+    background: var(--ok-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    animation: rise 0.25s ease both;
+  }
+
+  .notice.is-error {
+    color: var(--err);
+    background: var(--err-soft);
+  }
+
+  .notice.is-info {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
+  }
+
+  .notice app-icon {
+    flex: none;
+    margin-top: 1px;
+  }
+
+  .cap {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+}
+
+@mixin motion {
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  .modal-back {
+    animation: fade 0.18s ease both;
+  }
+
+  .modal {
+    animation: pop 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

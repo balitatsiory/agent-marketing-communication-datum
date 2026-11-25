@@ -1,0 +1,92 @@
+<div class="modal-back" (click)="closed.emit()" (keydown.escape)="closed.emit()" tabindex="-1">
+  <div
+    class="modal import-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Importer les webinaires du site"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="modal-head">
+      <h2>Importer les webinaires du site</h2>
+      <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="closed.emit()">
+        <app-icon name="close" size="sm" />
+      </button>
+    </div>
+
+    <div class="modal-body">
+      @if (error(); as texte) {
+        <p class="message is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+      }
+
+      <section class="step">
+        <span class="label">1 · Données</span>
+        @for (field of fields; track field.kind) {
+          <label class="file" [class.is-set]="files()[field.kind]">
+            <app-icon [name]="files()[field.kind] ? 'check' : 'files'" size="sm" />
+            <span class="who">
+              <b>{{ field.label }}</b>
+              <span>{{ files()[field.kind]?.name ?? field.name }}</span>
+            </span>
+            <input type="file" accept=".json,application/json" (change)="choose(field.kind, $any($event.target))" />
+          </label>
+        }
+        <p class="cap">
+          Une fiche modifiée à la main ou archivée n’est pas réécrite par un nouvel import.
+        </p>
+        <button class="btn btn-primary" type="button" [disabled]="!files().webinars || busy()" (click)="runImport()">
+          @if (busy()) {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          Importer dans la base
+        </button>
+
+        @if (report(); as bilan) {
+          <div class="report" role="status">
+            <div><span class="v"><app-count-up [value]="bilan.webinars_created" /></span><span class="cap">fiches créées</span></div>
+            <div><span class="v"><app-count-up [value]="bilan.webinars_updated" /></span><span class="cap">actualisées</span></div>
+            <div><span class="v"><app-count-up [value]="bilan.webinars_kept" /></span><span class="cap">conservées</span></div>
+            <div><span class="v"><app-count-up [value]="bilan.pages_created + bilan.pages_updated" /></span><span class="cap">pages d’inscription</span></div>
+            <div><span class="v"><app-count-up [value]="bilan.dates_to_confirm" /></span><span class="cap">dates à confirmer</span></div>
+          </div>
+          @for (warning of bilan.warnings; track warning) {
+            <p class="message is-error"><app-icon name="warn" size="sm" />{{ warning }}</p>
+          }
+        }
+      </section>
+
+      <hr class="divider" />
+
+      <section class="step">
+        <span class="label">2 · Flyers</span>
+        <p class="cap">
+          Télécharge les visuels depuis datumacademy.com et les range dans le stockage des médias.
+        </p>
+        <div class="actions">
+          <button class="btn" type="button" [disabled]="fetching()" (click)="fetchFlyers()">
+            @if (fetching()) {
+              <span class="spinner" aria-hidden="true"></span>
+            } @else {
+              <app-icon name="download" size="sm" />
+            }
+            Rapatrier les flyers
+          </button>
+          @if (failures().length && !fetching()) {
+            <button class="btn" type="button" (click)="fetchFlyers(true)">Retenter les échecs</button>
+          }
+        </div>
+
+        @if (remaining() !== null) {
+          <div class="progress" role="progressbar" aria-label="Flyers rapatriés" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="progress()">
+            <span [style.width.%]="progress()"></span>
+          </div>
+          <p class="cap" role="status">
+            {{ stored() }} rapatrié(s) · {{ failures().length }} en échec · {{ remaining() }} restant(s)
+          </p>
+          @for (failure of failures(); track failure.id_webinars) {
+            <p class="message is-error"><app-icon name="warn" size="sm" />{{ failure.title }} — {{ failure.message }}</p>
+          }
+        }
+      </section>
+    </div>
+  </div>
+</div>

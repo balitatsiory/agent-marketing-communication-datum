@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
@@ -28,6 +29,9 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.storage import StockageLocal, get_stockage
 from app.main import create_app
+from app.modules.webinars.flyers import get_flyer_transport
+from app.modules.zoom_accounts.zoom_client import ZoomClient, get_zoom_client
+from tests.faux_zoom import API_URL, OAUTH_URL, FauxZoom
 
 
 def url_base_de_test() -> str:
@@ -86,10 +90,28 @@ def stockage_de_test(tmp_path: Path) -> StockageLocal:
 
 
 @pytest.fixture
+def faux_zoom() -> FauxZoom:
+    """Le Zoom de laboratoire du test, pour préparer ses réponses et lire ses appels."""
+    return FauxZoom()
+
+
+@pytest.fixture
+def faux_site() -> dict[str, bytes]:
+    """Fichiers que « le site » sert au rapatriement des flyers : adresse → contenu."""
+    return {}
+
+
+@pytest.fixture
 async def client(
-    session: AsyncSession, stockage_de_test: StockageLocal
+    session: AsyncSession,
+    stockage_de_test: StockageLocal,
+    faux_zoom: FauxZoom,
+    faux_site: dict[str, bytes],
 ) -> AsyncIterator[AsyncClient]:
-    """Client HTTP branché sur l'application, avec la session et le stockage de test."""
+    """Client HTTP branché sur l'application, avec la session et le stockage de test.
+
+    Zoom et le site datumacademy.com sont simulés : aucun test n'appelle dehors.
+    """
     application = create_app()
 
     async def session_de_test() -> AsyncIterator[AsyncSession]:
@@ -97,6 +119,17 @@ async def client(
 
     application.dependency_overrides[get_session] = session_de_test
     application.dependency_overrides[get_stockage] = lambda: stockage_de_test
+    application.dependency_overrides[get_zoom_client] = lambda: ZoomClient(
+        OAUTH_URL, API_URL, httpx.MockTransport(faux_zoom.repondre)
+    )
+
+    def repondre_site(requete: httpx.Request) -> httpx.Response:
+        contenu = faux_site.get(str(requete.url))
+        return httpx.Response(404) if contenu is None else httpx.Response(200, content=contenu)
+
+    application.dependency_overrides[get_flyer_transport] = lambda: httpx.MockTransport(
+        repondre_site
+    )
 
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client_de_test:

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { IsActiveMatchOptions, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NAVIGATION } from '../../core/data/navigation.data';
 import { NavigationChild, NavigationEntry, NavigationLink } from '../../core/models/navigation';
 import { Session } from '../../core/services/session';
@@ -21,6 +21,20 @@ import { Icon } from '../../shared/icon/icon';
 })
 export class Sidebar {
   protected readonly state = inject(SidebarState);
+
+  /**
+   * « Voir les webinaires » ne s'allume que sur la liste : ses voisins
+   * (`/webinaires/nouveau`, `/webinaires/comptes-zoom`) commencent par la même
+   * adresse. Les paramètres, eux, n'éteignent pas l'entrée.
+   */
+  protected activeOptions(route: string): IsActiveMatchOptions {
+    return {
+      paths: route === '/webinaires' ? 'exact' : 'subset',
+      queryParams: 'ignored',
+      matrixParams: 'ignored',
+      fragment: 'ignored',
+    };
+  }
 
   private readonly hote = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly router = inject(Router);

@@ -1,0 +1,209 @@
+/* Formulaire d'un webinaire — sections numérotées, comme la maquette. */
+
+@use '../webinar-common' as common;
+
+@include common.screen;
+@include common.motion;
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 860px;
+}
+
+.sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  min-width: 0;
+  animation: rise 0.3s ease both;
+}
+.sec:disabled {
+  opacity: 0.65;
+}
+/* Un `legend` sort du flux du cadre : le flotter le remet dans la colonne. */
+legend.sec-n {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+.sec-n {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.sec-n b {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-size: 11.5px;
+}
+.lab {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.row .field {
+  flex: 1 1 180px;
+}
+.row .field.fit {
+  flex: 0 0 auto;
+}
+.input.short {
+  max-width: 160px;
+}
+.input.grow {
+  flex: 1 1 260px;
+  width: auto;
+}
+.select.auto {
+  width: auto;
+}
+.presets {
+  padding-bottom: 8px;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+.choice:hover:not(:disabled) {
+  border-color: var(--border-2);
+  transform: translateY(-1px);
+}
+.choice.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--accent-soft);
+}
+.choice:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.choice b {
+  font-size: 13.5px;
+}
+.choice span {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.reveal {
+  animation: rise 0.22s ease both;
+}
+.sub-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px;
+}
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border: 1px dashed var(--border-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.fake {
+  flex: 1 1 150px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  padding: 8px 11px;
+  font-size: 12.5px;
+  color: var(--placeholder);
+}
+
+.linked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 11px;
+}
+.linked .url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.err {
+  color: var(--err);
+}
+.self-start {
+  align-self: flex-start;
+}
+
+.modal.small {
+  max-width: 520px;
+}
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.summary dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+.summary dt {
+  color: var(--muted);
+}
+.summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+}

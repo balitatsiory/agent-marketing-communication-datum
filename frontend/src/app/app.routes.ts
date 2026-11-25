@@ -23,6 +23,15 @@ export const routes: Routes = [
     title: 'Connexion · IAGORA',
     loadComponent: () => import('./features/auth/login/login').then((m) => m.Login),
   },
+  /* Formulaire public d'inscription : hors de la coquille, sans session. */
+  {
+    path: 'inscription/:slug',
+    title: 'Inscription · Datum Academy',
+    loadComponent: () =>
+      import('./features/public-registration/public-registration').then(
+        (m) => m.PublicRegistration,
+      ),
+  },
   {
     path: '',
     component: AppShell,
@@ -119,16 +128,33 @@ export const routes: Routes = [
       {
         path: 'webinaires/nouveau',
         title: 'Nouveau webinaire · IAGORA',
+        canActivate: [permissionGuard('manage_webinars')],
         loadComponent: () =>
-          import('./features/webinars/webinar-form/webinar-form').then((m) => m.WebinarForm),
+          import('./features/webinars/webinar-editor/webinar-editor').then(
+            (m) => m.WebinarEditor,
+          ),
       },
 
 
       {
         path: 'webinaires/:id/modifier',
-        title: 'Reprendre un brouillon · IAGORA',
+        title: 'Modifier un webinaire · IAGORA',
+        canActivate: [permissionGuard('manage_webinars')],
         loadComponent: () =>
-          import('./features/webinars/webinar-form/webinar-form').then((m) => m.WebinarForm),
+          import('./features/webinars/webinar-editor/webinar-editor').then(
+            (m) => m.WebinarEditor,
+          ),
+      },
+
+
+      {
+        path: 'webinaires/comptes-zoom',
+        title: 'Comptes Zoom · IAGORA',
+        canActivate: [permissionGuard('manage_zoom_accounts')],
+        loadComponent: () =>
+          import('./features/webinars/zoom-accounts/zoom-accounts').then(
+            (m) => m.ZoomAccounts,
+          ),
       },
 
 
@@ -136,7 +162,40 @@ export const routes: Routes = [
         path: 'webinaires',
         title: 'Webinaires · IAGORA',
         loadComponent: () =>
-          import('./features/webinars/webinar-list/webinar-list').then((m) => m.WebinarList),
+          import('./features/webinars/webinar-directory/webinar-directory').then(
+            (m) => m.WebinarDirectory,
+          ),
+      },
+
+
+      /* ---------- maquettes 12a / 12b, conservées pour démonstration ---------- */
+      {
+        path: 'webinaires_prototype/nouveau',
+        title: 'Nouveau webinaire (prototype) · IAGORA',
+        loadComponent: () =>
+          import('./features/webinars/webinar-form/webinar-form').then(
+            (m) => m.WebinarForm,
+          ),
+      },
+
+
+      {
+        path: 'webinaires_prototype/:id/modifier',
+        title: 'Reprendre un brouillon (prototype) · IAGORA',
+        loadComponent: () =>
+          import('./features/webinars/webinar-form/webinar-form').then(
+            (m) => m.WebinarForm,
+          ),
+      },
+
+
+      {
+        path: 'webinaires_prototype',
+        title: 'Webinaires (prototype) · IAGORA',
+        loadComponent: () =>
+          import('./features/webinars/webinar-list/webinar-list').then(
+            (m) => m.WebinarList,
+          ),
       },
 
 

@@ -1,0 +1,73 @@
+<main class="public">
+  <header>
+    <app-brand-logo />
+  </header>
+
+  @if (loading()) {
+    <p class="cap"><span class="spinner" aria-hidden="true"></span> Chargement…</p>
+  } @else if (!page()) {
+    <section class="card-form">
+      <h1>Inscription indisponible</h1>
+      <p class="cap">{{ error() }}</p>
+    </section>
+  } @else {
+    @let fiche = page()!;
+    <section class="card-form">
+      @if (fiche.flyer_url) {
+        <img class="flyer" [src]="fiche.flyer_url" [alt]="'Visuel : ' + fiche.title" referrerpolicy="no-referrer" />
+      }
+      <h1>{{ fiche.title }}</h1>
+      <p class="when"><app-icon name="calendar" size="sm" />{{ schedule() }}</p>
+      @if (fiche.description) {
+        <p class="description">{{ fiche.description }}</p>
+      }
+
+      @if (done(); as message) {
+        <div class="success" role="status">
+          <span class="tick"><app-icon name="check" size="lg" /></span>
+          <p>{{ message }}</p>
+        </div>
+      } @else if (!fiche.is_open) {
+        <p class="closed">Les inscriptions à ce webinaire sont closes.</p>
+      } @else {
+        <form (submit)="$event.preventDefault(); register()">
+          <div class="field">
+            <label for="pr-email">Adresse e-mail</label>
+            <input class="input" id="pr-email" type="email" autocomplete="email" required maxlength="255" [value]="email()" (input)="email.set($any($event.target).value)" />
+          </div>
+          <div class="names">
+            <div class="field">
+              <label for="pr-first">Prénom</label>
+              <input class="input" id="pr-first" autocomplete="given-name" required maxlength="120" [value]="firstName()" (input)="firstName.set($any($event.target).value)" />
+            </div>
+            <div class="field">
+              <label for="pr-last">Nom de famille</label>
+              <input class="input" id="pr-last" autocomplete="family-name" required maxlength="120" [value]="lastName()" (input)="lastName.set($any($event.target).value)" />
+            </div>
+          </div>
+          <div class="trap" aria-hidden="true">
+            <label for="pr-website">Ne pas remplir</label>
+            <input id="pr-website" tabindex="-1" autocomplete="off" [value]="website()" (input)="website.set($any($event.target).value)" />
+          </div>
+          <label class="check">
+            <input type="checkbox" [checked]="consent()" (change)="consent.set($any($event.target).checked)" />
+            J’accepte de recevoir les actualités de Datum Academy par e-mail.
+          </label>
+          @if (error(); as texte) {
+            <p class="failure" role="alert">{{ texte }}</p>
+          }
+          <button class="btn btn-primary btn-block btn-lg" type="submit" [disabled]="!canSend()">
+            @if (sending()) {
+              <span class="spinner" aria-hidden="true"></span>
+            }
+            S’inscrire
+          </button>
+          <p class="cap">
+            Ces informations servent à organiser le webinaire. Les actualités ne sont envoyées qu’avec
+            votre accord.
+          </p>
+        </form>
+      }
+    </section>
+  }
+</main>

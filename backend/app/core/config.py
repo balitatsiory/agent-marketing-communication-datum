@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     META_APP_ID: str = ""
     META_APP_SECRET: SecretStr | None = None
 
+    # --- connecteur Zoom ---
+    # Les identifiants des comptes vivent en base, chiffrés. Ces deux adresses
+    # ne changent que pour pointer vers un simulateur de Zoom en développement.
+    ZOOM_OAUTH_URL: str = "https://zoom.us/oauth/token"
+    ZOOM_API_BASE_URL: str = "https://api.zoom.us/v2"
+
     # --- stockage des médias ---
     # « local » écrit dans un dossier du poste : c'est le mode des tests et du
     # développement, pour que la suite de tests ne dépende ni du réseau ni
@@ -154,6 +160,14 @@ class Settings(BaseSettings):
                     "l'URL de développement publique du seau (R2 > le seau > "
                     "Settings > Public Development URL) ou son domaine personnalisé."
                 )
+
+        # Ces adresses reçoivent le Client Secret et les jetons : en production,
+        # elles ne désignent que Zoom.
+        if self.is_production and not (
+            self.ZOOM_OAUTH_URL.startswith("https://zoom.us/")
+            and self.ZOOM_API_BASE_URL.startswith("https://api.zoom.us/")
+        ):
+            raise ValueError("En production, ZOOM_OAUTH_URL et ZOOM_API_BASE_URL visent zoom.us.")
 
         if self.MEDIA_MAX_STORED_BYTES > self.MEDIA_MAX_UPLOAD_BYTES:
             raise ValueError(

@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
@@ -13,6 +21,7 @@ import {
   NewsletterStatsDto,
   SendStatusDto,
 } from '../../../core/api/newsletter.api';
+import { WebinarDto, WebinarsApi } from '../../../core/api/webinars.api';
 import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
@@ -60,7 +69,7 @@ export function lireDestinataires(saisie: string): Destinataire[] {
   templateUrl: './send-list.html',
   styleUrl: './send-list.scss',
 })
-export class SendList {
+export class SendList implements OnInit {
   private readonly api = inject(NewsletterApi);
   private readonly comptesApi = inject(EmailAccountsApi);
   private readonly session = inject(Session);
@@ -100,6 +109,16 @@ export class SendList {
     recipients: string;
   } | null>(null);
 
+  /* ---------- destinataires repris d'un webinaire ---------- */
+
+  /** `?webinaire=12` : ouvre le formulaire avec les inscrits de ce webinaire. */
+  readonly webinaire = input<string>();
+
+  private readonly webinarsApi = inject(WebinarsApi);
+  protected readonly webinars = signal<readonly WebinarDto[]>([]);
+  protected readonly audienceNote = signal<string | null>(null);
+  protected readonly canReadAudience = computed(() => this.session.has('manage_webinars'));
+
   protected readonly canSend = computed(() => this.session.has('send_newsletters'));
   protected readonly canManageAccounts = computed(() =>
     this.session.has('manage_email_accounts'),
@@ -128,6 +147,45 @@ export class SendList {
     void this.initialiser();
   }
 
+  async ngOnInit(): Promise<void> {
+    if (!this.canReadAudience()) return;
+    try {
+      const page = await this.webinarsApi.list({ size: 100, sort: 'date', direction: 'desc' });
+      this.webinars.set(page.items);
+    } catch (erreur) {
+      this.error.set(toApiError(erreur).message);
+    }
+  }
+
+  /**
+   * Remplit les destinataires avec les inscrits d'un webinaire qui ont accepté
+   * les newsletters. Les autres sont comptés, jamais ajoutés.
+   */
+  protected async chargerInscrits(valeur: string): Promise<void> {
+    const id = Number(valeur);
+    if (!id) return;
+    this.audienceNote.set(null);
+    try {
+      const audience = await this.webinarsApi.audience(id);
+      const lignes = audience.items
+        .map((p) => (p.display_name ? `${p.display_name} <${p.email}>` : p.email))
+        .join('\n');
+      this.composer.update((etat) =>
+        etat === null
+          ? etat
+          : { ...etat, recipients: lignes, event_title: audience.title.slice(0, 200) },
+      );
+      this.audienceNote.set(
+        `${audience.items.length} inscrit(s) avec accord repris` +
+          (audience.excluded_without_consent
+            ? `, ${audience.excluded_without_consent} sans accord écarté(s).`
+            : '.'),
+      );
+    } catch (erreur) {
+      this.error.set(toApiError(erreur).message);
+    }
+  }
+
   private async initialiser(): Promise<void> {
     try {
       const [comptes, categories, statuts, modeles] = await Promise.all([
@@ -144,6 +202,11 @@ export class SendList {
       this.error.set(toApiError(erreur).message);
     }
     await this.recharger();
+    const demande = this.webinaire();
+    if (demande && this.canSend() && this.canReadAudience()) {
+      this.ouvrirComposer();
+      await this.chargerInscrits(demande);
+    }
   }
 
   /** Recharge chiffres et liste ensemble : ils doivent parler du même instant. */
@@ -248,6 +311,7 @@ export class SendList {
   protected ouvrirComposer(): void {
     if (this.busy()) return;
     this.report.set(null);
+    this.audienceNote.set(null);
     this.composer.set({
       id_mail_templates: this.publishedTemplates()[0]?.id_mail_templates ?? null,
       id_email_accounts: this.accountFilter() ?? this.activeAccount()?.id_email_accounts ?? null,

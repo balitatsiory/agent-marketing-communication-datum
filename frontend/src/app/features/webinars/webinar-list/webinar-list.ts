@@ -71,7 +71,7 @@ export class WebinarList {
   }
 
   protected newWebinar(): void {
-    void this.router.navigateByUrl('/webinaires/nouveau');
+    void this.router.navigateByUrl('/webinaires_prototype/nouveau');
   }
 
   protected readonly filter = signal<WebinarFilter>('all');
@@ -190,7 +190,7 @@ export class WebinarList {
   protected open(webinar: Webinar): void {
     // Un brouillon se reprend dans le formulaire ; il n'a rien à montrer dans la pop-up.
     if (webinar.status === 'draft') {
-      void this.router.navigate(['/webinaires', webinar.id, 'modifier']);
+      void this.router.navigate(['/webinaires_prototype', webinar.id, 'modifier']);
       return;
     }
     this.opened.set(webinar);

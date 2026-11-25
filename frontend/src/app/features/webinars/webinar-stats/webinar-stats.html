@@ -1,0 +1,141 @@
+<div class="modal-back" (click)="closed.emit()" (keydown.escape)="closed.emit()" tabindex="-1">
+  <div
+    class="modal stats-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Statistiques des webinaires"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="modal-head">
+      <h2>Statistiques des webinaires</h2>
+      <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="closed.emit()">
+        <app-icon name="close" size="sm" />
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="figures">
+        <div class="figure">
+          <span class="label">Webinaires</span>
+          <span class="v"><app-count-up [value]="stats().total" /></span>
+          <span class="d">
+            {{ stats().scheduled }} à venir · {{ stats().past }} passés · {{ stats().draft }} brouillon(s)
+            @if (stats().cancelled) {
+              · {{ stats().cancelled }} annulé(s)
+            }
+          </span>
+        </div>
+        <div class="figure">
+          <span class="label">Inscrits enregistrés</span>
+          <span class="v"><app-count-up [value]="stats().registrations" /></span>
+          <span class="d">{{ stats().consented_registrations }} avec accord newsletter</span>
+        </div>
+        <div class="figure">
+          <span class="label">Rediffusions</span>
+          <span class="v"><app-count-up [value]="stats().with_replay" /></span>
+          <span class="d">fiches avec un lien de replay</span>
+        </div>
+        <div class="figure">
+          <span class="label">À vérifier</span>
+          <span class="v"><app-count-up [value]="stats().dates_to_confirm" /></span>
+          <span class="d">date(s) à confirmer · {{ stats().pending_flyers }} flyer(s) à rapatrier</span>
+        </div>
+      </div>
+
+      <section class="chart-block">
+        <div class="block-head">
+          <span class="label">Webinaires par {{ byYear() ? 'année' : 'mois' }}</span>
+          <button class="btn btn-sm btn-ghost" type="button" (click)="asTable.set(!asTable())">
+            {{ asTable() ? 'Voir le graphique' : 'Voir en tableau' }}
+          </button>
+        </div>
+        @if (!columns().length) {
+          <p class="cap">Aucune date connue.</p>
+        } @else if (asTable()) {
+          <div class="tbl-wrap table-scroll">
+            <table class="tbl">
+              <thead>
+                <tr><th>{{ byYear() ? 'Année' : 'Mois' }}</th><th class="num">Webinaires</th></tr>
+              </thead>
+              <tbody>
+                @for (column of columns(); track column.label) {
+                  <tr><td>{{ column.label }}</td><td class="num">{{ column.count }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="readout" aria-live="polite">
+            @if (hovered(); as column) {
+              <b>{{ column.count }}</b> en {{ column.label }}
+            } @else {
+              Survolez une colonne pour lire sa valeur.
+            }
+          </p>
+          <div class="columns" (mouseleave)="hovered.set(null)">
+            @for (column of columns(); track column.label; let index = $index) {
+              <button
+                class="column"
+                type="button"
+                [attr.aria-label]="column.label + ' : ' + column.count"
+                (mouseenter)="hovered.set(column)"
+                (focus)="hovered.set(column)"
+              >
+                <span class="value">{{ columns().length <= 12 && column.count ? column.count : '' }}</span>
+                <span class="track">
+                  <span class="bar" [style.height.%]="column.share * 100" [style.animation-delay.ms]="index * 25"></span>
+                </span>
+                <span class="tick">{{ column.short }}</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <div class="breakdowns">
+        <section class="chart-block">
+          <span class="label">Par type d’événement</span>
+          @for (item of stats().by_type; track item.code; let index = $index) {
+            <div class="row">
+              <span class="name">{{ item.label }}</span>
+              <span class="track"><span class="bar" [style.width.%]="(item.count / typeMaximum()) * 100" [style.animation-delay.ms]="index * 60"></span></span>
+              <span class="count">{{ item.count }}</span>
+            </div>
+          }
+        </section>
+
+        <section class="chart-block">
+          <span class="label">Par catégorie</span>
+          @for (item of stats().by_category; track item.code; let index = $index) {
+            <div class="row">
+              <span class="name">{{ item.label }}</span>
+              <span class="track"><span class="bar" [style.width.%]="(item.count / categoryMaximum()) * 100" [style.animation-delay.ms]="index * 60"></span></span>
+              <span class="count">{{ item.count }}</span>
+            </div>
+          }
+        </section>
+
+        <section class="chart-block wide">
+          <span class="label">Par compte</span>
+          @for (item of stats().accounts; track item.label; let index = $index) {
+            <div class="row">
+              <span class="name">{{ item.label }}</span>
+              <span class="track"><span class="bar" [style.width.%]="(item.total / accountMaximum()) * 100" [style.animation-delay.ms]="index * 60"></span></span>
+              <span class="count">{{ item.total }}</span>
+              <span class="detail">{{ item.scheduled }} à venir · {{ item.past }} passés · {{ item.draft }} brouillon(s)</span>
+            </div>
+          }
+        </section>
+      </div>
+
+      @if (stats().next_webinar; as prochain) {
+        <button class="next" type="button" (click)="opened.emit(prochain.id_webinars)">
+          <app-icon name="clock" size="sm" />
+          <span class="label">Prochain</span>
+          <b>{{ prochain.title }}</b>
+          <span class="cap">{{ schedule(prochain) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+</div>
