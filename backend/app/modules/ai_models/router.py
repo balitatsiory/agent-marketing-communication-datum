@@ -45,12 +45,17 @@ async def obtenir_synthese(
 @router.get(
     "/dashboard",
     response_model=OpenRouterDashboardRead,
-    summary="Tableau de bord FinOps OpenRouter (crédits, activité, tokens, coûts par modèle et clés distantes)",
+    summary="Tableau de bord FinOps OpenRouter (cumulé ou filtré par workspace_id)",
 )
 async def obtenir_tableau_de_bord(
-    session: SessionDep, _: CurrentUser
+    session: SessionDep,
+    _: CurrentUser,
+    workspace_id: str | None = Query(
+        None,
+        description="Identifiant OpenRouter du workspace à filtrer. Omis = cumul de tous les workspaces.",
+    ),
 ) -> OpenRouterDashboardRead:
-    return await service.obtenir_tableau_de_bord(session)
+    return await service.obtenir_tableau_de_bord(session, workspace_id=workspace_id)
 
 
 # ---------------------------------------------------------------------------

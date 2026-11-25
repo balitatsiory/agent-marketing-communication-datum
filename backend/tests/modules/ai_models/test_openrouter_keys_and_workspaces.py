@@ -348,6 +348,8 @@ async def test_tableau_de_bord_finops_openrouter(
         r = await client.get("/api/v1/openrouter/dashboard", headers=entete(jetons))
         assert r.status_code == 200, r.text
         data = r.json()
+        assert data["scope_workspace_id"] is None
+        assert "cumulé" in data["scope_label"]
         assert data["credits"]["remaining_credits"] == 37.5
         assert data["total_requests"] == 16
         assert data["total_prompt_tokens"] == 21957
@@ -356,3 +358,11 @@ async def test_tableau_de_bord_finops_openrouter(
         assert len(data["daily_series"]) == 2
         assert len(data["by_model"]) == 2
         assert data["by_model"][0]["model"] == "anthropic/claude-3.5-sonnet"
+
+        # Vérification avec filtre workspace_id explicite
+        r_ws = await client.get(
+            "/api/v1/openrouter/dashboard?workspace_id=ws_test_123",
+            headers=entete(jetons),
+        )
+        assert r_ws.status_code == 200, r_ws.text
+        assert r_ws.json()["scope_workspace_id"] == "ws_test_123"
