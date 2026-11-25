@@ -71,7 +71,6 @@ const KNOWN_NETWORK_CODES = new Set<SocialNetworkCode>([
   'linkedin',
   'youtube',
   'tiktok',
-  'x',
 ]);
 
 export interface TargetNetworkItem {
