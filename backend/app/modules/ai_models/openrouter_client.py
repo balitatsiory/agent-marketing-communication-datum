@@ -310,15 +310,27 @@ async def list_models(api_key: str) -> list[dict[str, Any]]:
     return []
 
 
-async def get_activity(management_key: str, date_iso: str | None = None) -> list[dict[str, Any]]:
+async def get_activity(
+    management_key: str,
+    date_iso: str | None = None,
+    workspace_id: str | None = None,
+    group_by: str | None = None,
+) -> list[dict[str, Any]]:
     """Récupère l'activité quotidienne agrégée par modèle via `GET /api/v1/activity`."""
-    params = {"date": date_iso} if date_iso else None
+    params: dict[str, Any] = {}
+    if date_iso:
+        params["date"] = date_iso
+    if workspace_id:
+        params["workspace_id"] = workspace_id
+    if group_by:
+        params["group_by"] = group_by
+
     corps = await _requete(
         "GET",
         "/activity",
         management_key,
         contexte="lecture de l'activité OpenRouter",
-        params=params,
+        params=params or None,
     )
     if isinstance(corps, dict) and isinstance(corps.get("data"), list):
         return [item for item in corps["data"] if isinstance(item, dict)]
@@ -327,13 +339,18 @@ async def get_activity(management_key: str, date_iso: str | None = None) -> list
     return []
 
 
-async def list_remote_keys(management_key: str) -> list[dict[str, Any]]:
+async def list_remote_keys(
+    management_key: str,
+    workspace_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Liste les clés API provisionnées sur OpenRouter via `GET /api/v1/keys`."""
+    params = {"workspace_id": workspace_id} if workspace_id else None
     corps = await _requete(
         "GET",
         "/keys",
         management_key,
         contexte="liste des clés OpenRouter",
+        params=params,
     )
     if isinstance(corps, dict) and isinstance(corps.get("data"), list):
         return [item for item in corps["data"] if isinstance(item, dict)]

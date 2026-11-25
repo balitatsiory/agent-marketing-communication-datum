@@ -69,11 +69,21 @@ export interface OpenRouterActivityItemDto {
   readonly date: string;
   readonly model: string;
   readonly provider_name: string | null;
+  readonly workspace_id: string | null;
+  readonly workspace_name: string | null;
   readonly usage_usd: number;
   readonly requests: number;
   readonly prompt_tokens: number;
   readonly completion_tokens: number;
   readonly reasoning_tokens: number;
+}
+
+export interface OpenRouterWorkspaceCostDto {
+  readonly workspace_id: string;
+  readonly workspace_name: string;
+  readonly cost_usd: number;
+  readonly requests: number;
+  readonly tokens: number;
 }
 
 export interface OpenRouterDailyPointDto {
@@ -107,6 +117,8 @@ export interface OpenRouterRemoteKeyDto {
 }
 
 export interface OpenRouterDashboardDto {
+  readonly scope_workspace_id: string | null;
+  readonly scope_label: string;
   readonly credits: OpenRouterCreditsDto;
   readonly total_cost_usd: number;
   readonly total_requests: number;
@@ -118,6 +130,7 @@ export interface OpenRouterDashboardDto {
   readonly total_remote_keys_count: number;
   readonly daily_series: readonly OpenRouterDailyPointDto[];
   readonly by_model: readonly OpenRouterModelCostDto[];
+  readonly by_workspace: readonly OpenRouterWorkspaceCostDto[];
   readonly activity: readonly OpenRouterActivityItemDto[];
   readonly remote_keys: readonly OpenRouterRemoteKeyDto[];
   readonly warnings: readonly string[];
@@ -211,8 +224,14 @@ export class OpenRouterApi {
     return firstValueFrom(this.http.get<OpenRouterOverviewDto>(`${this.base}/overview`));
   }
 
-  dashboard(): Promise<OpenRouterDashboardDto> {
-    return firstValueFrom(this.http.get<OpenRouterDashboardDto>(`${this.base}/dashboard`));
+  dashboard(workspaceId?: string | null): Promise<OpenRouterDashboardDto> {
+    let params = new HttpParams();
+    if (workspaceId) {
+      params = params.set('workspace_id', workspaceId);
+    }
+    return firstValueFrom(
+      this.http.get<OpenRouterDashboardDto>(`${this.base}/dashboard`, { params }),
+    );
   }
 
   /* ---------- Clés chiffrées ---------- */

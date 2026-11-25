@@ -51,6 +51,7 @@ from app.modules.ai_models.schemas import (
     OpenRouterModelCostRead,
     OpenRouterOverviewRead,
     OpenRouterRemoteKeyRead,
+    OpenRouterWorkspaceCostRead,
 )
 from app.modules.users.models import User
 
@@ -381,13 +382,37 @@ def _to_int(val: Any) -> int:
         return 0
 
 
-async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardRead:
-    """Agrège en direct les données FinOps OpenRouter (/credits, /activity, /keys)."""
+async def obtenir_tableau_de_bord(
+    session: AsyncSession, workspace_id: str | None = None
+) -> OpenRouterDashboardRead:
+    """Agrège en direct les données FinOps OpenRouter (/credits, /activity, /keys).
+
+    - `workspace_id=None` : vue cumulée sur tous les workspaces (`group_by=workspace`).
+    - `workspace_id=<uuid>` : vue filtrée sur ce workspace précis.
+    """
+    ws_filtre = (workspace_id or "").strip() or None
+
+    # Correspondance locale openrouter_workspace_id -> nom lisible
+    ws_rows = (
+        await session.execute(
+            select(AiWorkspace).where(AiWorkspace.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    ws_names = {ws.openrouter_workspace_id: ws.name for ws in ws_rows}
+
+    scope_label = (
+        f"Workspace : {ws_names.get(ws_filtre, ws_filtre)}"
+        if ws_filtre
+        else "Tous les workspaces (cumulé)"
+    )
+
     mgmt = await _get_active_key_row(session, KEY_KIND_MANAGEMENT)
     warnings: list[str] = []
 
     if mgmt is None:
         return OpenRouterDashboardRead(
+            scope_workspace_id=ws_filtre,
+            scope_label=scope_label,
             credits=OpenRouterCreditsRead(
                 available=False,
                 error="Aucune Management API Key active n'est configurée.",
@@ -402,6 +427,7 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
             total_remote_keys_count=0,
             daily_series=[],
             by_model=[],
+            by_workspace=[],
             activity=[],
             remote_keys=[],
             warnings=[
@@ -426,14 +452,20 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
 
     async def _fetch_activity() -> list[dict[str, Any]]:
         try:
-            return await openrouter_client.get_activity(mgmt_key)
+            if ws_filtre:
+                return await openrouter_client.get_activity(mgmt_key, workspace_id=ws_filtre)
+            try:
+                return await openrouter_client.get_activity(mgmt_key, group_by="workspace")
+            except ApiError:
+                # Repli si la clé management est restreinte à un seul workspace ou si group_by est refusé
+                return await openrouter_client.get_activity(mgmt_key)
         except ApiError as err:
             warnings.append(f"Activité (/api/v1/activity) indisponible : {err.message}")
             return []
 
     async def _fetch_remote_keys() -> list[dict[str, Any]]:
         try:
-            return await openrouter_client.list_remote_keys(mgmt_key)
+            return await openrouter_client.list_remote_keys(mgmt_key, workspace_id=ws_filtre)
         except ApiError as err:
             warnings.append(f"Clés distantes (/api/v1/keys) indisponibles : {err.message}")
             return []
@@ -445,6 +477,7 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
     activity_items: list[OpenRouterActivityItemRead] = []
     by_date: dict[str, dict[str, float | int]] = {}
     by_model: dict[str, dict[str, float | int]] = {}
+    by_workspace: dict[str, dict[str, float | int]] = {}
 
     total_cost = 0.0
     total_requests = 0
@@ -456,6 +489,8 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
         date_str = str(item.get("date") or "")[:10]
         model_id = str(item.get("model") or item.get("model_permaslug") or "inconnu")
         provider = item.get("provider_name")
+        item_ws_id = str(item.get("workspace_id") or ws_filtre or "").strip() or None
+        item_ws_name = ws_names.get(item_ws_id, item_ws_id) if item_ws_id else None
         cost = _to_float(item.get("usage"))
         reqs = _to_int(item.get("requests"))
         prompt_tok = _to_int(item.get("prompt_tokens"))
@@ -467,6 +502,8 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
                 date=date_str,
                 model=model_id,
                 provider_name=str(provider) if provider is not None else None,
+                workspace_id=item_ws_id,
+                workspace_name=item_ws_name,
                 usage_usd=round(cost, 7),
                 requests=reqs,
                 prompt_tokens=prompt_tok,
@@ -497,6 +534,12 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
         m["completion"] = int(m["completion"]) + comp_tok
         m["reasoning"] = int(m["reasoning"]) + reason_tok
 
+        if item_ws_id:
+            w = by_workspace.setdefault(item_ws_id, {"cost": 0.0, "requests": 0, "tokens": 0})
+            w["cost"] = float(w["cost"]) + cost
+            w["requests"] = int(w["requests"]) + reqs
+            w["tokens"] = int(w["tokens"]) + prompt_tok + comp_tok
+
     activity_items.sort(key=lambda x: (x.date, x.usage_usd), reverse=True)
 
     daily_series = [
@@ -520,6 +563,19 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
         )
         for model_key, vals in sorted(
             by_model.items(), key=lambda kv: float(kv[1]["cost"]), reverse=True
+        )
+    ]
+
+    workspace_costs = [
+        OpenRouterWorkspaceCostRead(
+            workspace_id=ws_key,
+            workspace_name=ws_names.get(ws_key, ws_key),
+            cost_usd=round(float(vals["cost"]), 6),
+            requests=int(vals["requests"]),
+            tokens=int(vals["tokens"]),
+        )
+        for ws_key, vals in sorted(
+            by_workspace.items(), key=lambda kv: float(kv[1]["cost"]), reverse=True
         )
     ]
 
@@ -561,6 +617,8 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
     avg_cost = round(total_cost / total_requests, 6) if total_requests > 0 else 0.0
 
     return OpenRouterDashboardRead(
+        scope_workspace_id=ws_filtre,
+        scope_label=scope_label,
         credits=credits,
         total_cost_usd=round(total_cost, 6),
         total_requests=total_requests,
@@ -572,6 +630,7 @@ async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardR
         total_remote_keys_count=len(remote_keys),
         daily_series=daily_series,
         by_model=model_costs,
+        by_workspace=workspace_costs,
         activity=activity_items,
         remote_keys=remote_keys,
         warnings=warnings,

@@ -212,11 +212,23 @@ class OpenRouterActivityItemRead(BaseModel):
     date: str
     model: str
     provider_name: str | None = None
+    workspace_id: str | None = None
+    workspace_name: str | None = None
     usage_usd: float = 0.0
     requests: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int = 0
+
+
+class OpenRouterWorkspaceCostRead(BaseModel):
+    """Agrégation des dépenses et volumes par workspace OpenRouter."""
+
+    workspace_id: str
+    workspace_name: str
+    cost_usd: float
+    requests: int
+    tokens: int
 
 
 class OpenRouterDailyPointRead(BaseModel):
@@ -258,6 +270,8 @@ class OpenRouterRemoteKeyRead(BaseModel):
 class OpenRouterDashboardRead(BaseModel):
     """Données agrégées du tableau de bord FinOps OpenRouter."""
 
+    scope_workspace_id: str | None = None
+    scope_label: str = "Tous les workspaces (cumulé)"
     credits: OpenRouterCreditsRead
     total_cost_usd: float
     total_requests: int
@@ -269,6 +283,7 @@ class OpenRouterDashboardRead(BaseModel):
     total_remote_keys_count: int
     daily_series: list[OpenRouterDailyPointRead]
     by_model: list[OpenRouterModelCostRead]
+    by_workspace: list[OpenRouterWorkspaceCostRead]
     activity: list[OpenRouterActivityItemRead]
     remote_keys: list[OpenRouterRemoteKeyRead]
     warnings: list[str]
