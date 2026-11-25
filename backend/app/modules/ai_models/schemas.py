@@ -448,3 +448,117 @@ class AiPromptRead(BaseModel):
     created_by_name: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Génération de publications v2 (relie Modèles IA, Prompts actifs, Médias & R2)
+# ---------------------------------------------------------------------------
+
+
+class ActivePromptSummaryRead(BaseModel):
+    """Résumé du prompt ou gabarit actif par défaut pour une tâche."""
+
+    id_ai_prompts: int
+    title: str
+    version_number: int
+
+
+class ActiveTaskModelSummaryRead(BaseModel):
+    """Modèle OpenRouter et effort de raisonnement affectés à une tâche IA."""
+
+    task_code: TaskCode
+    model_id: str | None = None
+    model_name: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
+
+
+class PublicationGenerationContextRead(BaseModel):
+    """Configuration IA active qui pilotera `/publications/generer_v2`."""
+
+    has_api_key: bool
+    key_source: Literal["standard", "sandbox"] | None = None
+    text_model: ActiveTaskModelSummaryRead
+    image_model: ActiveTaskModelSummaryRead
+    text_system_prompt: ActivePromptSummaryRead | None = None
+    text_template_prompt: ActivePromptSummaryRead | None = None
+    image_system_prompt: ActivePromptSummaryRead | None = None
+    image_template_prompt: ActivePromptSummaryRead | None = None
+
+
+class PublicationTextGenerationRequest(BaseModel):
+    """Paramètres d'une génération (ou régénération) de propositions de textes."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    subject: str = Field(..., min_length=3, max_length=2000)
+    format: str = Field(default="image", max_length=30)
+    networks: list[str] = Field(..., min_length=1, max_length=8)
+    tone: str = Field(default="professional", max_length=40)
+    language: str = Field(default="Français", max_length=40)
+    hashtags_min: int = Field(default=3, ge=0, le=30)
+    hashtags_max: int = Field(default=6, ge=0, le=30)
+    use_knowledge_base: bool = True
+    run_number: int = Field(default=1, ge=1, le=50)
+    angles: list[str] = Field(default_factory=lambda: ["Annonce", "Bénéfice", "Question"])
+
+
+class PublicationTextProposalRead(BaseModel):
+    """Une proposition de texte générée pour un réseau et un angle."""
+
+    id: str
+    network: str
+    angle: str
+    run_number: int
+    title: str
+    paragraphs: list[str]
+    hashtags: list[str]
+    extra_hashtag_count: int = 0
+
+
+class PublicationTextGenerationResponse(BaseModel):
+    """Résultat d'un lot de génération de textes de publication."""
+
+    run_number: int
+    model_id: str
+    model_name: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
+    system_prompt_label: str | None = None
+    template_prompt_label: str | None = None
+    key_source: Literal["standard", "sandbox"]
+    latency_ms: int
+    total_tokens: int
+    cost_usd: float
+    proposals_by_network: dict[str, list[PublicationTextProposalRead]]
+
+
+class PublicationVisualGenerationRequest(BaseModel):
+    """Paramètres d'une génération ou retouche conversationnelle de visuel."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    mode: Literal["create", "retouch"] = "create"
+    subject: str = Field(..., min_length=2, max_length=2000)
+    visual_description: str = Field(default="", max_length=4000)
+    selected_caption: str = Field(default="", max_length=6000)
+    format: str = Field(default="image", max_length=30)
+    aspect_ratio: str = Field(default="4:5", max_length=20)
+    retouch_instruction: str | None = Field(default=None, max_length=2000)
+    source_image_url: str | None = Field(default=None, max_length=12_000_000)
+    reference_media_ids: list[int] = Field(default_factory=list, max_length=8)
+
+
+class PublicationVisualGenerationResponse(BaseModel):
+    """Résultat d'une génération ou retouche d'image de publication."""
+
+    image_url: str
+    storage_key: str | None = None
+    id_media: int | None = None
+    assistant_message: str
+    model_id: str
+    model_name: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
+    system_prompt_label: str | None = None
+    template_prompt_label: str | None = None
+    key_source: Literal["standard", "sandbox"]
+    latency_ms: int
+    cost_usd: float

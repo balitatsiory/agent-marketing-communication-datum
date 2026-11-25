@@ -2,11 +2,15 @@
   @if (requestId()) {
     <span class="quota mono-id">/publications/generer_v2/{{ requestId() }}</span>
   }
-  <span class="quota">{{ remainingGenerations }} générations restantes</span>
-  <button class="btn" type="button">
-    <app-icon name="history" size="sm" />
-    Historique
-  </button>
+  @if (aiContext(); as ctx) {
+    <span class="quota">
+      {{ ctx.has_api_key ? (ctx.key_source === 'standard' ? 'Clé Standard active' : 'Clé Sandbox active') : 'Clé OpenRouter manquante' }}
+    </span>
+  }
+  <a class="btn btn-sm" routerLink="/modeles-ia_v2">
+    <app-icon name="sparkle" size="sm" />
+    Modèles IA
+  </a>
 </app-topbar>
 
 <div class="page">
@@ -14,10 +18,51 @@
     <div>
       <h1>Générer une publication</h1>
       <p class="sub">
-        Cinq étapes. Les textes d'abord, le visuel seulement après qu'un texte a été retenu.
+        Cinq étapes reliées à vos Modèles IA, Prompts actifs par défaut, Médias de référence et Comptes sociaux.
       </p>
     </div>
   </div>
+
+  <!-- Bandeau contexte IA actif (modèles, effort, prompts par défaut) -->
+  @if (aiContext(); as ctx) {
+    <div class="ai-ctx-bar">
+      <div class="ai-ctx-pill" [class.is-warn]="!ctx.text_model.model_id">
+        <span class="ai-ctx-k">Texte</span>
+        <b>{{ ctx.text_model.model_name || ctx.text_model.model_id || 'Non affecté' }}</b>
+        @if (ctx.text_model.reasoning_effort) {
+          <span class="tag">effort : {{ ctx.text_model.reasoning_effort }}</span>
+        }
+        @if (ctx.text_system_prompt) {
+          <span class="tag">Prompt v{{ ctx.text_system_prompt.version_number }}</span>
+        }
+        @if (ctx.text_template_prompt) {
+          <span class="tag">Gabarit v{{ ctx.text_template_prompt.version_number }}</span>
+        }
+      </div>
+
+      <div class="ai-ctx-pill" [class.is-warn]="!ctx.image_model.model_id">
+        <span class="ai-ctx-k">Image</span>
+        <b>{{ ctx.image_model.model_name || ctx.image_model.model_id || 'Non affecté' }}</b>
+        @if (ctx.image_model.reasoning_effort) {
+          <span class="tag">effort : {{ ctx.image_model.reasoning_effort }}</span>
+        }
+        @if (ctx.image_system_prompt) {
+          <span class="tag">Prompt v{{ ctx.image_system_prompt.version_number }}</span>
+        }
+      </div>
+
+      @if (!ctx.has_api_key || !ctx.text_model.model_id) {
+        <a class="btn btn-sm" routerLink="/modeles-ia_v2">Configurer dans Modèles IA v2</a>
+      }
+      <a class="btn btn-sm btn-ghost" routerLink="/admin/prompts/system">Prompts</a>
+    </div>
+  } @else if (aiContextError()) {
+    <p class="note note-err" role="alert">{{ aiContextError() }}</p>
+  }
+
+  @if (noticeMessage(); as msg) {
+    <p class="note note-ok" role="status">{{ msg }}</p>
+  }
 
   <!-- ---------- le fil des étapes ---------- -->
   <nav class="steps" aria-label="Étapes">
@@ -74,7 +119,7 @@
         <div class="field">
           <span class="label">Réseaux visés</span>
           <div class="net-toggles">
-            @for (network of networks; track network.code) {
+            @for (network of networks(); track network.code) {
               <button
                 class="toggle-row"
                 type="button"
@@ -96,7 +141,12 @@
 
         <div class="pane-foot">
           <span class="grow"></span>
-          <button class="btn btn-primary btn-lg" type="button" (click)="next()">
+          <button
+            class="btn btn-primary btn-lg"
+            type="button"
+            [disabled]="targets().length === 0"
+            (click)="next()"
+          >
             Continuer
             <app-icon name="arrowRight" size="sm" />
           </button>
@@ -109,8 +159,12 @@
       <section class="pane" aria-label="Le sujet">
         <div class="pane-head">
           <h2>De quoi ça parle ?</h2>
-          <p>Deux phrases suffisent. L'IA ira chercher le reste dans vos documents.</p>
+          <p>Deux phrases suffisent. Le prompt système et le gabarit actifs complètent les consignes.</p>
         </div>
+
+        @if (textError()) {
+          <p class="note note-err" role="alert">{{ textError() }}</p>
+        }
 
         <div class="field">
           <label for="subject">Titre / sujet</label>
@@ -123,7 +177,6 @@
           />
         </div>
 
-        <!-- le ton : un groupe de boutons, visible, jamais replié -->
         <div class="field">
           <span class="label">Ton</span>
           <div class="chips">
@@ -151,10 +204,10 @@
             [ngModel]="visualDescription()"
             (ngModelChange)="visualDescription.set($event)"
           ></textarea>
-          <p class="note">Sert à dessiner le flyer. N'entre pas dans le texte.</p>
+          <p class="note">Sert à dessiner le flyer à l'étape 4. N'entre pas dans le texte.</p>
         </div>
 
-        <!-- les médias de référence : plusieurs, choisis dans la bibliothèque -->
+        <!-- médias de référence -->
         <div class="field">
           <div class="field-head">
             <span class="label">Médias de référence</span>
@@ -180,17 +233,17 @@
                 </span>
                 <span class="ref-desc">{{ entry.description }}</span>
               </span>
-              <button class="btn btn-sm btn-ghost" type="button" (click)="removeReference(entry.idMediaReferences)">
+              <button
+                class="btn btn-sm btn-ghost"
+                type="button"
+                (click)="removeReference(entry.idMediaReferences)"
+              >
                 Retirer
               </button>
             </div>
           } @empty {
             <p class="note">Aucun média joint. Le visuel sera dessiné à partir de votre description seule.</p>
           }
-          <p class="note">
-            Un média déjà présent n'est décrit qu'une fois : sa description est enregistrée avec le
-            fichier et relue à chaque publication.
-          </p>
         </div>
 
         <div class="field split">
@@ -202,7 +255,8 @@
               [ngModel]="language()"
               (ngModelChange)="language.set($event)"
             >
-              <option>Français</option>
+              <option value="Français">Français</option>
+              <option value="Anglais">Anglais</option>
             </select>
           </div>
 
@@ -213,6 +267,7 @@
                 class="input input-n"
                 type="number"
                 min="0"
+                max="30"
                 aria-label="Minimum de hashtags"
                 [ngModel]="hashtagsMin()"
                 (ngModelChange)="hashtagsMin.set($event)"
@@ -222,6 +277,7 @@
                 class="input input-n"
                 type="number"
                 min="0"
+                max="30"
                 aria-label="Maximum de hashtags"
                 [ngModel]="hashtagsMax()"
                 (ngModelChange)="hashtagsMax.set($event)"
@@ -247,17 +303,16 @@
         <div class="pane-foot">
           <button class="btn btn-lg" type="button" (click)="previous()">Retour</button>
           <span class="grow"></span>
-          <button class="btn btn-lg" type="button">Enregistrer en brouillon</button>
-          <button class="btn btn-primary btn-lg" type="button" (click)="generateTexts()">
+          <button
+            class="btn btn-primary btn-lg"
+            type="button"
+            [disabled]="isGenerating() || subject().trim().length < 3"
+            (click)="generateTexts()"
+          >
             <app-icon name="sparkle" size="sm" />
-            Générer les textes
+            {{ isGenerating() ? 'Génération…' : 'Générer les textes' }}
           </button>
         </div>
-
-        <p class="note">
-          Aucune image n'est produite ici : un appel par angle, chacun rendant une variante par
-          réseau.
-        </p>
       </section>
     }
 
@@ -271,13 +326,37 @@
           </p>
         </div>
 
+        @if (lastTextMeta(); as meta) {
+          <div class="gen-meta-strip">
+            <span>Modèle : <b>{{ meta.model_name || meta.model_id }}</b></span>
+            @if (meta.reasoning_effort) {
+              <span>Effort : <b>{{ meta.reasoning_effort }}</b></span>
+            }
+            @if (meta.system_prompt_label) {
+              <span>Prompt : <b>{{ meta.system_prompt_label }}</b></span>
+            }
+            <span>{{ (meta.latency_ms / 1000).toFixed(1) }} s</span>
+            <span>{{ meta.total_tokens }} tokens</span>
+            <span>Coût : <b>${{ meta.cost_usd.toFixed(5) }}</b></span>
+          </div>
+        }
+
+        @if (textError()) {
+          <p class="note note-err" role="alert">
+            <app-icon name="warn" size="sm" />
+            {{ textError() }}
+          </p>
+        }
+
         @if (isGenerating()) {
           <div class="waiting" role="status">
             <app-icon name="sparkle" size="lg" />
-            <b>Génération en cours…</b>
-            <span>Lot {{ runNumber() }} — un appel par angle</span>
+            <b>Génération OpenRouter en cours…</b>
+            <span>Lot {{ runNumber() }} — {{ targets().length }} réseau(x) × 3 angles</span>
           </div>
-        } @else {
+        }
+
+        @if (hasGeneratedTexts()) {
           @for (network of targets(); track network.code) {
             <div class="net-block">
               <div class="net-head">
@@ -300,49 +379,76 @@
               </div>
 
               <div class="prop-grid">
-                @for (proposal of proposals(); track proposal.id) {
+                @for (proposal of proposalsFor(network.code); track proposal.id) {
                   <article
                     class="prop"
-                    [class.is-on]="selectedId() === proposal.id"
-                    (click)="select(proposal)"
+                    [class.is-on]="isSelected(network.code, proposal)"
+                    (click)="select(network.code, proposal)"
                   >
                     <div class="prop-head">
-                      <span class="angle">{{ angles[$index] || proposal.angle }}</span>
-                      <span class="run">lot {{ runNumber() }}</span>
+                      <span class="angle">{{ proposal.angle }}</span>
+                      <span class="run">lot {{ proposal.run_number }}</span>
                     </div>
                     @for (paragraph of proposal.paragraphs; track $index) {
                       <p class="prop-text">{{ paragraph }}</p>
                     }
-                    <div class="tags">
-                      @for (tag of proposal.hashtags; track tag) {
-                        <span class="tag">{{ tag }}</span>
-                      }
-                      <span class="tag tag-more">+ {{ proposal.extraHashtagCount }} suggérés</span>
-                    </div>
+                    @if (proposal.hashtags.length > 0) {
+                      <div class="tags">
+                        @for (tag of proposal.hashtags; track tag) {
+                          <span class="tag">{{ tag }}</span>
+                        }
+                      </div>
+                    }
                     <div class="prop-foot">
                       <span class="len">{{ lengthOf(proposal) }} car.</span>
                       <span class="grow"></span>
-                      <button class="btn btn-sm" type="button">
+                      <button
+                        class="btn btn-sm"
+                        type="button"
+                        (click)="openEditProposal($event, network.code, proposal)"
+                      >
                         <app-icon name="pencil" size="sm" />
                         Modifier
                       </button>
-                      <button class="btn btn-sm" type="button">Copier aux autres réseaux</button>
+                      @if (targets().length > 1) {
+                        <button
+                          class="btn btn-sm"
+                          type="button"
+                          (click)="copyProposalToOtherNetworks($event, network.code, proposal)"
+                        >
+                          Copier aux autres
+                        </button>
+                      }
                     </div>
                   </article>
                 }
               </div>
             </div>
           }
+        } @else if (!isGenerating() && !textError()) {
+          <p class="note">
+            Aucune proposition générée pour le moment. Revenez à l'étape 2 ou cliquez sur « Générer les textes ».
+          </p>
         }
 
         <div class="pane-foot">
           <button class="btn btn-lg" type="button" (click)="previous()">Retour</button>
           <span class="grow"></span>
-          <button class="btn btn-lg" type="button" (click)="regenerate()">
+          <button
+            class="btn btn-lg"
+            type="button"
+            [disabled]="isGenerating()"
+            (click)="hasGeneratedTexts() ? regenerate() : generateTexts()"
+          >
             <app-icon name="sparkle" size="sm" />
-            Régénérer les textes
+            {{ hasGeneratedTexts() ? 'Régénérer les textes' : 'Générer les textes' }}
           </button>
-          <button class="btn btn-primary btn-lg" type="button" (click)="next()">
+          <button
+            class="btn btn-primary btn-lg"
+            type="button"
+            [disabled]="!hasGeneratedTexts() || isGenerating()"
+            (click)="next()"
+          >
             Continuer
             <app-icon name="arrowRight" size="sm" />
           </button>
@@ -356,12 +462,12 @@
         <div class="pane-head">
           <h2>Le visuel</h2>
           <p>
-            Choisissez une proposition générée, ou importez votre propre fichier pour l'utiliser
-            tel quel ou le retoucher par consigne.
+            Visuels générés via OpenRouter (modèle affecté à Génération d'image) et stockés dans votre Médiathèque R2,
+            ou fichier importé retouchable par conversation.
           </p>
         </div>
 
-        <!-- 1 · Rappel et modification du format choisi à l'étape 1 -->
+        <!-- 1 · Rappel et modification du format -->
         <div class="vis-box vis-box-ground">
           <div class="field-head">
             <span class="label">Format de la publication</span>
@@ -369,7 +475,6 @@
               {{ formatLabels[format()] }} · {{ currentFormatSpec().ratio }}
               ({{ currentFormatSpec().dimensions }}) · {{ formatBounds[format()].hint }}
             </span>
-            <span class="note">Défini à l'étape 1 « Forme et destination »</span>
             <span class="grow"></span>
             <button class="btn btn-sm" type="button" (click)="toggleFormatDrawer()">
               <app-icon name="pencil" size="sm" />
@@ -393,23 +498,16 @@
                   </button>
                 }
               </div>
-
               @if (!hasVisualStep()) {
                 <p class="note note-warn">
-                  <b>Attention :</b> Le format « Texte seul » ne comporte aucun média. Si vous
-                  confirmez ce format, l'étape du visuel sera ignorée au récapitulatif.
-                </p>
-              } @else {
-                <p class="note">
-                  Format actif : {{ formatLabels[format()] }} ({{ currentFormatSpec().dimensions }}).
-                  Changer de format adapte immédiatement le cadrage des visuels ci-dessous.
+                  <b>Attention :</b> Le format « Texte seul » ne comporte aucun média.
                 </p>
               }
             </div>
           }
         </div>
 
-        <!-- 2 · Médias de référence sélectionnés + ouverture de la pop-up -->
+        <!-- 2 · Médias de référence -->
         <div class="vis-box">
           <div class="field-head">
             <span class="label">Médias de référence</span>
@@ -422,11 +520,6 @@
               Choisir dans la bibliothèque
             </button>
           </div>
-
-          <p class="note">
-            Logos, portraits, ambiances ou gabarits que l'IA garde sous les yeux pour générer ou
-            retoucher le visuel.
-          </p>
 
           @if (references().length > 0) {
             <div class="ref-grid">
@@ -458,18 +551,24 @@
             </div>
           } @else {
             <div class="ref-empty">
-              Aucun média de référence sélectionné. Cliquez sur « Choisir dans la bibliothèque »
-              pour joindre un logo, un portrait ou un gabarit.
+              Aucun média de référence sélectionné. Cliquez sur « Choisir dans la bibliothèque » pour joindre un logo, un portrait ou un gabarit.
             </div>
           }
         </div>
 
-        <!-- 3 · Galerie de visuels + import de fichier + retouche par conversation -->
+        @if (visualError()) {
+          <p class="note note-err" role="alert">
+            <app-icon name="warn" size="sm" />
+            {{ visualError() }}
+          </p>
+        }
+
+        <!-- 3 · Galerie de visuels + import + retouche -->
         <div class="visual-row">
           <div class="visual-col">
             <div class="field-head">
               <span class="label">Visuels disponibles</span>
-              <span class="count">{{ versions().length }} versions</span>
+              <span class="count">{{ versions().length }} version(s)</span>
               <span class="grow"></span>
 
               <input
@@ -492,6 +591,14 @@
                 <app-icon name="warn" size="sm" />
                 {{ error }}
               </p>
+            }
+
+            @if (isGeneratingVisual()) {
+              <div class="waiting" role="status">
+                <app-icon name="sparkle" size="lg" />
+                <b>Génération du visuel en cours…</b>
+                <span>Appel OpenRouter + dépôt Cloudflare R2</span>
+              </div>
             }
 
             <div class="gallery">
@@ -524,7 +631,6 @@
                 </button>
               }
 
-              <!-- Tuile d'import direct d'un nouveau fichier -->
               <button
                 class="drop-tile"
                 type="button"
@@ -540,17 +646,20 @@
               </button>
             </div>
 
-            <!-- Bandeau de synthèse du visuel retenu -->
             @if (currentVisual(); as active) {
               <div class="active-visual-banner">
                 <span class="tag">{{ active.label }} retenu</span>
                 <span class="active-visual-text">
                   @if (active.origin === 'imported') {
-                    Fichier importé (« {{ active.fileName ?? active.label }} ») — prêt à être
-                    utilisé directement ou retouché par consigne à droite.
+                    Fichier importé (« {{ active.fileName ?? active.label }} ») — prêt à être utilisé ou retouché par IA.
                   } @else {
-                    Visuel IA ({{ active.change ?? 'initial' }}) — vous pouvez le garder ou le
-                    retoucher par consigne à droite.
+                    Visuel IA ({{ active.change ?? 'initial' }})
+                    @if (active.idMedia) {
+                      · Médiathèque #{{ active.idMedia }}
+                    }
+                    @if (active.costUsd) {
+                      · ${{ active.costUsd.toFixed(4) }}
+                    }
                   }
                 </span>
               </div>
@@ -563,15 +672,14 @@
               <span class="grow"></span>
               @if (currentVisual(); as active) {
                 <span class="tag">
-                  Cible : {{ active.label }}{{ active.origin === 'imported' ? ' (fichier importé)' : '' }}
+                  Cible : {{ active.label }}{{ active.origin === 'imported' ? ' (importé)' : '' }}
                 </span>
               }
             </div>
 
             <p class="note">
-              Que le visuel sélectionné soit <b>généré par l'IA</b> ou
-              <b>importé depuis votre poste</b>, chaque consigne produit une nouvelle version
-              enregistrée à côté de la précédente.
+              Chaque consigne appelle OpenRouter avec le visuel sélectionné (IA ou importé) et vos médias de référence,
+              puis enregistre la nouvelle version dans R2.
             </p>
 
             <div class="chat">
@@ -586,7 +694,6 @@
               }
             </div>
 
-            <!-- Suggestions rapides cliquables -->
             <div class="quick-prompts">
               @for (prompt of quickPrompts; track prompt) {
                 <button
@@ -605,11 +712,17 @@
                 type="text"
                 placeholder="Agrandis le logo et remonte la date…"
                 aria-label="Consigne de retouche"
+                [disabled]="isGeneratingVisual() || !currentVisual()"
                 [ngModel]="retouchDraft()"
                 (ngModelChange)="retouchDraft.set($event)"
                 (keydown.enter)="sendRetouch()"
               />
-              <button class="btn btn-primary btn-icon" type="button" (click)="sendRetouch()">
+              <button
+                class="btn btn-primary btn-icon"
+                type="button"
+                [disabled]="isGeneratingVisual() || !currentVisual() || !retouchDraft().trim()"
+                (click)="sendRetouch()"
+              >
                 <app-icon name="send" size="sm" />
               </button>
             </div>
@@ -619,12 +732,17 @@
         <div class="pane-foot">
           <button class="btn btn-lg" type="button" (click)="previous()">Retour</button>
           <span class="grow"></span>
-          <button class="btn btn-lg" type="button" (click)="regenerateVisuals()">
+          <button
+            class="btn btn-lg"
+            type="button"
+            [disabled]="isGeneratingVisual()"
+            (click)="regenerateVisuals()"
+          >
             <app-icon name="sparkle" size="sm" />
-            Régénérer les visuels
+            {{ versions().length === 0 ? 'Générer un visuel IA' : 'Régénérer un visuel IA' }}
           </button>
           <button class="btn btn-primary btn-lg" type="button" (click)="next()">
-            Continuer avec {{ currentVisual().label }}
+            {{ currentVisual() ? 'Continuer avec ' + currentVisual()!.label : 'Continuer sans visuel' }}
             <app-icon name="arrowRight" size="sm" />
           </button>
         </div>
@@ -636,28 +754,54 @@
       <section class="pane" aria-label="Récapitulatif et programmation">
         <div class="pane-head">
           <h2>Sur quels comptes, et quand ?</h2>
-          <p>En validant, la publication est créée et part dans le circuit d'approbation.</p>
+          <p>Vérifiez les textes retenus par réseau et le visuel final avant validation.</p>
         </div>
 
+        @if (createdConfirmation(); as conf) {
+          <p class="note note-ok" role="status">{{ conf }}</p>
+        }
+
         <div class="field">
-          <span class="label">Comptes de destination</span>
+          <span class="label">Comptes de destination & textes retenus</span>
           @for (network of targets(); track network.code) {
             <div class="target">
               <app-network-logo [network]="network.code" size="lg" />
               <span class="who">
                 <b>{{ network.label }}</b>
                 <span class="acc">{{ network.accountName }}</span>
+                @if (selectedProposalFor(network.code); as chosen) {
+                  <span class="recap-excerpt">{{ chosen.paragraphs[0] }}</span>
+                }
               </span>
               <span class="grow"></span>
               <span class="status status-review">Prêt</span>
-              <button class="btn btn-sm" type="button">Modifier le texte</button>
+              <button
+                class="btn btn-sm"
+                type="button"
+                [disabled]="!selectedProposalFor(network.code)"
+                (click)="openEditForNetwork(network.code)"
+              >
+                Modifier le texte
+              </button>
             </div>
           }
-          <p class="note">
-            Un réseau peut porter plusieurs comptes : ils reçoivent le même texte, puisque la
-            variante est calibrée pour le réseau.
-          </p>
         </div>
+
+        @if (hasVisualStep() && currentVisual(); as activeVis) {
+          <div class="field">
+            <span class="label">Visuel retenu</span>
+            <div class="recap-visual">
+              <img [src]="activeVis.visual.source" [alt]="activeVis.visual.alt" />
+              <div>
+                <b>{{ activeVis.label }}</b> · {{ formatLabels[format()] }} ({{ activeVis.visual.dimensions }})
+                <p class="note">{{ activeVis.change ?? 'Visuel généré' }}</p>
+                @if (activeVis.idMedia) {
+                  <span class="tag">Médiathèque R2 #{{ activeVis.idMedia }}</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
 
         <div class="field">
           <span class="label">Quand</span>
@@ -696,16 +840,14 @@
                 [ngModel]="scheduledTime()"
                 (ngModelChange)="scheduledTime.set($event)"
               />
-              <button class="btn" type="button">Personnaliser par compte</button>
             </div>
           }
-          <p class="note">La date appartient à la publication, pas à la génération.</p>
         </div>
 
         <div class="pane-foot">
           <button class="btn btn-lg" type="button" (click)="previous()">Retour</button>
           <span class="grow"></span>
-          <button class="btn btn-primary btn-lg" type="button">
+          <button class="btn btn-primary btn-lg" type="button" (click)="finalizePublication()">
             <app-icon name="check" size="sm" />
             Créer la publication
           </button>
@@ -758,10 +900,6 @@
       </div>
     </div>
 
-    <p class="note sheet-note">
-      La recherche porte sur le nom du fichier et sur la description enregistrée avec chaque média.
-    </p>
-
     <div class="sheet-grid">
       @for (entry of libraryResults(); track entry.idMediaReferences) {
         <button
@@ -802,6 +940,59 @@
       <button class="btn btn-lg" type="button" (click)="closeLibrary()">Annuler</button>
       <button class="btn btn-primary btn-lg" type="button" (click)="confirmLibrary()">
         Valider la sélection
+      </button>
+    </footer>
+  </div>
+}
+
+<!-- ---------- modale d'édition d'une proposition de texte ---------- -->
+
+@if (editingProposal(); as ed) {
+  <div class="backdrop" (click)="editingProposal.set(null)"></div>
+  <div class="sheet sheet-sm" role="dialog" aria-modal="true" aria-label="Modifier la proposition">
+    <header class="sheet-head">
+      <div>
+        <h2>Modifier la proposition ({{ ed.angle }})</h2>
+        <p>Séparez les paragraphes par une ligne vide.</p>
+      </div>
+      <button class="btn btn-icon" type="button" aria-label="Fermer" (click)="editingProposal.set(null)">
+        <app-icon name="close" size="sm" />
+      </button>
+    </header>
+
+    <div class="sheet-edit-body">
+      <div class="field">
+        <label for="edit-body">Légende</label>
+        <textarea
+          id="edit-body"
+          class="textarea"
+          rows="8"
+          [ngModel]="editBodyDraft()"
+          (ngModelChange)="editBodyDraft.set($event)"
+        ></textarea>
+      </div>
+      <div class="field">
+        <label for="edit-tags">Hashtags (séparés par des espaces)</label>
+        <input
+          id="edit-tags"
+          class="input"
+          type="text"
+          [ngModel]="editTagsDraft()"
+          (ngModelChange)="editTagsDraft.set($event)"
+        />
+      </div>
+    </div>
+
+    <footer class="sheet-foot">
+      <span class="grow"></span>
+      <button class="btn" type="button" (click)="editingProposal.set(null)">Annuler</button>
+      <button
+        class="btn btn-primary"
+        type="button"
+        [disabled]="!editBodyDraft().trim()"
+        (click)="saveEditProposal()"
+      >
+        Enregistrer
       </button>
     </footer>
   </div>
