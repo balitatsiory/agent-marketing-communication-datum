@@ -109,8 +109,11 @@ class TestSchema:
         assert set(resultat.scalars().all()) == {"email_accounts"}
 
     async def test_le_droit_du_module_est_seme(self, session: AsyncSession) -> None:
+        # La borne est celle de CE droit : le module Newsletter en sème d'autres
+        # dans la même dizaine, et les lui compter ferait échouer ce test sans
+        # que la migration 0009 ait changé.
         resultat = await session.execute(
-            text("SELECT code FROM permissions WHERE sort_order BETWEEN 700 AND 799")
+            text("SELECT code FROM permissions WHERE sort_order = 700")
         )
         assert resultat.scalars().all() == ["manage_email_accounts"]
 

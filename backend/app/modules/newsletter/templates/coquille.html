@@ -1,0 +1,129 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="fr" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="color-scheme" content="light dark" />
+<meta name="supported-color-schemes" content="light dark" />
+<title>{{objet}}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style type="text/css">
+  body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+  table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
+  img{-ms-interpolation-mode:bicubic;border:0;height:auto;line-height:100%;outline:none;text-decoration:none;}
+  body{margin:0 !important;padding:0 !important;width:100% !important;}
+  /* le decor ne disparait qu'en dessous de 560px : l'email fait 600px,
+     un point de rupture a 620px le masquerait sur desktop aussi */
+  @media screen and (max-width:560px){ .deco{display:none !important;} }
+  @media screen and (max-width:620px){
+    .container{width:100% !important;max-width:100% !important;}
+    .px{padding-left:20px !important;padding-right:20px !important;}
+    .h-title{font-size:20px !important;line-height:28px !important;}
+    .stack{display:block !important;width:100% !important;text-align:left !important;}
+    .btn a{display:block !important;}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#E9F0F3;">
+
+<!-- Preheader : texte d'apercu dans la boite de reception -->
+<div style="display:none;font-size:1px;color:#E9F0F3;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  {{preheader}}
+  &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background-color:#E9F0F3;">
+<tr><td align="center" style="padding:0;">
+
+  <!-- ================= BANNIERE ================= -->
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="container" style="width:600px;max-width:600px;border-collapse:collapse;">
+    <tr>
+      <td align="center" bgcolor="#0A4D64"
+          style="background-color:#0A4D64;background-image:linear-gradient(-30deg,#083C4E 0%,#073C4E 55%,#167FA4 100%);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+          <tr>
+            <td valign="middle" class="px imgcell" style="padding:30px 0 30px 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+              <img src="https://pub-ac15acddb7da4b94ba195fb758244e27.r2.dev/emails_elements/logo-datum-blanc-3x.png" width="148" height="59" alt="Datum Academy"
+                   style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
+              <div style="margin-top:14px;font-size:12px;line-height:18px;color:#D0E5ED;letter-spacing:0.03em;">
+                {{baseline}}
+              </div>
+            </td>
+            <!-- bloc decoratif : masque sous 560px par la regle .deco du <head> -->
+            <td class="deco imgcell" width="250" align="right" valign="top"
+                style="width:250px;font-size:0;line-height:0;mso-line-height-rule:exactly;">
+              <img src="https://pub-ac15acddb7da4b94ba195fb758244e27.r2.dev/emails_elements/reseau-particules-3x.png" width="250" height="148" alt=""
+                   style="display:block;border:0;outline:none;text-decoration:none;" />
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- ================= CORPS ================= -->
+    <tr>
+      <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+{{contenu}}
+        </table>
+      </td>
+    </tr>
+
+    <!-- ================= SIGNATURE ================= -->
+    <tr>
+      <td bgcolor="#E9F0F3" style="background-color:#E9F0F3;border-top:1px solid #D0E5ED;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+          <tr>
+            <td class="px" style="padding:26px 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+              <div style="font-size:15px;line-height:22px;font-weight:600;color:#073C4E;">{{equipe}}</div>
+              <div style="font-size:13px;line-height:21px;color:#53646D;margin-top:3px;">Datum Academy</div>
+              <div style="font-size:12.5px;line-height:20px;color:#53646D;margin-top:10px;">
+                <a href="mailto:contact@datum.academy" style="color:#167FA4;text-decoration:none;">contact@datum.academy</a><br />
+                {{adresse_postale}}
+              </div>
+              <div style="font-size:12.5px;line-height:20px;margin-top:12px;">
+                <a href="https://www.linkedin.com/company/datumacademy" style="color:#167FA4;text-decoration:none;">LinkedIn</a>
+                <span style="color:#B3C6CD;">&nbsp;&middot;&nbsp;</span>
+                <a href="https://www.facebook.com/datumacademyfr" style="color:#167FA4;text-decoration:none;">Facebook</a>
+                <span style="color:#B3C6CD;">&nbsp;&middot;&nbsp;</span>
+                <a href="https://www.youtube.com/channel/UCR7iBabwpEdjy8Mll9BSNaQ" style="color:#167FA4;text-decoration:none;">YouTube</a>
+                <span style="color:#B3C6CD;">&nbsp;&middot;&nbsp;</span>
+                <a href="https://datumacademy.com/fr" style="color:#167FA4;text-decoration:none;">datumacademy.com</a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- PIED LEGAL : a decommenter des que l'email n'est plus transactionnel
+          <tr>
+            <td class="px" style="padding:0 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+                <tr><td height="1" bgcolor="#D0E5ED" style="background-color:#D0E5ED;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="px" style="padding:16px 32px 24px 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:11.5px;line-height:18px;color:#7A8A92;">
+              Vous recevez ce message parce que vous vous etes inscrit a un evenement Datum Academy.<br />
+              <a href="{{lien_desinscription}}" style="color:#167FA4;text-decoration:underline;">Se desabonner</a>
+            </td>
+          </tr>
+          -->
+
+        </table>
+      </td>
+    </tr>
+
+  </table>
+
+  <!-- marge basse -->
+  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="container" style="width:600px;max-width:600px;border-collapse:collapse;">
+    <tr><td height="28" style="height:28px;font-size:0;line-height:0;">&nbsp;</td></tr>
+  </table>
+
+</td></tr>
+</table>
+</body>
+</html>

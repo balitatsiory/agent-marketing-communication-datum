@@ -165,6 +165,57 @@ async def send_message(cible: SmtpTarget, message: EmailMessage) -> SmtpResult:
         await _fermer(session)
 
 
+async def send_messages(cible: SmtpTarget, messages: list[EmailMessage]) -> list[SmtpResult]:
+    """Envoie un lot de messages sur UNE SEULE connexion.
+
+    Un envoi de cent destinataires ouvrirait cent sessions TLS s'il passait par
+    `send_message` : la poignée de main coûte plus cher que le message. On
+    ouvre donc une fois, on envoie tout, on referme.
+
+    Le résultat est rendu message par message, dans l'ordre reçu : un
+    destinataire refusé n'interrompt pas les suivants, et chacun garde le motif
+    que le serveur lui a opposé.
+    """
+    depart = time.monotonic()
+    session = _nouvelle_session(cible)
+    try:
+        await session.connect()
+    except Exception as erreur:
+        # La connexion n'a pas abouti : aucun message n'est parti, et le même
+        # compte rendu vaut pour tous.
+        logger.info("Connexion SMTP échouée sur %s:%s", cible.host, cible.port)
+        compte_rendu = _compte_rendu_de_lerreur(erreur, cible)
+        duree = _millisecondes_depuis(depart)
+        await _fermer(session)
+        return [SmtpResult(ok=False, message=compte_rendu, latency_ms=duree) for _ in messages]
+
+    resultats: list[SmtpResult] = []
+    try:
+        for message in messages:
+            un_depart = time.monotonic()
+            try:
+                await session.send_message(message)
+            except Exception as erreur:
+                resultats.append(
+                    SmtpResult(
+                        ok=False,
+                        message=_compte_rendu_de_lerreur(erreur, cible),
+                        latency_ms=_millisecondes_depuis(un_depart),
+                    )
+                )
+            else:
+                resultats.append(
+                    SmtpResult(
+                        ok=True,
+                        message="Le serveur a accepté le message.",
+                        latency_ms=_millisecondes_depuis(un_depart),
+                    )
+                )
+    finally:
+        await _fermer(session)
+    return resultats
+
+
 async def _fermer(session: aiosmtplib.SMTP) -> None:
     """Referme la session sans jamais faire échouer l'opération appelante.
 

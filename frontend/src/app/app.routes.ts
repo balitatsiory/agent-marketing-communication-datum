@@ -141,8 +141,8 @@ export const routes: Routes = [
 
 
       {
-        path: 'newsletter/envois',
-        title: "Boîte d'envois · IAGORA",
+        path: 'newsletter/envois_prototype',
+        title: "Boîte d'envois (prototype) · IAGORA",
         loadComponent: () =>
           import('./features/newsletter/send-log/send-log').then((m) => m.SendLog),
       },
