@@ -148,7 +148,7 @@
         </div>
       </div>
 
-      <!-- Champs Ton + Options spécifiques (Image) + JSON type sortie -->
+      <!-- Champs Ton + Limite de tokens + Options spécifiques (Image) + JSON type sortie -->
       <div class="options-grid">
         <div class="field">
           <label for="sbx-tone-select">Ton / Style éditorial</label>
@@ -172,53 +172,44 @@
           />
         </div>
 
-        @if (selectedUseCase() === 'image_generation') {
-          <div class="field">
-            <label for="sbx-img-mode">Mode visuel &amp; format</label>
-            <div class="inline-row">
-              <select
-                id="sbx-img-mode"
-                class="select"
-                [ngModel]="imageMode()"
-                (ngModelChange)="imageMode.set($event)"
+        <!-- Limite de tokens max (sortie) -->
+        <div class="field">
+          <div class="field-head">
+            <label for="sbx-max-tokens">Limite de tokens max (sortie)</label>
+            <code class="role-tag">max_tokens</code>
+          </div>
+          <input
+            id="sbx-max-tokens"
+            type="number"
+            min="1"
+            max="128000"
+            step="64"
+            class="input num"
+            [value]="maxTokensLimit() ?? ''"
+            (input)="onMaxTokensInput($any($event.target).value)"
+            placeholder="Illimité (par défaut du modèle)"
+          />
+          <div class="preset-chips">
+            <button
+              type="button"
+              class="chip chip-xs"
+              [class.is-on]="maxTokensLimit() === null"
+              (click)="maxTokensLimit.set(null)"
+            >
+              Illimité
+            </button>
+            @for (preset of maxTokenPresets; track preset) {
+              <button
+                type="button"
+                class="chip chip-xs num"
+                [class.is-on]="maxTokensLimit() === preset"
+                (click)="maxTokensLimit.set(preset)"
               >
-                <option value="create">Création d'image</option>
-                <option value="edit">Modification d'image existante</option>
-              </select>
-              <select
-                class="select"
-                aria-label="Ratio de l'image"
-                [ngModel]="imageAspectRatio()"
-                (ngModelChange)="imageAspectRatio.set($event)"
-              >
-                @for (r of aspectRatios; track r.value) {
-                  <option [value]="r.value">{{ r.label }}</option>
-                }
-              </select>
-            </div>
-
-            @if (imageMode() === 'edit') {
-              <div class="ref-img-box">
-                <input
-                  type="url"
-                  class="input input-sm"
-                  [ngModel]="referenceImageUrl()"
-                  (ngModelChange)="referenceImageUrl.set($event)"
-                  placeholder="URL de l'image de référence (ou importer un fichier ci-dessous)"
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="file-input"
-                  (change)="onReferenceImageSelected($event)"
-                />
-                @if (referenceImageUrl()) {
-                  <img [src]="referenceImageUrl()" alt="Image de référence" class="ref-thumb" />
-                }
-              </div>
+                {{ preset }}
+              </button>
             }
           </div>
-        }
+        </div>
 
         <div class="field">
           <div class="field-head">
@@ -243,6 +234,90 @@
           ></textarea>
         </div>
       </div>
+
+      <!-- Bloc dédié Génération / Modification d'image + Médias de référence IAGORA -->
+      @if (selectedUseCase() === 'image_generation') {
+        <div class="image-config-block">
+          <div class="inline-row">
+            <div class="field">
+              <label for="sbx-img-mode">Mode visuel</label>
+              <select
+                id="sbx-img-mode"
+                class="select"
+                [ngModel]="imageMode()"
+                (ngModelChange)="imageMode.set($event)"
+              >
+                <option value="create">Création d'image (avec ou sans références)</option>
+                <option value="edit">Modification d'image existante</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sbx-img-ratio">Format / Ratio</label>
+              <select
+                id="sbx-img-ratio"
+                class="select"
+                [ngModel]="imageAspectRatio()"
+                (ngModelChange)="imageAspectRatio.set($event)"
+              >
+                @for (r of aspectRatios; track r.value) {
+                  <option [value]="r.value">{{ r.label }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <!-- Sélecteur de Médias de référence IAGORA -->
+          <div class="field">
+            <div class="field-head">
+              <label>Médias de référence IAGORA ({{ selectedReferenceIds().length }} sélectionné(s))</label>
+              <span class="kind-pill kind-std">Images générées archivées dans R2 /bac-a-sable/</span>
+            </div>
+            @if (referenceMediaOptions().length > 0) {
+              <div class="ref-media-grid">
+                @for (ref of referenceMediaOptions(); track ref.idReference) {
+                  <button
+                    type="button"
+                    class="ref-media-card"
+                    [class.is-selected]="isReferenceSelected(ref.idReference)"
+                    (click)="toggleReferenceMedia(ref.idReference)"
+                  >
+                    <img [src]="ref.url" [alt]="ref.label" class="ref-media-thumb" />
+                    <div class="ref-media-info">
+                      <b>{{ ref.label }}</b>
+                      <span class="text-muted">{{ ref.natureCode }}</span>
+                    </div>
+                    @if (isReferenceSelected(ref.idReference)) {
+                      <span class="ref-check"><app-icon name="check" size="sm" /></span>
+                    }
+                  </button>
+                }
+              </div>
+            } @else {
+              <p class="sub">Aucun média de référence image actif disponible dans votre médiathèque.</p>
+            }
+          </div>
+
+          <!-- Import manuel / URL complémentaire -->
+          <div class="ref-img-box">
+            <input
+              type="url"
+              class="input input-sm"
+              [ngModel]="referenceImageUrl()"
+              (ngModelChange)="referenceImageUrl.set($event)"
+              placeholder="Ou coller l'URL d'une image de référence supplémentaire…"
+            />
+            <input
+              type="file"
+              accept="image/*"
+              class="file-input"
+              (change)="onReferenceImageSelected($event)"
+            />
+            @if (referenceImageUrl()) {
+              <img [src]="referenceImageUrl()" alt="Image de référence" class="ref-thumb" />
+            }
+          </div>
+        </div>
+      }
 
       @if (selectedUseCase() === 'message_rag') {
         <div class="kb-block">
@@ -318,16 +393,27 @@
             <div class="variant-head">
               <div class="vh-top">
                 <span class="slot-badge">Modèle {{ slot.slotId }}</span>
-                @if (variants().length > 2) {
+                <div class="vh-actions">
                   <button
                     type="button"
-                    class="btn-icon-remove"
-                    title="Retirer ce bloc"
-                    (click)="removeVariantSlot(slot.slotId)"
+                    class="btn-mini"
+                    title="Agrandir cette carte en pop-up"
+                    (click)="expandedSlotId.set(slot.slotId)"
                   >
-                    <app-icon name="close" size="sm" />
+                    <app-icon name="external" size="sm" />
+                    Agrandir
                   </button>
-                }
+                  @if (variants().length > 2) {
+                    <button
+                      type="button"
+                      class="btn-icon-remove"
+                      title="Retirer ce bloc"
+                      (click)="removeVariantSlot(slot.slotId)"
+                    >
+                      <app-icon name="close" size="sm" />
+                    </button>
+                  }
+                </div>
               </div>
 
               <!-- Select dropdown avec barre de recherche (Activés + 5 suggestions non activées) -->
@@ -486,19 +572,37 @@
                   </div>
                 } @else {
                   <div class="res-header">
-                    <span class="res-title">
-                      {{ slot.showRawJson ? 'JSON usage OpenRouter' : 'Résultat généré' }}
-                    </span>
-                    <button
-                      type="button"
-                      class="btn-mini num"
-                      (click)="updateVariant(slot.slotId, { showRawJson: !slot.showRawJson })"
-                    >
-                      {{ slot.showRawJson ? 'Vue lisible' : '{ } JSON usage' }}
-                    </button>
+                    <div class="res-tabs">
+                      <button
+                        type="button"
+                        class="btn-mini"
+                        [class.is-active]="slot.viewMode === 'rendered'"
+                        (click)="updateVariant(slot.slotId, { viewMode: 'rendered' })"
+                      >
+                        Rendu
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-mini num"
+                        [class.is-active]="slot.viewMode === 'response_json'"
+                        (click)="updateVariant(slot.slotId, { viewMode: 'response_json' })"
+                      >
+                        {{ '{ }' }} JSON retourné
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-mini num"
+                        [class.is-active]="slot.viewMode === 'usage_json'"
+                        (click)="updateVariant(slot.slotId, { viewMode: 'usage_json' })"
+                      >
+                        Usage
+                      </button>
+                    </div>
                   </div>
 
-                  @if (slot.showRawJson) {
+                  @if (slot.viewMode === 'response_json') {
+                    <pre class="json-pre">{{ formatJson(res.raw_response_json ?? res.raw_usage_json) }}</pre>
+                  } @else if (slot.viewMode === 'usage_json') {
                     <pre class="json-pre">{{ formatJson(res.raw_usage_json) }}</pre>
                   } @else {
                     @if (res.images.length > 0) {
@@ -507,6 +611,11 @@
                           <a [href]="img" target="_blank" rel="noopener" class="gen-img-link">
                             <img [src]="img" alt="Visuel généré par le modèle" class="gen-img" />
                           </a>
+                        }
+                        @if (res.stored_image_keys?.length) {
+                          <span class="mini-tag tag-active">
+                            Archivé R2 : {{ res.stored_image_keys![0] }}
+                          </span>
                         }
                       </div>
                     }
@@ -685,10 +794,10 @@
             type="search"
             placeholder="Rechercher un prompt, un modèle, un auteur…"
             [value]="historySearch()"
-            (input)="historySearch.set($any($event.target).value)"
+            (input)="historySearch.set($any($event.target).value); historyPage.set(1)"
           />
           @if (historySearch()) {
-            <button type="button" class="ss-clear-btn" (click)="historySearch.set('')" aria-label="Effacer">
+            <button type="button" class="ss-clear-btn" (click)="historySearch.set(''); historyPage.set(1)" aria-label="Effacer">
               <app-icon name="close" size="sm" />
             </button>
           }
@@ -699,7 +808,7 @@
             type="button"
             class="chip"
             [class.is-on]="historyUseCaseFilter() === 'all'"
-            (click)="historyUseCaseFilter.set('all')"
+            (click)="historyUseCaseFilter.set('all'); historyPage.set(1)"
           >
             Tous ({{ historyRuns().length }})
           </button>
@@ -708,7 +817,7 @@
               type="button"
               class="chip"
               [class.is-on]="historyUseCaseFilter() === uc.code"
-              (click)="historyUseCaseFilter.set(uc.code)"
+              (click)="historyUseCaseFilter.set(uc.code); historyPage.set(1)"
             >
               {{ uc.shortTitle }}
             </button>
@@ -716,116 +825,308 @@
         </div>
       </div>
 
-      @if (loadingHistory() && historyRuns().length === 0) {
-        <div class="history-list" aria-busy="true">
-          @for (i of [1, 2, 3]; track i) {
-            <div class="panel history-card">
-              <span class="skel skel-sm" style="width: 35%"></span>
-              <span class="skel skel-sm" style="width: 85%"></span>
-              <span class="skel skel-md" style="width: 100%"></span>
-            </div>
-          }
-        </div>
-      } @else {
-        <div class="history-list">
-          @for (run of filteredHistoryRuns(); track run.id_ai_sandbox_runs) {
-            <article class="panel history-card">
-              <div class="hc-top">
-                <div class="hc-meta">
-                  <span class="slot-badge">#{{ run.id_ai_sandbox_runs }}</span>
-                  <span class="kind-pill kind-std">{{ useCaseLabel(run.use_case) }}</span>
-                  <span class="mini-tag" [class.tag-active]="run.key_source === 'sandbox'" [class.tag-suggest]="run.key_source !== 'sandbox'">
-                    Clé {{ run.key_source === 'sandbox' ? 'Sandbox' : 'Standard' }}
-                  </span>
-                  <span class="num text-muted">{{ formatDate(run.created_at) }}</span>
-                  @if (run.created_by_name) {
-                    <span class="text-muted">· par {{ run.created_by_name }}</span>
-                  }
-                </div>
-                <div class="hc-cost num">
-                  Coût total : <b>{{ formatCost6(run.total_batch_cost_usd) }}</b>
-                </div>
-              </div>
-
-              <p class="hc-prompt">{{ run.user_prompt }}</p>
-
-              <div class="hc-models-strip">
-                @for (res of run.results; track res.slot_id) {
-                  <div class="hc-model-chip" [class.is-err]="!res.ok">
-                    <b>{{ res.slot_id }} · {{ res.model_id }}</b>
-                    <span class="num">
-                      effort: {{ res.reasoning_effort || 'défaut' }} ·
-                      {{ res.ok ? formatCost6(res.cost_usd) + ' · ' + res.latency_ms + ' ms' : 'Erreur' }}
-                    </span>
-                  </div>
+      <div class="panel">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleHistorySort('created_at')">
+                    # / Date <span class="sort-arrow">{{ historySortIcon('created_at') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleHistorySort('use_case')">
+                    Cas d'utilisation <span class="sort-arrow">{{ historySortIcon('use_case') }}</span>
+                  </button>
+                </th>
+                <th>Prompt</th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleHistorySort('models')">
+                    Modèles <span class="sort-arrow">{{ historySortIcon('models') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleHistorySort('author')">
+                    Auteur <span class="sort-arrow">{{ historySortIcon('author') }}</span>
+                  </button>
+                </th>
+                <th class="num">
+                  <button type="button" class="sort-th" (click)="toggleHistorySort('cost')">
+                    Coût réel <span class="sort-arrow">{{ historySortIcon('cost') }}</span>
+                  </button>
+                </th>
+                <th class="num">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (loadingHistory() && historyRuns().length === 0) {
+                @for (i of [1, 2, 3, 4, 5]; track i) {
+                  <tr aria-busy="true">
+                    <td><span class="skel skel-sm" style="width: 90px"></span></td>
+                    <td><span class="skel skel-sm" style="width: 110px"></span></td>
+                    <td><span class="skel skel-sm" style="width: 85%"></span></td>
+                    <td><span class="skel skel-sm" style="width: 120px"></span></td>
+                    <td><span class="skel skel-sm" style="width: 80px"></span></td>
+                    <td><span class="skel skel-sm" style="width: 70px"></span></td>
+                    <td><span class="skel skel-sm" style="width: 110px"></span></td>
+                  </tr>
                 }
-              </div>
-
-              <div class="hc-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  (click)="expandedHistoryRunId.set(expandedHistoryRunId() === run.id_ai_sandbox_runs ? null : run.id_ai_sandbox_runs)"
-                >
-                  {{ expandedHistoryRunId() === run.id_ai_sandbox_runs ? 'Masquer les résultats' : 'Voir les résultats' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-primary"
-                  (click)="reloadRunIntoSandbox(run)"
-                >
-                  <app-icon name="sparkle" size="sm" />
-                  Recharger dans le Bac à sable
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-danger"
-                  (click)="deleteHistoryRun(run)"
-                >
-                  Supprimer
-                </button>
-              </div>
-
-              @if (expandedHistoryRunId() === run.id_ai_sandbox_runs) {
-                <div class="hc-expanded">
-                  @for (res of run.results; track res.slot_id) {
-                    <div class="hc-result-col">
-                      <div class="hc-res-head">
-                        <b>Modèle {{ res.slot_id }} — {{ res.model_id }}</b>
-                        <span class="num">{{ formatCost6(res.cost_usd) }} · {{ res.total_tokens.toLocaleString('fr-FR') }} tok.</span>
+              } @else {
+                @for (run of paginatedHistoryRuns(); track run.id_ai_sandbox_runs) {
+                  <tr>
+                    <td class="num">
+                      <b>#{{ run.id_ai_sandbox_runs }}</b>
+                      <div class="text-muted">{{ formatDate(run.created_at) }}</div>
+                    </td>
+                    <td>
+                      <span class="kind-pill kind-std">{{ useCaseLabel(run.use_case) }}</span>
+                      <div style="margin-top: 4px">
+                        <span class="mini-tag" [class.tag-active]="run.key_source === 'sandbox'" [class.tag-suggest]="run.key_source !== 'sandbox'">
+                          {{ run.key_source === 'sandbox' ? 'Sandbox' : 'Standard' }}
+                        </span>
                       </div>
-                      @if (!res.ok) {
-                        <p class="notice notice-error">{{ res.error }}</p>
-                      } @else {
-                        @if (res.images.length > 0) {
-                          <div class="generated-images">
-                            @for (img of res.images; track img) {
-                              <img [src]="img" alt="Visuel généré" class="gen-img" />
-                            }
-                          </div>
+                    </td>
+                    <td>
+                      <div class="hc-prompt-clamp">{{ run.user_prompt }}</div>
+                    </td>
+                    <td>
+                      <div class="hc-models-mini">
+                        @for (res of run.results; track res.slot_id) {
+                          <span class="mini-tag" [class.tag-active]="res.ok" [class.tag-err]="!res.ok">
+                            {{ res.slot_id }}: {{ res.model_id.split('/').pop() }}
+                          </span>
                         }
-                        @if (res.text) {
-                          <div class="result-text">{{ res.text }}</div>
-                        }
-                      }
-                    </div>
+                      </div>
+                    </td>
+                    <td>{{ run.created_by_name || '—' }}</td>
+                    <td class="num"><b>{{ formatCost6(run.total_batch_cost_usd) }}</b></td>
+                    <td class="num">
+                      <div class="hc-actions-inline">
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          (click)="expandedHistoryRunId.set(expandedHistoryRunId() === run.id_ai_sandbox_runs ? null : run.id_ai_sandbox_runs)"
+                        >
+                          {{ expandedHistoryRunId() === run.id_ai_sandbox_runs ? 'Masquer' : 'Voir' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary"
+                          (click)="reloadRunIntoSandbox(run)"
+                        >
+                          Recharger
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-danger"
+                          (click)="deleteHistoryRun(run)"
+                        >
+                          Suppr.
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  @if (expandedHistoryRunId() === run.id_ai_sandbox_runs) {
+                    <tr>
+                      <td colspan="7" class="expanded-cell">
+                        <div class="hc-expanded">
+                          @for (res of run.results; track res.slot_id) {
+                            <div class="hc-result-col">
+                              <div class="hc-res-head">
+                                <b>Modèle {{ res.slot_id }} — {{ res.model_id }}</b>
+                                <span class="num">{{ formatCost6(res.cost_usd) }} · {{ res.total_tokens.toLocaleString('fr-FR') }} tok. · {{ res.latency_ms }} ms</span>
+                              </div>
+                              @if (!res.ok) {
+                                <p class="notice notice-error">{{ res.error }}</p>
+                              } @else {
+                                @if (res.images.length > 0) {
+                                  <div class="generated-images">
+                                    @for (img of res.images; track img) {
+                                      <a [href]="img" target="_blank" rel="noopener">
+                                        <img [src]="img" alt="Visuel généré" class="gen-img" />
+                                      </a>
+                                    }
+                                  </div>
+                                }
+                                @if (res.text) {
+                                  <div class="result-text">{{ res.text }}</div>
+                                }
+                              }
+                            </div>
+                          }
+                        </div>
+                      </td>
+                    </tr>
                   }
-                </div>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="empty-cell">
+                      Aucune exécution trouvée dans l'historique du Bac à sable.
+                    </td>
+                  </tr>
+                }
               }
-            </article>
-          } @empty {
-            <div class="panel empty-history">
-              <p>Aucune exécution dans l'historique du Bac à sable pour le moment.</p>
-              <button type="button" class="btn btn-primary btn-sm" (click)="setTab('sandbox')">
-                Lancer une première comparaison
-              </button>
-            </div>
-          }
+            </tbody>
+          </table>
         </div>
-      }
+
+        <!-- Pagination Historique -->
+        <div class="pagination-bar">
+          <div class="pg-info num">
+            {{ filteredHistoryRuns().length }} exécution(s) · Page {{ historyPage() }} / {{ historyTotalPages() }}
+          </div>
+          <div class="pg-controls">
+            <select
+              class="select pg-size-select"
+              aria-label="Lignes par page"
+              [ngModel]="historyPageSize()"
+              (ngModelChange)="historyPageSize.set(+$event); historyPage.set(1)"
+            >
+              <option [value]="10">10 / page</option>
+              <option [value]="25">25 / page</option>
+              <option [value]="50">50 / page</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [disabled]="historyPage() <= 1"
+              (click)="historyPage.set(historyPage() - 1)"
+            >
+              Précédent
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [disabled]="historyPage() >= historyTotalPages()"
+              (click)="historyPage.set(historyPage() + 1)"
+            >
+              Suivant
+            </button>
+          </div>
+        </div>
+      </div>
     </section>
   }
 </div>
+
+<!-- Pop-up agrandi d'une carte Modèle (class="panel variant-card") -->
+@if (expandedSlot(); as slot) {
+  <div class="modal-backdrop" (click)="expandedSlotId.set(null)">
+    <div class="panel variant-card modal-variant-expanded" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <div class="vh-top" style="gap: 8px; justify-content: flex-start;">
+            <span class="slot-badge">Modèle {{ slot.slotId }}</span>
+            <b class="num">{{ slot.modelId }}</b>
+            <span class="mini-tag tag-suggest">effort : {{ slot.reasoningEffort || 'défaut' }}</span>
+            <span class="mini-tag tag-suggest">temp : {{ slot.temperature }}</span>
+          </div>
+          <p class="sub">Vue agrandie du résultat, du JSON retourné par OpenRouter et de la télémétrie complète.</p>
+        </div>
+        <button type="button" class="btn btn-sm" (click)="expandedSlotId.set(null)">
+          <app-icon name="close" size="sm" />
+          Fermer
+        </button>
+      </div>
+
+      <div class="modal-body modal-body-scroll">
+        @if (slot.result; as res) {
+          @if (!res.ok) {
+            <p class="notice notice-error">{{ res.error }}</p>
+          } @else {
+            <div class="res-header">
+              <div class="res-tabs">
+                <button
+                  type="button"
+                  class="btn-mini"
+                  [class.is-active]="slot.viewMode === 'rendered'"
+                  (click)="updateVariant(slot.slotId, { viewMode: 'rendered' })"
+                >
+                  Rendu lisible
+                </button>
+                <button
+                  type="button"
+                  class="btn-mini num"
+                  [class.is-active]="slot.viewMode === 'response_json'"
+                  (click)="updateVariant(slot.slotId, { viewMode: 'response_json' })"
+                >
+                  {{ '{ }' }} JSON retourné
+                </button>
+                <button
+                  type="button"
+                  class="btn-mini num"
+                  [class.is-active]="slot.viewMode === 'usage_json'"
+                  (click)="updateVariant(slot.slotId, { viewMode: 'usage_json' })"
+                >
+                  JSON usage
+                </button>
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm"
+                (click)="copyText(slot.viewMode === 'rendered' ? res.text : formatJson(slot.viewMode === 'response_json' ? (res.raw_response_json ?? res.raw_usage_json) : res.raw_usage_json), slot.viewMode === 'rendered' ? 'Texte' : 'JSON')"
+              >
+                Copier
+              </button>
+            </div>
+
+            @if (slot.viewMode === 'response_json') {
+              <pre class="json-pre json-pre-lg">{{ formatJson(res.raw_response_json ?? res.raw_usage_json) }}</pre>
+            } @else if (slot.viewMode === 'usage_json') {
+              <pre class="json-pre json-pre-lg">{{ formatJson(res.raw_usage_json) }}</pre>
+            } @else {
+              @if (res.images.length > 0) {
+                <div class="generated-images">
+                  @for (img of res.images; track img) {
+                    <a [href]="img" target="_blank" rel="noopener">
+                      <img [src]="img" alt="Visuel généré" class="gen-img gen-img-lg" />
+                    </a>
+                  }
+                </div>
+              }
+              @if (res.text) {
+                <div class="result-text result-text-lg" [class.is-json]="jsonOutputEnabled()">{{ res.text }}</div>
+              }
+              @if (res.reasoning_trace) {
+                <details class="trace-box" open>
+                  <summary>Trace de raisonnement interne ({{ res.reasoning_tokens.toLocaleString('fr-FR') }} tokens)</summary>
+                  <pre class="trace-pre">{{ res.reasoning_trace }}</pre>
+                </details>
+              }
+            }
+
+            <div class="cost-cards">
+              <div class="cost-box">
+                <span class="cb-label">Coût réel (usage.cost)</span>
+                <b class="cb-val num">{{ formatCost6(res.cost_usd) }}</b>
+              </div>
+              <div class="cost-box cost-box-accent">
+                <span class="cb-label">Proj. 5 000 req / mois</span>
+                <b class="cb-val num">{{ formatCost2(res.projected_monthly_5k_usd) }}<span>/mois</span></b>
+              </div>
+            </div>
+
+            <div class="metrics-list num">
+              <div class="ml-row">
+                <span>prompt_tokens / completion_tokens / reasoning_tokens</span>
+                <b>{{ res.prompt_tokens }} / {{ res.completion_tokens }} / {{ res.reasoning_tokens }} ({{ getReasoningPct(res) }} %)</b>
+              </div>
+              <div class="ml-row">
+                <span>cached_tokens · Latence</span>
+                <b>{{ res.cached_tokens }} · {{ res.latency_ms }} ms</b>
+              </div>
+            </div>
+          }
+        } @else {
+          <div class="variant-empty">
+            <p>Aucun résultat généré pour ce bloc.</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Modale Configuration Clé Sandbox isolée (chiffrée Fernet en base) -->
 @if (showSandboxKeyModal()) {

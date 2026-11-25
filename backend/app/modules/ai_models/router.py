@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.deps import SessionDep
+from app.core.storage import Stockage, get_stockage
 from app.modules.ai_models import service
 from app.modules.ai_models.constants import MANAGE_AI_MODELS
 from app.modules.ai_models.schemas import (
@@ -281,8 +282,9 @@ async def comparer_bac_a_sable(
     corps: SandboxCompareRequest,
     session: SessionDep,
     par: GestionnaireIA,
+    stockage: Annotated[Stockage, Depends(get_stockage)],
 ) -> SandboxCompareResponse:
-    return await service.comparer_bac_a_sable(session, corps, par)
+    return await service.comparer_bac_a_sable(session, corps, par, stockage)
 
 
 @router.get(

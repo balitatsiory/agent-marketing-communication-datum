@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import type { EChartsOption } from 'echarts';
 
 import { toApiError } from '../../../core/api/api-error';
+import { MediaApi } from '../../../core/api/media.api';
 import {
   AiModelDto,
   AiReasoningEffort,
@@ -25,6 +26,17 @@ import { Chart } from '../../../shared/chart/chart';
 import { Icon } from '../../../shared/icon/icon';
 
 export type SandboxMainTab = 'sandbox' | 'history';
+export type VariantViewMode = 'rendered' | 'response_json' | 'usage_json';
+export type HistorySortColumn = 'created_at' | 'use_case' | 'cost' | 'author' | 'models';
+
+interface ReferenceMediaOption {
+  readonly idReference: number;
+  readonly idMedia: number;
+  readonly label: string;
+  readonly natureCode: string;
+  readonly description: string | null;
+  readonly url: string;
+}
 
 interface SandboxVariantSlot {
   readonly slotId: string;
@@ -32,7 +44,7 @@ interface SandboxVariantSlot {
   readonly modelId: string;
   readonly reasoningEffort: AiReasoningEffort | '';
   readonly temperature: number;
-  readonly showRawJson: boolean;
+  readonly viewMode: VariantViewMode;
   readonly result: SandboxVariantResultDto | null;
 }
 
@@ -184,10 +196,12 @@ const SUGGESTED_INACTIVE_LIMIT = 5;
 })
 export class AiSandbox implements OnInit {
   private readonly api = inject(OpenRouterApi);
+  private readonly mediaApi = inject(MediaApi);
 
   protected readonly useCases = USE_CASES;
   protected readonly reasoningEfforts = REASONING_EFFORTS;
   protected readonly aspectRatios = ASPECT_RATIOS;
+  protected readonly maxTokenPresets = [512, 1024, 2048, 4096] as const;
 
   /* ---------- Navigation 2 onglets (Bac à sable | Historique) ---------- */
   protected readonly activeTab = signal<SandboxMainTab>('sandbox');
@@ -204,12 +218,20 @@ export class AiSandbox implements OnInit {
   protected readonly models = signal<readonly AiModelDto[]>([]);
   protected readonly keys = signal<readonly OpenRouterKeyDto[]>([]);
   protected readonly historyRuns = signal<readonly SandboxRunHistoryDto[]>([]);
+  protected readonly referenceMediaOptions = signal<readonly ReferenceMediaOption[]>([]);
   protected readonly sessionCostUsd = signal<number>(0);
 
-  /* ---------- Filtres Onglet Historique ---------- */
+  /* ---------- Filtres, Tri & Pagination Onglet Historique ---------- */
   protected readonly historyUseCaseFilter = signal<SandboxUseCase | 'all'>('all');
   protected readonly historySearch = signal<string>('');
+  protected readonly historySortCol = signal<HistorySortColumn>('created_at');
+  protected readonly historySortDir = signal<'asc' | 'desc'>('desc');
+  protected readonly historyPage = signal<number>(1);
+  protected readonly historyPageSize = signal<number>(10);
   protected readonly expandedHistoryRunId = signal<number | null>(null);
+
+  /* ---------- Pop-up agrandi variant-card ---------- */
+  protected readonly expandedSlotId = signal<string | null>(null);
 
   /* ---------- Select Dropdown avec barre de recherche ---------- */
   protected readonly openDropdownSlotId = signal<string | null>(null);
@@ -226,15 +248,17 @@ export class AiSandbox implements OnInit {
   protected readonly systemPrompt = signal<string>(USE_CASES[0].defaultSystemPrompt);
   protected readonly userPrompt = signal<string>(USE_CASES[0].defaultUserPrompt);
   protected readonly tone = signal<string>(USE_CASES[0].defaultTone);
+  protected readonly maxTokensLimit = signal<number | null>(null);
   protected readonly jsonOutputEnabled = signal<boolean>(false);
   protected readonly jsonOutputSchema = signal<string>(USE_CASES[0].defaultJsonSchema);
   protected readonly knowledgeContext = signal<string>(USE_CASES[0].defaultContext);
   protected readonly showContextDrawer = signal<boolean>(false);
 
-  /* ---------- Options spécifiques Image ---------- */
+  /* ---------- Options spécifiques Image & Médias de référence ---------- */
   protected readonly imageMode = signal<'create' | 'edit'>('create');
   protected readonly imageAspectRatio = signal<string>('1:1');
   protected readonly referenceImageUrl = signal<string>('');
+  protected readonly selectedReferenceIds = signal<readonly number[]>([]);
 
   /* ---------- Étape 2 : 2 Blocs par défaut (A & B) + ajout jusqu'à 4 ---------- */
   protected readonly variants = signal<readonly SandboxVariantSlot[]>([
@@ -244,7 +268,7 @@ export class AiSandbox implements OnInit {
       modelId: 'google/gemini-2.5-flash',
       reasoningEffort: 'low',
       temperature: 0.4,
-      showRawJson: false,
+      viewMode: 'rendered',
       result: null,
     },
     {
@@ -253,7 +277,7 @@ export class AiSandbox implements OnInit {
       modelId: 'google/gemini-2.5-flash',
       reasoningEffort: 'high',
       temperature: 0.4,
-      showRawJson: false,
+      viewMode: 'rendered',
       result: null,
     },
   ]);
@@ -365,10 +389,18 @@ export class AiSandbox implements OnInit {
     );
   });
 
+  protected readonly expandedSlot = computed(() => {
+    const id = this.expandedSlotId();
+    if (!id) return null;
+    return this.variants().find((v) => v.slotId === id) ?? null;
+  });
+
   protected readonly filteredHistoryRuns = computed(() => {
     const uc = this.historyUseCaseFilter();
     const term = this.historySearch().trim().toLowerCase();
-    let list = this.historyRuns();
+    const sortCol = this.historySortCol();
+    const sortDir = this.historySortDir();
+    let list = [...this.historyRuns()];
     if (uc !== 'all') {
       list = list.filter((r) => r.use_case === uc);
     }
@@ -381,7 +413,34 @@ export class AiSandbox implements OnInit {
           r.variants.some((v) => v.model_id.toLowerCase().includes(term)),
       );
     }
+    const mult = sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sortCol) {
+        case 'use_case':
+          return a.use_case.localeCompare(b.use_case) * mult;
+        case 'cost':
+          return (a.total_batch_cost_usd - b.total_batch_cost_usd) * mult;
+        case 'author':
+          return (a.created_by_name ?? '').localeCompare(b.created_by_name ?? '') * mult;
+        case 'models':
+          return (a.variants.length - b.variants.length) * mult;
+        case 'created_at':
+        default:
+          return (a.id_ai_sandbox_runs - b.id_ai_sandbox_runs) * mult;
+      }
+    });
     return list;
+  });
+
+  protected readonly historyTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.filteredHistoryRuns().length / this.historyPageSize())),
+  );
+
+  protected readonly paginatedHistoryRuns = computed(() => {
+    const page = Math.min(this.historyPage(), this.historyTotalPages());
+    const size = this.historyPageSize();
+    const start = (page - 1) * size;
+    return this.filteredHistoryRuns().slice(start, start + size);
   });
 
   protected readonly estimatedInputTokens = computed(() => {
@@ -531,6 +590,9 @@ export class AiSandbox implements OnInit {
       this.keys.set(keys);
       this.historyRuns.set(history);
 
+      // Charger les médias de référence (sans bloquer la page si le droit média n'est pas présent)
+      void this.loadReferenceMedia();
+
       const pool = [...this.activeCatalogModels(), ...this.suggestedInactiveModels()];
       if (pool.length > 0) {
         const firstId = pool[0].openrouter_model_id;
@@ -546,6 +608,77 @@ export class AiSandbox implements OnInit {
       this.errorMessage.set(toApiError(err).message);
     } finally {
       this.loadingInit.set(false);
+    }
+  }
+
+  private async loadReferenceMedia(): Promise<void> {
+    try {
+      const [refsPage, mediaPage] = await Promise.all([
+        this.mediaApi.listReferences({ page: 1, size: 100 }),
+        this.mediaApi.list({ page: 1, size: 100 }),
+      ]);
+      const mediaMap = new Map(mediaPage.items.map((m) => [m.id_media, m]));
+      const options: ReferenceMediaOption[] = [];
+      for (const ref of refsPage.items) {
+        if (!ref.is_active) continue;
+        const media = mediaMap.get(ref.id_media);
+        if (!media || !media.file_type.startsWith('image/')) continue;
+        options.push({
+          idReference: ref.id_media_references,
+          idMedia: ref.id_media,
+          label: ref.label,
+          natureCode: ref.nature_code,
+          description: ref.description,
+          url: media.url,
+        });
+      }
+      this.referenceMediaOptions.set(options);
+    } catch {
+      // L'utilisateur n'a peut-être pas le droit manage_media_reference : on ignore silencieusement
+    }
+  }
+
+  protected toggleReferenceMedia(idReference: number): void {
+    this.selectedReferenceIds.update((ids) =>
+      ids.includes(idReference) ? ids.filter((id) => id !== idReference) : [...ids, idReference],
+    );
+  }
+
+  protected isReferenceSelected(idReference: number): boolean {
+    return this.selectedReferenceIds().includes(idReference);
+  }
+
+  protected toggleHistorySort(col: HistorySortColumn): void {
+    if (this.historySortCol() === col) {
+      this.historySortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.historySortCol.set(col);
+      this.historySortDir.set(col === 'created_at' || col === 'cost' ? 'desc' : 'asc');
+    }
+    this.historyPage.set(1);
+  }
+
+  protected historySortIcon(col: HistorySortColumn): string {
+    if (this.historySortCol() !== col) return '↕';
+    return this.historySortDir() === 'asc' ? '↑' : '↓';
+  }
+
+  protected onMaxTokensInput(raw: string): void {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      this.maxTokensLimit.set(null);
+      return;
+    }
+    const n = Math.floor(Number(trimmed));
+    this.maxTokensLimit.set(!Number.isNaN(n) && n > 0 ? Math.min(128000, n) : null);
+  }
+
+  protected async copyText(text: string, label = 'JSON'): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.flashNotice(`${label} copié dans le presse-papiers.`);
+    } catch {
+      this.errorMessage.set('Impossible de copier automatiquement dans le presse-papiers.');
     }
   }
 
@@ -598,7 +731,7 @@ export class AiSandbox implements OnInit {
       modelId: v.model_id,
       reasoningEffort: (v.reasoning_effort ?? '') as AiReasoningEffort | '',
       temperature: v.temperature,
-      showRawJson: false,
+      viewMode: 'rendered',
       result: resultsBySlot.get(v.slot_id) ?? null,
     }));
     if (restoredSlots.length >= 2) {
@@ -715,7 +848,7 @@ export class AiSandbox implements OnInit {
         modelId: defaultModel,
         reasoningEffort: 'low',
         temperature: 0.4,
-        showRawJson: false,
+        viewMode: 'rendered',
         result: null,
       },
     ]);
@@ -741,12 +874,22 @@ export class AiSandbox implements OnInit {
       this.errorMessage.set('Veuillez renseigner un User Prompt avant de générer.');
       return;
     }
+    const selectedRefs = this.referenceMediaOptions().filter((opt) =>
+      this.selectedReferenceIds().includes(opt.idReference),
+    );
+    const allRefUrls = [
+      ...selectedRefs.map((r) => r.url),
+      ...(this.referenceImageUrl().trim() ? [this.referenceImageUrl().trim()] : []),
+    ];
+
     if (
       this.selectedUseCase() === 'image_generation' &&
       this.imageMode() === 'edit' &&
-      !this.referenceImageUrl().trim()
+      allRefUrls.length === 0
     ) {
-      this.errorMessage.set("En mode Modification d'image, fournissez une image de référence (fichier ou URL).");
+      this.errorMessage.set(
+        "En mode Modification d'image, sélectionnez un média de référence ou importez une image.",
+      );
       return;
     }
 
@@ -760,15 +903,22 @@ export class AiSandbox implements OnInit {
         system_prompt: this.systemPrompt().trim(),
         user_prompt: this.userPrompt().trim(),
         tone: this.tone().trim() || null,
+        max_tokens: this.maxTokensLimit(),
         json_output_enabled: this.jsonOutputEnabled(),
         json_output_schema: this.jsonOutputEnabled() ? this.jsonOutputSchema().trim() : null,
         knowledge_context: this.knowledgeContext().trim() || null,
         image_mode: this.imageMode(),
         image_aspect_ratio: this.selectedUseCase() === 'image_generation' ? this.imageAspectRatio() : null,
         reference_image_url:
-          this.selectedUseCase() === 'image_generation' && this.imageMode() === 'edit'
+          this.selectedUseCase() === 'image_generation'
             ? this.referenceImageUrl().trim() || null
             : null,
+        reference_image_urls:
+          this.selectedUseCase() === 'image_generation' ? allRefUrls : [],
+        reference_media_notes:
+          this.selectedUseCase() === 'image_generation'
+            ? selectedRefs.map((r) => `${r.label} (${r.natureCode})${r.description ? ' : ' + r.description : ''}`)
+            : [],
         variants: this.variants().map((v) => ({
           slot_id: v.slotId,
           model_id: v.modelId.trim(),

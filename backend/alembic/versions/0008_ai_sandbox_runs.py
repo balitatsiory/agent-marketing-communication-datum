@@ -57,7 +57,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "use_case IN ('" + "', '".join(SANDBOX_USE_CASES) + "')",
-            name="ck_ai_sandbox_runs_use_case",
+            name="use_case",
         ),
         comment=(
             "Historique des runs de comparaison multi-modeles executes dans le "
