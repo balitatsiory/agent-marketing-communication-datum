@@ -20,6 +20,7 @@ import {
   WebinarsApi,
 } from '../../../core/api/webinars.api';
 import { Session } from '../../../core/services/session';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 import {
   ANOMALY_LABELS,
@@ -79,7 +80,7 @@ function valeurReglage(nom: string, valeur: string | number | boolean): string {
 @Component({
   selector: 'app-webinar-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, RouterLink, Icon],
+  imports: [DatePipe, RouterLink, Dialog, Icon],
   templateUrl: './webinar-detail.html',
   styleUrl: './webinar-detail.scss',
 })
@@ -110,7 +111,11 @@ export class WebinarDetailDialog {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly busy = signal(false);
-  protected readonly refreshing = signal(false);
+  /** Fiche en cours de relecture sur Zoom : une autre peut l'être en même temps. */
+  private readonly refreshingId = signal<number | null>(null);
+  protected readonly refreshing = computed(() => this.refreshingId() === this.id());
+  /** Compte les écritures terminées : une relecture partie avant est périmée. */
+  private writes = 0;
   protected readonly zoomError = signal<string | null>(null);
   protected readonly copied = signal<string | null>(null);
   protected readonly confirming = signal<'archive' | 'schedule' | null>(null);
@@ -224,33 +229,34 @@ export class WebinarDetailDialog {
   /** Exécute une écriture : un seul geste à la fois, l'erreur affichée telle quelle. */
   private async agir(geste: () => Promise<void>): Promise<void> {
     if (this.busy()) return;
+    const id = this.id();
     this.busy.set(true);
     this.error.set(null);
     this.notice.set(null);
     try {
       await geste();
     } catch (erreur) {
-      this.error.set(toApiError(erreur).message);
+      if (this.id() === id) this.error.set(toApiError(erreur).message);
     } finally {
+      this.writes++;
       this.busy.set(false);
     }
   }
 
   protected async refreshFromZoom(): Promise<void> {
     const id = this.id();
-    if (this.refreshing()) return;
-    this.refreshing.set(true);
+    if (this.refreshingId() === id) return;
+    const writes = this.writes;
+    this.refreshingId.set(id);
     this.zoomError.set(null);
     try {
       const fiche = await this.api.refreshFromZoom(id);
-      if (this.id() === id) {
-        this.webinar.set(fiche);
-        this.changed.emit();
-      }
+      if (this.id() === id && this.writes === writes) this.webinar.set(fiche);
+      this.changed.emit();
     } catch (erreur) {
       if (this.id() === id) this.zoomError.set(toApiError(erreur).message);
     } finally {
-      this.refreshing.set(false);
+      if (this.refreshingId() === id) this.refreshingId.set(null);
     }
   }
 
@@ -280,26 +286,33 @@ export class WebinarDetailDialog {
   /* ---------- fiche ---------- */
 
   protected schedule(): Promise<void> {
+    const id = this.id();
     return this.agir(async () => {
       this.confirming.set(null);
-      this.webinar.set(await this.api.schedule(this.id()));
-      this.notice.set('Webinaire validé.');
+      const fiche = await this.api.schedule(id);
+      // La liste se relit même si une autre fiche a été ouverte entre-temps.
       this.changed.emit();
+      if (this.id() !== id) return;
+      this.webinar.set(fiche);
+      this.notice.set('Webinaire validé.');
     });
   }
 
   protected archive(): Promise<void> {
+    const id = this.id();
     return this.agir(async () => {
-      await this.api.archive(this.id());
+      await this.api.archive(id);
       this.changed.emit();
-      this.closed.emit();
+      if (this.id() === id) this.closed.emit();
     });
   }
 
   protected confirmDate(): Promise<void> {
+    const id = this.id();
     return this.agir(async () => {
-      this.webinar.set(await this.api.update(this.id(), { is_date_confirmed: true }));
+      const fiche = await this.api.update(id, { is_date_confirmed: true });
       this.changed.emit();
+      if (this.id() === id) this.webinar.set(fiche);
     });
   }
 

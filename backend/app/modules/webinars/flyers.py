@@ -14,7 +14,7 @@ from urllib.parse import unquote, urlsplit
 
 import httpx
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -96,6 +96,23 @@ def cle_flyer(webinaire: Webinar, contenu: bytes, genre: str) -> str:
     return f"webinaires/{slug}/flyer-origine-{empreinte[:12]}.{extension}"
 
 
+async def _noter(
+    session: AsyncSession, id_webinars: int, source: str, **valeurs: str | int
+) -> bool:
+    """Écrit le résultat seulement si la fiche vise toujours l'adresse téléchargée.
+
+    La condition est évaluée par la base : un import validé pendant le
+    téléchargement l'emporte, et la fiche reste à rapatrier.
+    """
+    requete = (
+        update(Webinar)
+        .where(Webinar.id_webinars == id_webinars, Webinar.flyer_source_url == source)
+        .values(**valeurs)
+        .returning(Webinar.id_webinars)
+    )
+    return (await session.execute(requete)).first() is not None
+
+
 async def fetch_pending_flyers(
     session: AsyncSession,
     stockage: Stockage,
@@ -135,9 +152,10 @@ async def fetch_pending_flyers(
     )
     resultat = FlyerBatchResult(stored=0, failed=0, remaining=0, errors=[])
     for webinaire in lot:
-        assert webinaire.flyer_source_url is not None
+        source = webinaire.flyer_source_url
+        assert source is not None
         try:
-            contenu = await _telecharger(webinaire.flyer_source_url, transport)
+            contenu = await _telecharger(source, transport)
             genre = _format_image(contenu)
             cle = cle_flyer(webinaire, contenu, genre)
             await stockage.deposer(cle, io.BytesIO(contenu), FLYER_FORMATS[genre])
@@ -150,19 +168,25 @@ async def fetch_pending_flyers(
                 if isinstance(erreur, FlyerRefusedError)
                 else f"Échec technique ({type(erreur).__name__})."
             )
-            webinaire.flyer_error = message
-            resultat.failed += 1
-            resultat.errors.append(
-                FlyerError(
-                    id_webinars=webinaire.id_webinars, title=webinaire.title, message=message
+            if await _noter(session, webinaire.id_webinars, source, flyer_error=message):
+                resultat.failed += 1
+                resultat.errors.append(
+                    FlyerError(
+                        id_webinars=webinaire.id_webinars,
+                        title=webinaire.title,
+                        message=message,
+                    )
                 )
-            )
         else:
-            webinaire.flyer_storage_key = cle
-            webinaire.flyer_sha256 = hashlib.sha256(contenu).hexdigest()
-            webinaire.flyer_byte_size = len(contenu)
-            resultat.stored += 1
-        await session.flush()
+            if await _noter(
+                session,
+                webinaire.id_webinars,
+                source,
+                flyer_storage_key=cle,
+                flyer_sha256=hashlib.sha256(contenu).hexdigest(),
+                flyer_byte_size=len(contenu),
+            ):
+                resultat.stored += 1
 
     resultat.remaining = (
         await session.execute(select(func.count()).select_from(Webinar).where(*en_attente))

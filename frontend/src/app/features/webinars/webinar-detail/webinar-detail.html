@@ -1,6 +1,8 @@
-<div class="modal-back" (click)="closed.emit()" (keydown.escape)="closed.emit()" tabindex="-1">
+<div class="modal-back" (click)="closed.emit()">
   <div
     class="modal webinar-detail"
+    appDialog
+    (dialogClosed)="closed.emit()"
     role="dialog"
     aria-modal="true"
     [attr.aria-label]="webinar()?.title ?? 'Webinaire'"
@@ -17,7 +19,7 @@
             }
           }
         </div>
-        <h2>{{ webinar()?.title ?? 'Chargement…' }}</h2>
+        <h2 tabindex="-1" data-autofocus>{{ webinar()?.title ?? 'Chargement…' }}</h2>
         @if (webinar(); as fiche) {
           <p class="wd-sub">
             {{ longSchedule(fiche) }}

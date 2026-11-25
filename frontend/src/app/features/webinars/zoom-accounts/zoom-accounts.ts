@@ -11,6 +11,7 @@ import {
 } from '../../../core/api/zoom-accounts.api';
 import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 
 interface Draft {
@@ -38,7 +39,7 @@ const VIDE: Draft = {
 @Component({
   selector: 'app-zoom-accounts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, RouterLink, Topbar, Icon],
+  imports: [DatePipe, RouterLink, Topbar, Icon, Dialog],
   templateUrl: './zoom-accounts.html',
   styleUrl: './zoom-accounts.scss',
 })
@@ -90,6 +91,7 @@ export class ZoomAccounts {
       const courant = this.selectedId();
       const garde = comptes.some((c) => c.id_zoom_accounts === courant);
       const id = garde ? courant : (comptes[0]?.id_zoom_accounts ?? null);
+      if (id !== courant) this.resetPanel();
       this.selectedId.set(id);
       await this.loadChecks(id);
     } catch (erreur) {
@@ -117,10 +119,16 @@ export class ZoomAccounts {
     if (this.selectedId() === id) return;
     this.selectedId.set(id);
     this.report.set(null);
-    this.isSecretOpen.set(false);
-    this.isArchiving.set(false);
+    this.resetPanel();
     this.checks.set([]);
     void this.loadChecks(id);
+  }
+
+  /** Rien de ce qui a été saisi pour un compte ne suit vers un autre. */
+  private resetPanel(): void {
+    this.newSecret.set('');
+    this.isSecretOpen.set(false);
+    this.isArchiving.set(false);
   }
 
   protected openCreation(): void {
@@ -199,6 +207,8 @@ export class ZoomAccounts {
   }
 
   private show(resultat: ZoomAccountVerifyDto): void {
+    // Un résultat arrivé après un changement de compte ne le concerne pas.
+    if (resultat.account.id_zoom_accounts !== this.selectedId()) return;
     this.report.set({ ok: resultat.verified, message: resultat.message });
   }
 

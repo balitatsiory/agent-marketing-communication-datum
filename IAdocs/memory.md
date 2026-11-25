@@ -86,6 +86,12 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 26/11 | Newsletters : **seuls les inscrits ayant consenti** sont repris ; la case n'est jamais cochée d'avance | CDC S-05 ; s'inscrire sur la page Zoom ne vaut pas accord |
 | 26/11 | Import du site : dates déduites enregistrées **« à confirmer »**, flyers rapatriés vers R2 sous `webinaires/{slug}/flyer-origine-{sha12}.{ext}` avec un slug normalisé | aucune date sûre dans les fichiers ; un « %C3%A9 » dans une clé rendrait l'image introuvable |
 | 26/11 | Les maquettes 12a et 12b restent sous `/webinaires_prototype` | même règle que la boîte d'envois |
+| 26/11 | La migration `0011` **réunit les deux lignées** parties de la `0008` (`0010` et `0010_ai_prompts`) | `main` avait deux têtes : `alembic upgrade head` échouait ; un test refuse désormais d'en avoir deux |
+| 26/11 | Une adresse effacée est reconnue par une **empreinte à clé** (`erased_email_fingerprint`), jamais conservée | la reprise des inscrits depuis Zoom la recréait |
+| 26/11 | Une fiche réservée pendant un appel à Zoom l'est en **`FOR NO KEY UPDATE`** | `FOR UPDATE` bloquait toute nouvelle inscription pendant l'appel |
+| 26/11 | Avant de créer une réunion, IAGORA **reprend une réunion identique** (titre et heure) rattachée à aucune fiche | une réponse de Zoom perdue puis un nouvel essai créaient un doublon |
+| 26/11 | Le formulaire public répond **toujours le même message**, sans promettre de courriel | Zoom peut refuser l'inscription après coup |
+| 26/11 | Un webinaire **déjà validé ne passe plus** d'un lien fourni à « Zoom » | la réunion ne se crée qu'à la validation d'un brouillon |
 
 ## 5. Faits vérifiés
 

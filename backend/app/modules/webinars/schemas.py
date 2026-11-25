@@ -1,5 +1,6 @@
 """Schémas Pydantic du module Webinaires."""
 
+import re
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
@@ -28,6 +29,14 @@ def _adresse_web(valeur: str) -> str:
     if morceaux.scheme not in ("http", "https") or not morceaux.netloc:
         raise ValueError("L'adresse doit commencer par http:// ou https://.")
     return valeur
+
+
+def _numero_de_reunion(valeur: str) -> str:
+    """Les espaces de saisie retirés, il doit rester un numéro."""
+    chiffres = valeur.replace(" ", "")
+    if not re.fullmatch(r"[0-9]{9,15}", chiffres):
+        raise ValueError("Un numéro de réunion compte de 9 à 15 chiffres.")
+    return chiffres
 
 
 WebUrl = Annotated[str, Field(max_length=1024), AfterValidator(_adresse_web)]
@@ -292,8 +301,8 @@ class ZoomMeetingImport(BaseModel):
     """Lecture d'une réunion précise, par son numéro."""
 
     id_zoom_accounts: int
-    meeting_id: str = Field(
-        ..., max_length=20, pattern=r"^[0-9 ]{9,20}$", description="Numéro, espaces admis."
+    meeting_id: Annotated[str, AfterValidator(_numero_de_reunion)] = Field(
+        ..., max_length=20, description="Numéro, espaces admis."
     )
 
 

@@ -336,9 +336,11 @@
 }
 
 @if (isNumberOpen()) {
-  <div class="modal-back" (click)="isNumberOpen.set(false)" (keydown.escape)="isNumberOpen.set(false)" tabindex="-1">
+  <div class="modal-back" (click)="isNumberOpen.set(false)">
     <form
       class="modal small"
+      appDialog
+      (dialogClosed)="isNumberOpen.set(false)"
       role="dialog"
       aria-modal="true"
       aria-label="Ajouter une réunion Zoom par son numéro"
@@ -367,6 +369,7 @@
           <input
             class="input num"
             id="num-id"
+            data-autofocus
             inputmode="numeric"
             placeholder="850 5822 5147"
             maxlength="20"

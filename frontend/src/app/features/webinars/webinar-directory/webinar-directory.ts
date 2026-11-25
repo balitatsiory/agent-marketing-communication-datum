@@ -27,6 +27,7 @@ import { ZoomAccountDto, ZoomAccountsApi } from '../../../core/api/zoom-accounts
 import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { CountUp } from '../../../shared/count-up/count-up';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 import { WebinarDetailDialog } from '../webinar-detail/webinar-detail';
 import { WebinarImportDialog } from '../webinar-import/webinar-import';
@@ -83,6 +84,7 @@ function lirePreferences(): { view: View; size: number } {
     Topbar,
     Icon,
     CountUp,
+    Dialog,
     WebinarDetailDialog,
     WebinarImportDialog,
     WebinarStatsDialog,

@@ -101,16 +101,29 @@ def _entier(valeur: object) -> int | None:
     return valeur if isinstance(valeur, int) and valeur > 0 else None
 
 
-def _reporter(webinaire: Webinar, reunion: dict[str, Any]) -> None:
-    """Recopie sur la fiche ce dont Zoom est la référence."""
+def _reporter_description(webinaire: Webinar, agenda: str, complet: bool) -> None:
+    """L'ordre du jour de Zoom fait foi, sauf quand le texte reçu est tronqué."""
+    locale = webinaire.description or ""
+    if complet:
+        # La fiche complète dit tout, y compris que le texte a été vidé. Seul un
+        # texte plus long que la limite de Zoom reste celui saisi ici.
+        if not (len(agenda) >= ZOOM_AGENDA_MAX and locale.startswith(agenda)):
+            webinaire.description = agenda or None
+    elif agenda and not locale.startswith(agenda):
+        # La liste des réunions tronque : un début du texte connu ne le remplace pas.
+        webinaire.description = agenda
+
+
+def _reporter(webinaire: Webinar, reunion: dict[str, Any], complet: bool = False) -> None:
+    """Recopie sur la fiche ce dont Zoom est la référence.
+
+    `complet` distingue la fiche d'une réunion de sa ligne dans la liste.
+    """
     sujet = str(reunion.get("topic") or "").strip()
     if sujet:
         webinaire.title = sujet[:255]
     agenda = str(reunion.get("agenda") or "").strip()
-    # La liste des réunions tronque l'ordre du jour : un texte qui n'est que le
-    # début de celui déjà connu ne le remplace pas.
-    if agenda and not (webinaire.description or "").startswith(agenda):
-        webinaire.description = agenda
+    _reporter_description(webinaire, agenda, complet)
     debut = _lire_date(reunion.get("start_time"))
     if debut is not None:
         webinaire.starts_at = debut
@@ -126,7 +139,7 @@ def _reporter(webinaire: Webinar, reunion: dict[str, Any]) -> None:
 
 def _reporter_fiche(webinaire: Webinar, reunion: dict[str, Any]) -> None:
     """Comme `_reporter`, depuis la fiche complète : elle porte aussi les réglages."""
-    _reporter(webinaire, reunion)
+    _reporter(webinaire, reunion, complet=True)
     webinaire.zoom_snapshot_json = nettoyer(reunion)
     adresse = reunion.get("registration_url")
     if adresse and webinaire.registration_mode == REGISTRATION_NONE:
@@ -172,6 +185,46 @@ def _demande(webinaire: Webinar) -> dict[str, Any]:
     return corps
 
 
+async def _reunion_deja_creee(
+    session: AsyncSession,
+    client: ZoomClient,
+    webinaire: Webinar,
+    hote: str,
+) -> dict[str, Any] | None:
+    """Réunion laissée par un essai dont la réponse s'est perdue, s'il y en a une.
+
+    Zoom peut avoir créé la réunion alors qu'IAGORA n'en a rien su (délai
+    dépassé, coupure). Une réunion de même titre à la même heure, rattachée à
+    aucune fiche, est reprise au lieu d'en créer une seconde.
+    """
+    assert webinaire.id_zoom_accounts is not None and webinaire.starts_at is not None
+    voulu = webinaire.title[:ZOOM_TOPIC_MAX].strip()
+    debut = webinaire.starts_at.replace(second=0, microsecond=0)
+    reunions = await _lister_reunions(
+        session, client, webinaire.id_zoom_accounts, hote, genres=("scheduled",)
+    )
+    for meeting_id, reunion in reunions.items():
+        quand = _lire_date(reunion.get("start_time"))
+        if (
+            str(reunion.get("topic") or "").strip() == voulu
+            and quand is not None
+            and quand.replace(second=0, microsecond=0) == debut
+            and await _trouver_par_reunion(session, meeting_id) is None
+        ):
+            fiche = await _fiche_zoom(session, client, webinaire.id_zoom_accounts, meeting_id)
+            reglages = fiche.get("settings") or {}
+            if (
+                webinaire.registration_mode in REGISTRATION_MODES_ON_ZOOM
+                and reglages.get("approval_type") == APPROVAL_NONE
+            ):
+                raise ConflictError(
+                    f"Une réunion identique existe déjà sur Zoom (n° {meeting_id}), sans "
+                    "inscription. L'activer ou la supprimer sur zoom.us, puis valider."
+                )
+            return fiche
+    return None
+
+
 async def schedule_webinar(
     session: AsyncSession,
     client: ZoomClient,
@@ -182,8 +235,8 @@ async def schedule_webinar(
 ) -> WebinarDetailRead:
     """Valide un brouillon : crée la réunion sur Zoom si le lien est automatique.
 
-    La ligne est verrouillée pendant l'appel : deux clics rapprochés ne créent
-    pas deux réunions.
+    La fiche est réservée pendant l'appel : deux clics rapprochés ne créent pas
+    deux réunions. Un essai précédent resté sans réponse est repris.
 
     Raises:
         ConflictError: la fiche n'est pas un brouillon, ou il y manque quelque chose.
@@ -202,14 +255,16 @@ async def schedule_webinar(
             raise PermissionDeniedError(f"Ce geste demande le droit « {CREATE_ZOOM_MEETINGS} ».")
         assert webinaire.id_zoom_accounts is not None  # vérifié par elements_manquants
         hote = await zoom_accounts_service.get_host_email(session, webinaire.id_zoom_accounts)
-        reunion = await zoom_accounts_service.call_api(
-            session,
-            client,
-            webinaire.id_zoom_accounts,
-            "POST",
-            f"/users/{hote}/meetings",
-            json=_demande(webinaire),
-        )
+        reunion = await _reunion_deja_creee(session, client, webinaire, hote)
+        if reunion is None:
+            reunion = await zoom_accounts_service.call_api(
+                session,
+                client,
+                webinaire.id_zoom_accounts,
+                "POST",
+                f"/users/{hote}/meetings",
+                json=_demande(webinaire),
+            )
         if not isinstance(reunion.get("id"), int):
             raise ApiError("zoom_unavailable", "Réponse de Zoom sans numéro de réunion.", 502)
         description = webinaire.description
@@ -317,11 +372,15 @@ async def import_meeting(
 
 
 async def _lister_reunions(
-    session: AsyncSession, client: ZoomClient, id_zoom_accounts: int, hote: str
+    session: AsyncSession,
+    client: ZoomClient,
+    id_zoom_accounts: int,
+    hote: str,
+    genres: tuple[str, ...] = ZOOM_LIST_TYPES,
 ) -> dict[int, dict[str, Any]]:
     """Réunions de l'hôte, une entrée par numéro, toutes pages comprises."""
     reunions: dict[int, dict[str, Any]] = {}
-    for genre in ZOOM_LIST_TYPES:
+    for genre in genres:
         jeton_page = ""
         for _ in range(ZOOM_PAGES_MAX):
             params: dict[str, str | int] = {"type": genre, "page_size": ZOOM_PAGE_SIZE}

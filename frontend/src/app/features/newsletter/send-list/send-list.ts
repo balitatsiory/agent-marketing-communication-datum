@@ -117,6 +117,9 @@ export class SendList implements OnInit {
   private readonly webinarsApi = inject(WebinarsApi);
   protected readonly webinars = signal<readonly WebinarDto[]>([]);
   protected readonly audienceNote = signal<string | null>(null);
+  protected readonly audienceLoading = signal(false);
+  /** Numéro de la dernière reprise demandée : seule sa réponse compte. */
+  private audienceRequest = 0;
   protected readonly canReadAudience = computed(() => this.session.has('manage_webinars'));
 
   protected readonly canSend = computed(() => this.session.has('send_newsletters'));
@@ -163,10 +166,15 @@ export class SendList implements OnInit {
    */
   protected async chargerInscrits(valeur: string): Promise<void> {
     const id = Number(valeur);
+    const numero = this.oublierAudience();
     if (!id) return;
-    this.audienceNote.set(null);
+    this.audienceLoading.set(true);
+    // Les destinataires précédents partent tout de suite : ils ne doivent pas
+    // rester sous le nom du webinaire qu'on vient de choisir.
+    this.composer.update((etat) => (etat === null ? etat : { ...etat, recipients: '' }));
     try {
       const audience = await this.webinarsApi.audience(id);
+      if (numero !== this.audienceRequest) return;
       const lignes = audience.items
         .map((p) => (p.display_name ? `${p.display_name} <${p.email}>` : p.email))
         .join('\n');
@@ -182,8 +190,17 @@ export class SendList implements OnInit {
             : '.'),
       );
     } catch (erreur) {
-      this.error.set(toApiError(erreur).message);
+      if (numero === this.audienceRequest) this.error.set(toApiError(erreur).message);
+    } finally {
+      if (numero === this.audienceRequest) this.audienceLoading.set(false);
     }
+  }
+
+  /** Rend caduque toute reprise en cours et renvoie le numéro de la suivante. */
+  private oublierAudience(): number {
+    this.audienceNote.set(null);
+    this.audienceLoading.set(false);
+    return ++this.audienceRequest;
   }
 
   private async initialiser(): Promise<void> {
@@ -311,7 +328,7 @@ export class SendList implements OnInit {
   protected ouvrirComposer(): void {
     if (this.busy()) return;
     this.report.set(null);
-    this.audienceNote.set(null);
+    this.oublierAudience();
     this.composer.set({
       id_mail_templates: this.publishedTemplates()[0]?.id_mail_templates ?? null,
       id_email_accounts: this.accountFilter() ?? this.activeAccount()?.id_email_accounts ?? null,
@@ -322,6 +339,7 @@ export class SendList implements OnInit {
 
   protected fermerComposer(): void {
     if (this.busy()) return;
+    this.oublierAudience();
     this.composer.set(null);
   }
 
@@ -350,7 +368,12 @@ export class SendList implements OnInit {
 
   protected readonly envoiValide = computed(() => {
     const etat = this.composer();
-    return etat !== null && etat.id_mail_templates !== null && this.parsedRecipients().length > 0;
+    return (
+      etat !== null &&
+      etat.id_mail_templates !== null &&
+      this.parsedRecipients().length > 0 &&
+      !this.audienceLoading()
+    );
   });
 
   protected async envoyer(): Promise<void> {

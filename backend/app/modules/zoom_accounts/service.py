@@ -201,11 +201,45 @@ async def list_checks(
 # ---------------------------------------------------------------------------
 
 
+async def _verifier_identifiants_inchanges(
+    session: AsyncSession, compte: ZoomAccount, secret: ZoomAccountCredential
+) -> None:
+    """Refuse un jeton demandé avec des identifiants remplacés pendant l'attente.
+
+    La ligne est relue en base et réservée jusqu'à la fin de la transaction : une
+    modification en cours passe avant (et se voit) ou après (et efface le jeton).
+    """
+    actuel = (
+        await session.execute(
+            select(
+                ZoomAccount.external_zoom_account_id,
+                ZoomAccount.client_id,
+                ZoomAccount.deleted_at,
+            )
+            .where(ZoomAccount.id_zoom_accounts == compte.id_zoom_accounts)
+            .with_for_update(key_share=True)
+        )
+    ).one()
+    secret_actuel = await _secret_actif(session, compte.id_zoom_accounts)
+    if (
+        actuel.deleted_at is not None
+        or actuel.external_zoom_account_id != compte.external_zoom_account_id
+        or actuel.client_id != compte.client_id
+        or secret_actuel is None
+        or secret_actuel.id_zoom_account_credentials != secret.id_zoom_account_credentials
+    ):
+        raise ApiError(
+            "zoom_credentials_changed",
+            "Les identifiants du compte ont changé pendant la demande : réessayer.",
+            409,
+        )
+
+
 async def _obtenir_jeton(session: AsyncSession, client: ZoomClient, compte: ZoomAccount) -> str:
     """Demande un jeton neuf à Zoom et le conserve, chiffré.
 
     Raises:
-        ApiError: aucun secret enregistré.
+        ApiError: aucun secret enregistré, ou identifiants changés entre-temps.
         ZoomError: Zoom refuse ou ne répond pas.
     """
     secret = await _secret_actif(session, compte.id_zoom_accounts)
@@ -216,6 +250,7 @@ async def _obtenir_jeton(session: AsyncSession, client: ZoomClient, compte: Zoom
         compte.client_id,
         decrypt_token(secret.client_secret_encrypted),
     )
+    await _verifier_identifiants_inchanges(session, compte, secret)
     maintenant = datetime.now(UTC)
     compte.access_token_encrypted = encrypt_token(jeton.access_token)
     compte.access_token_obtained_at = maintenant

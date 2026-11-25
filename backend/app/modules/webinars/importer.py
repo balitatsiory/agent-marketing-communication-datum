@@ -59,6 +59,9 @@ FUSEAUX = {"GMT": 0, "UTC": 0, "CET": 1, "GMT+1": 1, "UTC+1": 1, "CEST": 2, "GMT
 # Heure retenue quand seul le jour est connu : à midi UTC, le jour affiché reste
 # le même dans tous les fuseaux d'Europe et d'Afrique.
 HEURE_INCONNUE = 12
+# Tailles des colonnes de `webinar_categories`.
+CODE_CATEGORIE_MAX = 60
+LIBELLE_CATEGORIE_MAX = 120
 
 
 @dataclass(frozen=True)
@@ -138,7 +141,8 @@ def dater(evenement: Evenement) -> DateReprise:
         jour = _jour(detectee.iso)
         if jour is None:
             continue
-        heure = re.fullmatch(r"(\d{1,2}):(\d{2})", detectee.heure or "")
+        # « 24:00 » ou « 10:75 » : l'heure est inutilisable, le jour reste bon.
+        heure = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", detectee.heure or "")
         if heure is None:
             quand = datetime(jour.year, jour.month, jour.day, HEURE_INCONNUE, tzinfo=UTC)
             return DateReprise(quand, None, False, False)
@@ -151,23 +155,44 @@ def dater(evenement: Evenement) -> DateReprise:
     return DateReprise(None, evenement.duree_minutes, True, True)
 
 
+def _code_libre(libelle: str, pris: set[str]) -> str:
+    """Code dérivé du libellé, suffixé s'il est déjà pris.
+
+    « Santé » et « Sante » donnent le même radical, et un libellé en caractères
+    non latins n'en donne aucun.
+    """
+    radical = normaliser_slug(libelle).lower().replace("-", "_") or "categorie"
+    code = radical[:CODE_CATEGORIE_MAX]
+    numero = 2
+    while code in pris:
+        suffixe = f"_{numero}"
+        code = radical[: CODE_CATEGORIE_MAX - len(suffixe)] + suffixe
+        numero += 1
+    return code
+
+
 async def _codes_categories(session: AsyncSession, libelles: set[str]) -> dict[str, str]:
     """Code de chaque libellé, en créant les catégories encore inconnues."""
     lignes = await session.execute(
         select(WebinarCategory.label, WebinarCategory.code, WebinarCategory.sort_order)
     )
     connues: dict[str, str] = {}
+    pris: set[str] = set()
     rang = 0
     for nom, code_connu, ordre in lignes.all():
         connues[nom.casefold()] = code_connu
+        pris.add(code_connu)
         rang = max(rang, ordre)
     resultat: dict[str, str] = {}
     for libelle in sorted(libelles):
-        cle = libelle.casefold()
+        # Comparé tel qu'il sera enregistré, pour qu'un nouvel import le retrouve.
+        affiche = libelle[:LIBELLE_CATEGORIE_MAX]
+        cle = affiche.casefold()
         if cle not in connues:
-            connues[cle] = normaliser_slug(libelle).lower().replace("-", "_")[:60]
+            connues[cle] = _code_libre(affiche, pris)
+            pris.add(connues[cle])
             rang += 10
-            session.add(WebinarCategory(code=connues[cle], label=libelle[:120], sort_order=rang))
+            session.add(WebinarCategory(code=connues[cle], label=affiche, sort_order=rang))
         resultat[libelle] = connues[cle]
     await session.flush()
     return resultat

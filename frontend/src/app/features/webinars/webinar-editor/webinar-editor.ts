@@ -24,6 +24,7 @@ import {
 import { ZoomAccountDto, ZoomAccountsApi } from '../../../core/api/zoom-accounts.api';
 import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 import { longSchedule } from '../webinar-format';
 
@@ -71,7 +72,7 @@ type BooleanSetting =
 @Component({
   selector: 'app-webinar-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Topbar, Icon],
+  imports: [RouterLink, Topbar, Icon, Dialog],
   templateUrl: './webinar-editor.html',
   styleUrl: './webinar-editor.scss',
 })
@@ -155,8 +156,18 @@ export class WebinarEditor implements OnInit {
     return !!saisi && !MOT_DE_PASSE.test(saisi);
   });
 
+  /** Le code secret n'existe que pour une réunion Zoom : ailleurs il est masqué. */
+  protected readonly blockingPasscode = computed(
+    () => this.linkMode() === 'zoom_auto' && this.passcodeError(),
+  );
+
   protected readonly canSave = computed(
-    () => !!this.title().trim() && !this.passcodeError() && !this.busy(),
+    () => !!this.title().trim() && !this.blockingPasscode() && !this.busy(),
+  );
+
+  /** Une fiche déjà validée sans Zoom ne peut plus y passer : rien n'y créerait la réunion. */
+  protected readonly zoomUnavailable = computed(
+    () => !this.isDraft() && this.existing()?.link_mode === 'manual',
   );
 
   /** Ce qui manque pour valider, listé sous les boutons. */
@@ -174,6 +185,7 @@ export class WebinarEditor implements OnInit {
     } else if (this.accountId() === null) {
       manque.push('un compte Zoom');
     }
+    if (this.blockingPasscode()) manque.push('un code secret valide');
     if (this.registrationMode() === 'external' && !this.registrationUrl().trim()) {
       manque.push('l’adresse de la page d’inscription');
     }
@@ -326,7 +338,7 @@ export class WebinarEditor implements OnInit {
       link_mode: this.linkMode(),
       id_zoom_accounts: manuel ? null : this.accountId(),
       join_url: manuel ? this.joinUrl().trim() || null : null,
-      meeting_settings: this.settings(),
+      ...(manuel ? {} : { meeting_settings: this.settings() }),
       // Une date incomplète n'écrase pas celle qui est enregistrée.
       ...(!this.isEditing() || (dateChangee && (debut || (!this.date() && !this.time())))
         ? { starts_at: debut?.toISOString() ?? null }

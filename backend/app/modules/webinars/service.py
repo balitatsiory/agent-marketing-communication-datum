@@ -24,6 +24,7 @@ from app.modules.webinars import queries
 from app.modules.webinars.constants import (
     APPROVAL_NONE,
     LINK_MANUAL,
+    LINK_ZOOM_AUTO,
     ORIGIN_MANUAL,
     ORIGIN_SITE_IMPORT,
     PAGE_IAGORA_FORM,
@@ -113,7 +114,12 @@ async def code_statut(session: AsyncSession, webinaire: Webinar) -> str:
 
 
 async def charger(session: AsyncSession, id_webinars: int, verrouiller: bool = False) -> Webinar:
-    """Fiche non archivée. `verrouiller` bloque la ligne jusqu'à la fin de la transaction.
+    """Fiche non archivée.
+
+    `verrouiller` réserve la fiche jusqu'à la fin de la transaction : une autre
+    écriture attend, mais une inscription passe. Le verrou est tenu pendant les
+    appels à Zoom, d'où `FOR NO KEY UPDATE` et non `FOR UPDATE`, qui bloquerait
+    toute ligne rattachée.
 
     Raises:
         NotFoundError: webinaire inconnu ou archivé.
@@ -122,7 +128,7 @@ async def charger(session: AsyncSession, id_webinars: int, verrouiller: bool = F
         Webinar.id_webinars == id_webinars, Webinar.deleted_at.is_(None)
     )
     if verrouiller:
-        requete = requete.with_for_update()
+        requete = requete.with_for_update(key_share=True)
     webinaire = (await session.execute(requete)).scalar_one_or_none()
     if webinaire is None:
         raise NotFoundError("Webinaire introuvable.")
@@ -611,6 +617,17 @@ async def update_webinar(
         if champs.get(nom) is None:
             champs.pop(nom, None)
     _refuser_si_detenu_par_zoom(webinaire, champs)
+    # La réunion ne se crée qu'à la validation d'un brouillon : une fiche déjà
+    # validée passée en « Zoom » resterait sans réunion ni lien.
+    if (
+        champs.get("link_mode") == LINK_ZOOM_AUTO
+        and webinaire.link_mode != LINK_ZOOM_AUTO
+        and await code_statut(session, webinaire) != STATUS_DRAFT
+    ):
+        raise ConflictError(
+            "Ce webinaire est déjà validé : sa réunion Zoom ne peut plus être créée "
+            "depuis IAGORA. Créer un nouveau webinaire, ou garder un lien fourni."
+        )
     if champs.get("id_zoom_accounts") is not None:
         await zoom_accounts_service.get_host_email(session, champs["id_zoom_accounts"])
 
@@ -625,14 +642,15 @@ async def update_webinar(
 
     if webinaire.external_zoom_meeting_id is None and "link_mode" in champs:
         manuel = webinaire.link_mode == LINK_MANUAL
-        if manuel:
-            webinaire.id_zoom_accounts = None
-        else:
+        if not manuel:
             webinaire.join_url = None
         if webinaire.origin == ORIGIN_MANUAL:
             webinaire.id_webinar_types = await id_type(
                 session, TYPE_SITE_WEBINAR if manuel else TYPE_ZOOM_MEETING
             )
+
+    if webinaire.link_mode == LINK_MANUAL:
+        webinaire.id_zoom_accounts = None
 
     statut = await code_statut(session, webinaire)
     if statut == STATUS_SCHEDULED and webinaire.origin == ORIGIN_MANUAL:
@@ -789,6 +807,14 @@ async def link_registration_page(
         raise NotFoundError("Page d'inscription introuvable.")
     if page.kind == PAGE_IAGORA_FORM:
         raise ConflictError("Un formulaire IAGORA reste attaché à son webinaire.")
+    precedent = page.id_webinars
+    if precedent is not None and precedent != id_webinars:
+        # La page quitte cette fiche : son adresse ne doit pas y rester.
+        ancien = await session.get(Webinar, precedent)
+        if ancien is not None and ancien.registration_url == page.url:
+            ancien.registration_mode = REGISTRATION_NONE
+            ancien.registration_url = None
+            ancien.id_users_changed_by = par.id_users
     if id_webinars is not None:
         webinaire = await charger(session, id_webinars, verrouiller=True)
         if webinaire.registration_mode == REGISTRATION_NONE and page.url:
@@ -796,11 +822,6 @@ async def link_registration_page(
             webinaire.registration_url = page.url
         # Un rattachement validé à la main : un nouvel import ne le défera pas.
         webinaire.id_users_changed_by = par.id_users
-    elif page.id_webinars is not None:
-        ancien = await session.get(Webinar, page.id_webinars)
-        if ancien is not None and ancien.registration_url == page.url:
-            ancien.registration_mode = REGISTRATION_NONE
-            ancien.registration_url = None
     page.id_webinars = id_webinars
     await session.flush()
     return (

@@ -1,6 +1,8 @@
-<div class="modal-back" (click)="closed.emit()" (keydown.escape)="closed.emit()" tabindex="-1">
+<div class="modal-back" (click)="closed.emit()">
   <div
     class="modal stats-modal"
+    appDialog
+    (dialogClosed)="closed.emit()"
     role="dialog"
     aria-modal="true"
     aria-label="Statistiques des webinaires"

@@ -9,10 +9,12 @@ import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError, ConflictError, NotFoundError
 from app.core.pagination import Page, PageParams
+from app.core.security import fingerprint
 from app.core.storage import Stockage
 from app.modules.webinars import queries, service
 from app.modules.webinars.constants import (
@@ -48,9 +50,11 @@ from app.modules.zoom_accounts.zoom_client import ZoomClient
 
 logger = logging.getLogger(__name__)
 
-MESSAGE_PUBLIC = "Votre inscription est enregistrée."
-MESSAGE_PUBLIC_ZOOM = (
-    "Votre inscription est enregistrée. Le lien d'accès vous est envoyé par courriel."
+# Une seule réponse, vraie dans tous les cas : Zoom peut refuser l'inscription
+# après coup, et l'équipe la retente alors à la main.
+MESSAGE_PUBLIC = (
+    "Votre inscription est enregistrée. Si le lien d'accès ne vous parvient pas avant "
+    "la séance, contactez l'équipe Datum Academy."
 )
 
 
@@ -107,6 +111,32 @@ async def _trouver(
         WebinarRegistration.id_webinars == id_webinars, WebinarRegistration.email == email
     )
     return (await session.execute(requete)).scalar_one_or_none()
+
+
+async def _inserer(session: AsyncSession, inscription: WebinarRegistration) -> bool:
+    """Ajoute l'inscription. Faux si l'adresse vient d'être inscrite par ailleurs.
+
+    Deux envois simultanés passent tous deux la recherche préalable : l'index
+    unique tranche, dans un point de reprise pour garder la transaction.
+    """
+    try:
+        async with session.begin_nested():
+            session.add(inscription)
+            await session.flush()
+    except IntegrityError:
+        if await _trouver(session, inscription.id_webinars, inscription.email or "") is None:
+            raise
+        return False
+    return True
+
+
+async def _est_effacee(session: AsyncSession, id_webinars: int, email: str) -> bool:
+    """Vrai quand cette adresse a été effacée de ce webinaire."""
+    requete = select(WebinarRegistration.id_webinar_registrations).where(
+        WebinarRegistration.id_webinars == id_webinars,
+        WebinarRegistration.erased_email_fingerprint == fingerprint(email),
+    )
+    return (await session.execute(requete)).first() is not None
 
 
 async def _charger(
@@ -177,8 +207,8 @@ async def add_registration(
         source=SOURCE_MANUAL,
     )
     _accorder(inscription, donnees.has_newsletter_consent)
-    session.add(inscription)
-    await session.flush()
+    if not await _inserer(session, inscription):
+        raise ConflictError("Cette adresse est déjà inscrite à ce webinaire.")
     if _inscrit_sur_zoom(webinaire):
         await _declarer_sur_zoom(session, client, webinaire, inscription)
     return await _lue(session, inscription)
@@ -219,6 +249,8 @@ async def anonymize_registration(
     """
     await service.charger(session, id_webinars)
     inscription = await _charger(session, id_webinars, id_registration)
+    if inscription.email is not None:
+        inscription.erased_email_fingerprint = fingerprint(inscription.email)
     inscription.email = None
     inscription.first_name = None
     inscription.last_name = None
@@ -237,7 +269,8 @@ async def sync_registrants(
     """`GET /meetings/{meetingId}/registrants` : reprend les inscrits de Zoom.
 
     Les nouveaux venus n'ont pas d'accord pour les newsletters : s'inscrire sur
-    la page de Zoom ne le donne pas.
+    la page de Zoom ne le donne pas. Une adresse effacée n'est pas reprise : Zoom
+    la garde, IAGORA non.
 
     Raises:
         ConflictError: pas de réunion Zoom.
@@ -268,6 +301,8 @@ async def sync_registrants(
                 resultat.found += 1
                 inscription = await _trouver(session, id_webinars, email)
                 if inscription is None:
+                    if await _est_effacee(session, id_webinars, email):
+                        continue
                     inscription = WebinarRegistration(
                         id_webinars=id_webinars,
                         email=email,
@@ -278,8 +313,12 @@ async def sync_registrants(
                     inscrit_le = str(inscrit.get("create_time") or "")
                     if inscrit_le:
                         inscription.registered_at = datetime.fromisoformat(inscrit_le)
-                    session.add(inscription)
-                    resultat.created += 1
+                    if await _inserer(session, inscription):
+                        resultat.created += 1
+                    else:
+                        inscription = await _trouver(session, id_webinars, email)
+                        assert inscription is not None  # _inserer vient de la voir
+                        resultat.updated += 1
                 else:
                     resultat.updated += 1
                 inscription.external_zoom_registrant_id = inscrit.get("id")
@@ -397,12 +436,9 @@ async def register_from_public_page(
     page, webinaire, ouvert = await _page_publique(session, slug)
     if not ouvert:
         raise ConflictError("Les inscriptions à ce webinaire sont closes.")
-    vers_zoom = _inscrit_sur_zoom(webinaire)
-    reglages = webinaire.meeting_settings_json or {}
-    courriel_zoom = vers_zoom and reglages.get("email_notification", True)
-    message = MESSAGE_PUBLIC_ZOOM if courriel_zoom else MESSAGE_PUBLIC
+    reponse = PublicRegistrationRead(message=MESSAGE_PUBLIC)
     if donnees.website:  # robot : on répond comme à une personne, sans rien garder
-        return PublicRegistrationRead(message=message)
+        return reponse
 
     email = str(donnees.email).lower()
     if await _trouver(session, webinaire.id_webinars, email) is None:
@@ -415,9 +451,8 @@ async def register_from_public_page(
             source=SOURCE_IAGORA_FORM,
         )
         _accorder(inscription, donnees.has_newsletter_consent)
-        session.add(inscription)
-        await session.flush()
-        if vers_zoom:
-            await _declarer_sur_zoom(session, client, webinaire, inscription)
-        logger.info("Inscription %s reçue", inscription.id_webinar_registrations)
-    return PublicRegistrationRead(message=message)
+        if await _inserer(session, inscription):
+            if _inscrit_sur_zoom(webinaire):
+                await _declarer_sur_zoom(session, client, webinaire, inscription)
+            logger.info("Inscription %s reçue", inscription.id_webinar_registrations)
+    return reponse

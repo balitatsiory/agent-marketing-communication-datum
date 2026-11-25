@@ -16,7 +16,7 @@ Insère les droits `manage_zoom_accounts` (900), `manage_webinars` (910) et
 `set_updated_at()` vient de la migration 0001, `refuser_reecriture()` de la 0009.
 
 Révision : 0011
-Révision précédente : 0010
+Révisions précédentes : 0010 et 0010_ai_prompts (fusion des deux têtes)
 """
 
 from collections.abc import Sequence
@@ -27,7 +27,9 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "0011"
-down_revision: str | None = "0010"
+# Deux lignées sont parties de la 0008 (0010 et 0010_ai_prompts) : la 0011 les
+# réunit, sans quoi « alembic upgrade head » refuse de choisir entre deux têtes.
+down_revision: str | tuple[str, ...] | None = ("0010", "0010_ai_prompts")
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -601,6 +603,12 @@ def _webinaires() -> None:
         _colonne("zoom_error", sa.Text, "Echec de l'inscription sur Zoom, a retenter."),
         _date("registered_at", "Date de l'inscription (UTC)."),
         _date("anonymized_at", "Date d'effacement des donnees personnelles.", True),
+        _colonne(
+            "erased_email_fingerprint",
+            sa.String(64),
+            "Empreinte a cle de l'adresse effacee : empeche une reprise depuis Zoom "
+            "de la recreer, sans la conserver.",
+        ),
         *_horodatages(),
         sa.PrimaryKeyConstraint("id_webinar_registrations", name="pk_webinar_registrations"),
         sa.CheckConstraint(

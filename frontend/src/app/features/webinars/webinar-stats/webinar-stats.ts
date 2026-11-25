@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import { WebinarDto, WebinarStatsDto } from '../../../core/api/webinars.api';
 import { CountUp } from '../../../shared/count-up/count-up';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 import { longSchedule, monthLabel } from '../webinar-format';
 
@@ -25,7 +26,7 @@ const MOIS_MAX = 24;
 @Component({
   selector: 'app-webinar-stats',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CountUp, Icon],
+  imports: [CountUp, Dialog, Icon],
   templateUrl: './webinar-stats.html',
   styleUrl: './webinar-stats.scss',
 })

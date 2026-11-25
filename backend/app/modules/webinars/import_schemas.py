@@ -31,7 +31,7 @@ class DateDetectee(_Ligne):
 
 class Evenement(_Ligne):
     debut_utc: str | None = None
-    duree_minutes: int | None = None
+    duree_minutes: int | None = Field(default=None, gt=0)
     source_date: str | None = None
     date_candidate: DateCandidate | None = None
     dates_detectees: list[DateDetectee] = Field(default_factory=list)

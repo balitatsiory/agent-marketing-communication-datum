@@ -443,6 +443,13 @@ class WebinarRegistration(Base):
     anonymized_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), comment="Date d'effacement des donnees personnelles."
     )
+    erased_email_fingerprint: Mapped[str | None] = mapped_column(
+        String(64),
+        comment=(
+            "Empreinte a cle de l'adresse effacee : empeche une reprise depuis Zoom "
+            "de la recreer, sans la conserver."
+        ),
+    )
     created_at: Mapped[datetime] = _horodatage("Date de creation (UTC).")
     updated_at: Mapped[datetime] = _horodatage("Date de derniere modification (UTC).")
 

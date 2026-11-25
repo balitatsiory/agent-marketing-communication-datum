@@ -116,7 +116,7 @@
       <fieldset class="sec" [disabled]="lockedByZoom()">
         <legend class="sec-n"><b>3</b> Visioconférence</legend>
         <div class="choices">
-          <button class="choice" type="button" [class.is-on]="linkMode() === 'zoom_auto'" [attr.aria-pressed]="linkMode() === 'zoom_auto'" (click)="setLinkMode('zoom_auto')">
+          <button class="choice" type="button" [disabled]="zoomUnavailable()" [class.is-on]="linkMode() === 'zoom_auto'" [attr.aria-pressed]="linkMode() === 'zoom_auto'" (click)="setLinkMode('zoom_auto')">
             <b>Créer la réunion sur Zoom</b>
             <span>Créée à la validation, sur le compte choisi.</span>
           </button>
@@ -289,8 +289,8 @@
 </div>
 
 @if (isSummaryOpen()) {
-  <div class="modal-back" (click)="isSummaryOpen.set(false)" (keydown.escape)="isSummaryOpen.set(false)" tabindex="-1">
-    <div class="modal small" role="dialog" aria-modal="true" aria-label="Récapitulatif" (click)="$event.stopPropagation()">
+  <div class="modal-back" (click)="isSummaryOpen.set(false)">
+    <div class="modal small" appDialog (dialogClosed)="isSummaryOpen.set(false)" role="dialog" aria-modal="true" aria-label="Récapitulatif" (click)="$event.stopPropagation()">
       <div class="modal-head">
         <h2>Récapitulatif</h2>
         <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="isSummaryOpen.set(false)">

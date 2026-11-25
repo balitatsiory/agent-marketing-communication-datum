@@ -1,6 +1,8 @@
-<div class="modal-back" (click)="closed.emit()" (keydown.escape)="closed.emit()" tabindex="-1">
+<div class="modal-back" (click)="closed.emit()">
   <div
     class="modal import-modal"
+    appDialog
+    (dialogClosed)="closed.emit()"
     role="dialog"
     aria-modal="true"
     aria-label="Importer les webinaires du site"
@@ -60,6 +62,7 @@
         <span class="label">2 · Flyers</span>
         <p class="cap">
           Télécharge les visuels depuis datumacademy.com et les range dans le stockage des médias.
+          Ceux qui avaient échoué sont retentés.
         </p>
         <div class="actions">
           <button class="btn" type="button" [disabled]="fetching()" (click)="fetchFlyers()">
@@ -70,9 +73,6 @@
             }
             Rapatrier les flyers
           </button>
-          @if (failures().length && !fetching()) {
-            <button class="btn" type="button" (click)="fetchFlyers(true)">Retenter les échecs</button>
-          }
         </div>
 
         @if (remaining() !== null) {

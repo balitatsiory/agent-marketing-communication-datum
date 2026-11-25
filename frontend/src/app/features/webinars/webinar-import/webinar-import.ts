@@ -11,6 +11,7 @@ import {
 import { toApiError } from '../../../core/api/api-error';
 import { FlyerBatchDto, ImportReportDto, WebinarsApi } from '../../../core/api/webinars.api';
 import { CountUp } from '../../../shared/count-up/count-up';
+import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
 
 type FileKind = 'webinars' | 'pages' | 'flyers';
@@ -28,7 +29,7 @@ const LOT = 5;
 @Component({
   selector: 'app-webinar-import',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CountUp, Icon],
+  imports: [CountUp, Dialog, Icon],
   templateUrl: './webinar-import.html',
   styleUrl: './webinar-import.scss',
 })
@@ -89,7 +90,11 @@ export class WebinarImportDialog {
     }
   }
 
-  protected async fetchFlyers(retryFailed = false): Promise<void> {
+  /**
+   * Rapatrie les flyers lot par lot. Le premier lot reprend aussi les échecs
+   * d'une fois précédente, même après réouverture de la fenêtre.
+   */
+  protected async fetchFlyers(): Promise<void> {
     if (this.fetching()) return;
     this.fetching.set(true);
     this.error.set(null);
@@ -97,7 +102,7 @@ export class WebinarImportDialog {
     this.failures.set([]);
     this.remaining.set(null);
     try {
-      let reprise = retryFailed;
+      let reprise = true;
       do {
         const lot = await this.api.fetchFlyers(LOT, reprise);
         reprise = false;

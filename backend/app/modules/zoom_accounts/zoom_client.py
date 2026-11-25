@@ -81,7 +81,7 @@ class ZoomClient:
         except httpx.HTTPError as erreur:
             raise ZoomError(f"Zoom est injoignable ({type(erreur).__name__}).") from erreur
 
-        corps = _corps_json(reponse)
+        corps = _corps_json(reponse) or {}
         if reponse.status_code != 200:
             raison = corps.get("reason") or corps.get("error") or reponse.reason_phrase
             raise ZoomError(f"Zoom refuse de délivrer un jeton : {raison}.", reponse.status_code)
@@ -89,9 +89,12 @@ class ZoomClient:
         jeton = corps.get("access_token")
         if not isinstance(jeton, str) or not jeton:
             raise ZoomError("Réponse de Zoom sans jeton d'accès.", reponse.status_code)
+        duree = corps.get("expires_in", 3600)
+        if type(duree) is not int or duree <= 0:
+            raise ZoomError("Réponse de Zoom : durée du jeton illisible.", reponse.status_code)
         return ZoomToken(
             access_token=jeton,
-            expires_in=int(corps.get("expires_in") or 3600),
+            expires_in=duree,
             scopes=tuple(str(corps.get("scope") or "").split()),
         )
 
@@ -120,15 +123,17 @@ class ZoomClient:
         except httpx.HTTPError as erreur:
             raise ZoomError(f"Zoom est injoignable ({type(erreur).__name__}).") from erreur
 
-        corps = _corps_json(reponse)
+        lu = _corps_json(reponse)
+        corps = lu or {}
         if reponse.status_code >= 400:
             code = corps.get("code")
             detail = corps.get("message") or reponse.reason_phrase
             # Les erreurs de validation de Zoom détaillent le champ fautif dans
             # `errors` : sans lui, « Validation Failed » ne dit rien.
+            erreurs = corps.get("errors")
             champs = "; ".join(
                 f"{e.get('field')} : {e.get('message')}"
-                for e in corps.get("errors") or []
+                for e in (erreurs if isinstance(erreurs, list) else [])
                 if isinstance(e, dict)
             )
             raise ZoomError(
@@ -136,16 +141,20 @@ class ZoomClient:
                 reponse.status_code,
                 code if isinstance(code, int) else None,
             )
+        # Seul un « 204 » n'a rien à dire. Ailleurs, un corps illisible (page
+        # d'un portail, réponse coupée) ne vaut pas un succès.
+        if lu is None and reponse.status_code != 204:
+            raise ZoomError("Réponse de Zoom illisible.", reponse.status_code)
         return corps
 
 
-def _corps_json(reponse: httpx.Response) -> dict[str, Any]:
-    """Corps JSON de la réponse, ou un dictionnaire vide s'il n'y en a pas."""
+def _corps_json(reponse: httpx.Response) -> dict[str, Any] | None:
+    """Objet JSON de la réponse, ou `None` s'il n'y en a pas de lisible."""
     try:
         corps = reponse.json()
     except ValueError:
-        return {}
-    return corps if isinstance(corps, dict) else {}
+        return None
+    return corps if isinstance(corps, dict) else None
 
 
 def get_zoom_client() -> ZoomClient:

@@ -11,6 +11,7 @@ Deux fonctions de hachage, pour deux usages qu'il ne faut pas confondre :
 """
 
 import hashlib
+import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -124,4 +125,16 @@ def decrypt_token(chiffre: str) -> str:
     try:
         return _fernet().decrypt(chiffre.encode("ascii")).decode("utf-8")
     except InvalidToken as erreur:
-        raise ApiError("invalid_encrypted_token", "Secret de plateforme illisible.", 500) from erreur
+        raise ApiError(
+            "invalid_encrypted_token", "Secret de plateforme illisible.", 500
+        ) from erreur
+
+
+def fingerprint(valeur: str) -> str:
+    """Empreinte à clé d'une donnée qu'on doit reconnaître sans la conserver.
+
+    HMAC et non simple hachage : sans la clé du serveur, on ne peut pas tester
+    une liste d'adresses contre les empreintes d'une base volée.
+    """
+    cle = get_settings().TOKEN_ENCRYPTION_KEY.get_secret_value().encode("utf-8")
+    return hmac.new(cle, valeur.encode("utf-8"), hashlib.sha256).hexdigest()

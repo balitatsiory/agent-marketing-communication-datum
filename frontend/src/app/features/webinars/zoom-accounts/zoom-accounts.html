@@ -186,8 +186,8 @@
 </div>
 
 @if (draft(); as saisie) {
-  <div class="modal-back" (keydown.escape)="closeForm()" tabindex="-1">
-    <form class="modal account-form" role="dialog" aria-modal="true" aria-label="Compte Zoom" (submit)="$event.preventDefault(); save()">
+  <div class="modal-back">
+    <form class="modal account-form" appDialog (dialogClosed)="closeForm()" role="dialog" aria-modal="true" aria-label="Compte Zoom" (submit)="$event.preventDefault(); save()">
       <div class="modal-head">
         <h2>{{ editingId() === null ? 'Ajouter un compte Zoom' : 'Modifier le compte' }}</h2>
         <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="closeForm()">
@@ -200,7 +200,7 @@
         }
         <div class="field">
           <label for="za-label">Nom du compte</label>
-          <input class="input" id="za-label" maxlength="120" placeholder="Datum Academy" [value]="saisie.label" (input)="type('label', $any($event.target).value)" />
+          <input class="input" id="za-label" data-autofocus maxlength="120" placeholder="Datum Academy" [value]="saisie.label" (input)="type('label', $any($event.target).value)" />
         </div>
         <div class="field">
           <label for="za-email">Adresse e-mail Zoom de l’hôte</label>

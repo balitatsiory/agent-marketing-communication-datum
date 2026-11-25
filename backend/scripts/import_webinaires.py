@@ -72,11 +72,16 @@ async def importer_fichiers(arguments: argparse.Namespace) -> int:
     if not arguments.fetch_flyers:
         return 0
     stockes = echecs = 0
+    # Le premier lot reprend aussi les échecs d'une exécution précédente.
+    reprise = True
     while True:
         # Une transaction par lot : une interruption ne perd que le lot en cours.
         async with SessionFactory() as session:
-            lot = await flyers.fetch_pending_flyers(session, get_stockage(), FLYER_BATCH_MAX)
+            lot = await flyers.fetch_pending_flyers(
+                session, get_stockage(), FLYER_BATCH_MAX, retry_failed=reprise
+            )
             await session.commit()
+        reprise = False
         stockes += lot.stored
         echecs += lot.failed
         for erreur_flyer in lot.errors:

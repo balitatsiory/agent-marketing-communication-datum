@@ -216,7 +216,7 @@ async def import_meeting(
         zoom,
         stockage,
         corps.id_zoom_accounts,
-        int(corps.meeting_id.replace(" ", "")),
+        int(corps.meeting_id),
         par,
     )
 
