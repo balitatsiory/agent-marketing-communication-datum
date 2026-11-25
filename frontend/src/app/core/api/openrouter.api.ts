@@ -263,11 +263,33 @@ export interface SandboxVariantResultDto {
 }
 
 export interface SandboxCompareResponseDto {
+  readonly id_ai_sandbox_runs: number | null;
   readonly use_case: SandboxUseCase;
   readonly key_source: 'sandbox' | 'standard';
   readonly key_masked: string;
   readonly total_batch_cost_usd: number;
   readonly results: readonly SandboxVariantResultDto[];
+  readonly created_at: string | null;
+}
+
+export interface SandboxRunHistoryDto {
+  readonly id_ai_sandbox_runs: number;
+  readonly use_case: SandboxUseCase;
+  readonly system_prompt: string;
+  readonly user_prompt: string;
+  readonly tone: string | null;
+  readonly json_output_enabled: boolean;
+  readonly json_output_schema: string | null;
+  readonly knowledge_context: string | null;
+  readonly image_mode: 'create' | 'edit' | null;
+  readonly image_aspect_ratio: string | null;
+  readonly key_source: 'sandbox' | 'standard';
+  readonly key_masked: string;
+  readonly total_batch_cost_usd: number;
+  readonly variants: readonly SandboxVariantInputDto[];
+  readonly results: readonly SandboxVariantResultDto[];
+  readonly created_by_name: string | null;
+  readonly created_at: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -377,6 +399,22 @@ export class OpenRouterApi {
   compareSandbox(payload: SandboxCompareRequestDto): Promise<SandboxCompareResponseDto> {
     return firstValueFrom(
       this.http.post<SandboxCompareResponseDto>(`${this.base}/sandbox/compare`, payload),
+    );
+  }
+
+  listSandboxHistory(useCase?: SandboxUseCase | null, limit = 50): Promise<readonly SandboxRunHistoryDto[]> {
+    let params = new HttpParams().set('limit', String(limit));
+    if (useCase) {
+      params = params.set('use_case', useCase);
+    }
+    return firstValueFrom(
+      this.http.get<SandboxRunHistoryDto[]>(`${this.base}/sandbox/history`, { params }),
+    );
+  }
+
+  deleteSandboxHistory(idRun: number): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/sandbox/history/${idRun}`),
     );
   }
 }

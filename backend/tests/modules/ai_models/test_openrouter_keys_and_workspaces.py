@@ -453,9 +453,28 @@ async def test_bac_a_sable_ia_comparaison_parallele(
         assert r.status_code == 200, r.text
         data = r.json()
         assert data["key_source"] == "sandbox"
+        assert data["id_ai_sandbox_runs"] is not None
         assert len(data["results"]) == 2
         res_a, res_b = data["results"]
         assert res_a["ok"] is True
         assert res_a["cost_usd"] == 0.0018
         assert res_b["reasoning_tokens"] == 1500
         assert data["total_batch_cost_usd"] == round(0.0018 + 0.0145, 7)
+
+        # Vérification de l'historique du Bac à sable
+        r_hist = await client.get("/api/v1/openrouter/sandbox/history", headers=entete(jetons))
+        assert r_hist.status_code == 200, r_hist.text
+        historique = r_hist.json()
+        assert len(historique) == 1
+        assert historique[0]["id_ai_sandbox_runs"] == data["id_ai_sandbox_runs"]
+        assert historique[0]["use_case"] == "publication_text"
+        assert len(historique[0]["results"]) == 2
+
+        # Suppression de l'entrée d'historique
+        r_del = await client.delete(
+            f"/api/v1/openrouter/sandbox/history/{data['id_ai_sandbox_runs']}",
+            headers=entete(jetons),
+        )
+        assert r_del.status_code == 204
+        r_hist_after = await client.get("/api/v1/openrouter/sandbox/history", headers=entete(jetons))
+        assert r_hist_after.json() == []
