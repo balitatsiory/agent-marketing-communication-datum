@@ -1,5 +1,7 @@
 """Webinaires : brouillons, réunions Zoom, listes, statistiques, inscriptions."""
 
+import csv
+import io
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -493,6 +495,78 @@ async def test_list_registrations_without_right_is_forbidden(
     )
 
     assert reponse.status_code == 403
+
+
+# --- export ---------------------------------------------------------------
+
+
+async def test_export_registrations_writes_a_safe_csv(
+    client: AsyncClient, entete: dict[str, str]
+) -> None:
+    fiche = await _brouillon(client, entete)
+    base = f"/api/v1/webinars/{fiche['id_webinars']}/registrations"
+    for personne in (
+        {"email": "a@example.com", "first_name": "Aïna", "last_name": "Rakoto; Ra"},
+        {"email": "f@example.com", "first_name": "=2+2", "last_name": "@SUM(A1)"},
+        {"email": "e@example.com", "first_name": "Effacé", "last_name": "Parti"},
+    ):
+        cree = await client.post(
+            base, json=personne | {"has_newsletter_consent": True}, headers=entete
+        )
+    await client.delete(f"{base}/{cree.json()['id_webinar_registrations']}", headers=entete)
+
+    reponse = await client.get(f"{base}/export", headers=entete)
+
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.headers["content-type"].startswith("text/csv")
+    assert "attachment" in reponse.headers["content-disposition"]
+    assert reponse.headers["cache-control"] == "no-store"
+    assert reponse.content.startswith(b"\xef\xbb\xbf")
+    lignes = list(csv.reader(io.StringIO(reponse.content.decode("utf-8-sig")), delimiter=";"))
+    assert lignes[0][:4] == ["Prénom", "Nom de famille", "Adresse e-mail", "Origine"]
+    assert [ligne[:4] for ligne in lignes[1:]] == [
+        ["Aïna", "Rakoto; Ra", "a@example.com", "Équipe"],
+        ["'=2+2", "'@SUM(A1)", "f@example.com", "Équipe"],
+    ]
+    assert lignes[1][5] == "oui"
+
+
+async def test_export_registrations_neutralizes_a_zoom_name_after_a_line_feed(
+    client: AsyncClient, entete: dict[str, str], compte: int, faux_zoom: FauxZoom
+) -> None:
+    # La reprise depuis Zoom garde le prénom tel quel, sans le contrôle du formulaire.
+    fiche = await _programmer(client, entete, compte, registration_mode="zoom_page")
+    faux_zoom.inscrits[fiche["external_zoom_meeting_id"]] = [
+        {"id": "z1", "email": "e@example.com", "first_name": "\n=1+1", "status": "approved"}
+    ]
+    base = f"/api/v1/webinars/{fiche['id_webinars']}/registrations"
+    await client.post(f"{base}/zoom-sync", headers=entete)
+
+    reponse = await client.get(f"{base}/export", headers=entete)
+
+    texte = reponse.content.decode("utf-8-sig")
+    lignes = list(csv.reader(io.StringIO(texte, newline=""), delimiter=";"))
+    assert lignes[1][0] == "'\n=1+1"
+
+
+async def test_export_registrations_without_right_is_forbidden(
+    client: AsyncClient, entete: dict[str, str], ouvrir: Any
+) -> None:
+    fiche = await _brouillon(client, entete)
+
+    reponse = await client.get(
+        f"/api/v1/webinars/{fiche['id_webinars']}/registrations/export", headers=await ouvrir()
+    )
+
+    assert reponse.status_code == 403
+
+
+async def test_export_registrations_unknown_webinar_is_not_found(
+    client: AsyncClient, entete: dict[str, str]
+) -> None:
+    reponse = await client.get("/api/v1/webinars/999999/registrations/export", headers=entete)
+
+    assert reponse.status_code == 404
 
 
 # --- publications liées ---------------------------------------------------

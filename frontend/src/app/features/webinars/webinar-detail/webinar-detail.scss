@@ -203,34 +203,8 @@
   align-self: flex-start;
 }
 
-@keyframes grow-up {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-.spark {
-  display: flex;
-  gap: 2px;
-  height: 80px;
-  border-bottom: 1px solid var(--border-2);
-}
-.spark-col {
-  flex: 1;
-  display: flex;
-  align-items: flex-end;
-}
-.spark-col:hover {
-  background: var(--surface-2);
-}
-.spark-col span {
-  width: 100%;
-  background: var(--accent);
-  border-radius: 3px 3px 0 0;
-  transform-origin: bottom;
-  animation: grow-up 0.5s ease both;
+.chart-wait {
+  height: 170px;
 }
 
 .linkrow {
@@ -307,6 +281,9 @@
 }
 .add-form .input.wide {
   flex-basis: 300px;
+}
+.pane-actions .export {
+  margin-left: auto;
 }
 .actions-cell {
   text-align: right;

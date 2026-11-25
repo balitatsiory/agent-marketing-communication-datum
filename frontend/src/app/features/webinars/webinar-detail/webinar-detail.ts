@@ -21,7 +21,10 @@ import {
 } from '../../../core/api/webinars.api';
 import { Session } from '../../../core/services/session';
 import { Dialog } from '../../../shared/dialog/dialog';
+import { downloadFile, fileSlug } from '../../../shared/download';
 import { Icon } from '../../../shared/icon/icon';
+import { Pager } from '../../../shared/pager/pager';
+import { RegistrationChart } from '../registration-chart/registration-chart';
 import {
   ANOMALY_LABELS,
   dateBlock,
@@ -33,7 +36,7 @@ import {
 
 type Tab = 'detail' | 'registrations' | 'publications';
 
-const INSCRITS_PAR_PAGE = 10;
+const TAILLES_INSCRITS = [10, 25, 50] as const;
 
 /** Réglages de la réunion Zoom, dans les mots de l'équipe. */
 const ZOOM_SETTINGS: Readonly<Record<string, string>> = {
@@ -80,7 +83,7 @@ function valeurReglage(nom: string, valeur: string | number | boolean): string {
 @Component({
   selector: 'app-webinar-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, RouterLink, Dialog, Icon],
+  imports: [DatePipe, RouterLink, Dialog, Icon, Pager, RegistrationChart],
   templateUrl: './webinar-detail.html',
   styleUrl: './webinar-detail.scss',
 })
@@ -126,6 +129,11 @@ export class WebinarDetailDialog {
   protected readonly registrationPage = signal(1);
   protected readonly registrationPages = signal(0);
   protected readonly registrationTotal = signal(0);
+  protected readonly registrationSizes = TAILLES_INSCRITS;
+  protected readonly registrationSize = signal<number>(TAILLES_INSCRITS[0]);
+  protected readonly exporting = signal(false);
+  /** Numéro de la dernière lecture demandée : seule sa réponse compte. */
+  private registrationRequest = 0;
   protected readonly erasing = signal<number | null>(null);
   protected readonly newRegistration = signal({
     email: '',
@@ -176,12 +184,6 @@ export class WebinarDetailDialog {
     (this.webinar()?.anomalies ?? []).map((code) => ANOMALY_LABELS[code] ?? code),
   );
 
-  protected readonly bars = computed(() => {
-    const serie = this.webinar()?.registration_series ?? [];
-    const maximum = Math.max(1, ...serie.map((point) => point.count));
-    return serie.map((point) => ({ ...point, share: point.count / maximum }));
-  });
-
   /** Le format de l'adresse d'inscription dépend du mode choisi. */
   protected readonly registrationLink = computed(() => {
     const fiche = this.webinar();
@@ -208,6 +210,10 @@ export class WebinarDetailDialog {
     this.notice.set(null);
     this.zoomError.set(null);
     this.confirming.set(null);
+    // La liste d'une autre fiche ne doit pas rester sous ce titre.
+    this.registrations.set([]);
+    this.registrationTotal.set(0);
+    this.erasing.set(null);
     try {
       const fiche = await this.api.get(id);
       if (this.id() !== id) return;
@@ -326,15 +332,52 @@ export class WebinarDetailDialog {
 
   /* ---------- inscrits ---------- */
 
-  protected async loadRegistrations(page: number): Promise<void> {
+  protected async loadRegistrations(
+    page: number,
+    taille: number = this.registrationSize(),
+  ): Promise<void> {
+    const id = this.id();
+    const numero = ++this.registrationRequest;
+    const perime = (): boolean => numero !== this.registrationRequest || this.id() !== id;
     try {
-      const reponse = await this.api.registrations(this.id(), page, INSCRITS_PAR_PAGE);
+      const reponse = await this.api.registrations(id, page, taille);
+      if (perime()) return;
+      // La dernière ligne de la dernière page vient de partir : on recule.
+      if (reponse.pages > 0 && page > reponse.pages) {
+        await this.loadRegistrations(reponse.pages, taille);
+        return;
+      }
       this.registrations.set(reponse.items);
       this.registrationPage.set(reponse.page);
       this.registrationPages.set(reponse.pages);
       this.registrationTotal.set(reponse.total);
+      // La taille suit les lignes affichées : une demande ratée ne la change pas.
+      this.registrationSize.set(taille);
     } catch (erreur) {
-      this.error.set(toApiError(erreur).message);
+      if (!perime()) this.error.set(toApiError(erreur).message);
+    }
+  }
+
+  protected chooseRegistrationSize(taille: number): Promise<void> {
+    return this.loadRegistrations(1, taille);
+  }
+
+  protected async exportRegistrations(): Promise<void> {
+    const fiche = this.webinar();
+    if (!fiche || this.exporting()) return;
+    this.exporting.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    try {
+      const fichier = await this.api.exportRegistrations(fiche.id_webinars);
+      const nom = fileSlug(fiche.title) || String(fiche.id_webinars);
+      // « sv-SE » écrit la date du poste au format AAAA-MM-JJ ; toISOString donnerait celle d'UTC.
+      const jour = new Date().toLocaleDateString('sv-SE');
+      downloadFile(fichier, `inscrits-${nom}-${jour}.csv`);
+    } catch (erreur) {
+      if (this.id() === fiche.id_webinars) this.error.set(toApiError(erreur).message);
+    } finally {
+      this.exporting.set(false);
     }
   }
 

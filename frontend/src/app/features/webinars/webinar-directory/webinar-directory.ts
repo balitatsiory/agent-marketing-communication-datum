@@ -29,6 +29,7 @@ import { Topbar } from '../../../layout/topbar/topbar';
 import { CountUp } from '../../../shared/count-up/count-up';
 import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
+import { Pager } from '../../../shared/pager/pager';
 import { WebinarDetailDialog } from '../webinar-detail/webinar-detail';
 import { WebinarImportDialog } from '../webinar-import/webinar-import';
 import { WebinarStatsDialog } from '../webinar-stats/webinar-stats';
@@ -83,6 +84,7 @@ function lirePreferences(): { view: View; size: number } {
     RouterLink,
     Topbar,
     Icon,
+    Pager,
     CountUp,
     Dialog,
     WebinarDetailDialog,
@@ -175,23 +177,6 @@ export class WebinarDirectory {
   protected readonly hasFilters = computed(
     () => !!(this.status() || this.type() || this.category() || this.search().trim()),
   );
-
-  protected readonly range = computed(() => {
-    const total = this.total();
-    if (total === 0) return '0';
-    const debut = (this.page() - 1) * this.size() + 1;
-    return `${debut}–${Math.min(total, debut + this.size() - 1)} sur ${total}`;
-  });
-
-  /** Numéros de page affichés : les voisins de la page courante et les bouts. */
-  protected readonly pageNumbers = computed<readonly (number | null)[]>(() => {
-    const total = this.pages();
-    const courante = this.page();
-    const gardees = [...new Set([1, courante - 1, courante, courante + 1, total])]
-      .filter((n) => n >= 1 && n <= total)
-      .sort((a, b) => a - b);
-    return gardees.flatMap((n, i) => (i > 0 && n - gardees[i - 1] > 1 ? [null, n] : [n]));
-  });
 
   constructor() {
     void this.chargerReferences();
@@ -329,8 +314,8 @@ export class WebinarDirectory {
     this.page.set(1);
   }
 
-  protected chooseSize(valeur: string): void {
-    this.size.set(Number(valeur));
+  protected chooseSize(taille: number): void {
+    this.size.set(taille);
     this.page.set(1);
   }
 

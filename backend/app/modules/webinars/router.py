@@ -14,6 +14,7 @@ from app.modules.users.models import User
 from app.modules.webinars import (
     flyers,
     importer,
+    registration_export,
     registration_service,
     service,
     zoom_service,
@@ -364,6 +365,27 @@ async def list_registrations(
     pagination: PaginationDep,
 ) -> Page[RegistrationRead]:
     return await registration_service.list_registrations(session, id_webinars, pagination)
+
+
+@router.get(
+    "/{id_webinars}/registrations/export",
+    response_class=Response,
+    summary="Exporter les inscrits en CSV",
+    responses={200: {"content": {"text/csv": {}}}},
+)
+async def export_registrations(
+    id_webinars: int, session: SessionDep, par: GestionnaireWebinaires
+) -> Response:
+    contenu = await registration_export.export_registrations(session, id_webinars, par)
+    return Response(
+        content=contenu.encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="inscrits-{id_webinars}.csv"',
+            # Des données personnelles : aucune copie ne doit rester en cache.
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post(
