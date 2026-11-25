@@ -1,0 +1,469 @@
+<app-topbar [trail]="trail">
+  <a class="btn" routerLink="/newsletter/envois">
+    <app-icon name="send" size="sm" />
+    Boîte d'envois
+  </a>
+  @if (canManage()) {
+    <button class="btn btn-primary" type="button" (click)="ouvrirCreation()">
+      <app-icon name="plus" size="sm" />
+      Nouveau compte
+    </button>
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Comptes d'envoi</h1>
+      <p class="sub">
+        @if (active(); as compte) {
+          Les courriels partent de {{ compte.from_email }} ·
+          {{ compte.host }}:{{ compte.port }} · {{ modeLisible(compte) }}
+        } @else {
+          Aucun compte d'envoi actif : rien ne peut partir.
+        }
+      </p>
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div class="banner banner-error">
+      <app-icon name="warn" size="sm" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  @if (report(); as compte_rendu) {
+    <div class="banner" [class.banner-error]="!compte_rendu.ok">
+      <app-icon [name]="compte_rendu.ok ? 'check' : 'warn'" size="sm" />
+      <span>{{ compte_rendu.message }}</span>
+      <button class="btn btn-sm" type="button" (click)="report.set(null)">Fermer</button>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="empty">
+      <p>Chargement des comptes d'envoi…</p>
+    </div>
+  } @else if (accounts().length === 0) {
+    <div class="empty">
+      <h2>Aucun compte d'envoi</h2>
+      <p>
+        Pour qu'IAGORA puisse expédier les courriels d'événement, enregistrez la boîte
+        qui les enverra. Chez IONOS, l'identifiant est l'adresse complète de la boîte et
+        le mot de passe est celui de la boîte — pas celui du compte client. Le mot de
+        passe est chiffré avant d'être écrit en base.
+      </p>
+      @if (canManage()) {
+        <button class="btn btn-primary" type="button" (click)="ouvrirCreation()">
+          <app-icon name="plus" size="sm" />
+          Enregistrer un compte
+        </button>
+      } @else {
+        <p class="sub">Cette configuration demande le droit « Gérer les comptes d'envoi ».</p>
+      }
+    </div>
+  } @else {
+    <div class="accounts">
+      <!-- ---------- la liste des comptes ---------- -->
+      <section class="list">
+        @for (compte of accounts(); track compte.id_email_accounts) {
+          <article
+            class="acc"
+            [class.is-on]="selected() === compte.id_email_accounts"
+            (click)="select(compte.id_email_accounts)"
+          >
+            <header class="acc-head">
+              <div class="acc-id">
+                <h2>{{ compte.label }}</h2>
+                <span class="status" [class]="etatModifier(compte)">{{ etatLisible(compte) }}</span>
+                @if (compte.is_default) {
+                  <span class="status status-review">Compte actif</span>
+                }
+              </div>
+              <span class="acc-srv num">
+                {{ compte.host }}:{{ compte.port }} · {{ modeLisible(compte) }}
+              </span>
+            </header>
+
+            <dl class="acc-facts">
+              <div>
+                <dt>Identifiant</dt>
+                <dd>{{ compte.username }}</dd>
+              </div>
+              <div>
+                <dt>Expéditeur</dt>
+                <dd>
+                  @if (compte.from_name) {
+                    {{ compte.from_name }} &lt;{{ compte.from_email }}&gt;
+                  } @else {
+                    {{ compte.from_email }}
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Mot de passe</dt>
+                <dd>
+                  @if (compte.has_password) {
+                    <span class="num">{{ compte.password_masked }}</span>
+                    <span class="d">
+                      enregistré le {{ compte.password_obtained_at | date: 'dd/MM/yyyy' : 'UTC' : 'fr' }}
+                    </span>
+                  } @else {
+                    <span class="dash">aucun — ce compte ne peut rien envoyer</span>
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Dernière vérification</dt>
+                <dd>
+                  @if (compte.last_verified_at) {
+                    <span class="num">
+                      {{ compte.last_verified_at | date: 'dd/MM/yyyy HH:mm' : 'UTC' : 'fr' }}
+                    </span>
+                    <span class="d">{{ compte.last_verify_message }}</span>
+                  } @else {
+                    <span class="dash">jamais testée</span>
+                  }
+                </dd>
+              </div>
+            </dl>
+
+            @if (canManage()) {
+              <footer class="acc-acts">
+                <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="tester(compte); $event.stopPropagation()">
+                  <app-icon name="check" size="sm" />
+                  Tester la connexion
+                </button>
+                <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="ouvrirMessageDeTest(compte); $event.stopPropagation()">
+                  <app-icon name="send" size="sm" />
+                  Mail de test
+                </button>
+                <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="ouvrirMotDePasse(compte); $event.stopPropagation()">
+                  <app-icon name="sliders" size="sm" />
+                  Mot de passe
+                </button>
+                <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="ouvrirModification(compte); $event.stopPropagation()">
+                  <app-icon name="pencil" size="sm" />
+                  Modifier
+                </button>
+                @if (!compte.is_default) {
+                  <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="definirParDefaut(compte); $event.stopPropagation()">
+                    Rendre actif
+                  </button>
+                  <button class="btn btn-sm btn-danger" type="button" [disabled]="busy()" (click)="archiver(compte); $event.stopPropagation()">
+                    <app-icon name="close" size="sm" />
+                    Archiver
+                  </button>
+                }
+              </footer>
+            }
+          </article>
+        }
+      </section>
+
+      <!-- ---------- l'historique du compte ouvert ---------- -->
+      <aside class="history">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Vérifications</h2>
+            @if (selectedAccount(); as compte) {
+              <span class="num">{{ compte.label }}</span>
+            }
+          </div>
+          <div class="panel-body">
+            @if (checks().length === 0) {
+              <p class="hist-empty">
+                Aucune vérification pour l'instant. « Tester la connexion » ouvre une session
+                authentifiée sans envoyer de message ; « Mail de test » envoie réellement un
+                courriel, et c'est le seul moyen de savoir si le serveur accepte d'expédier
+                pour cette adresse.
+              </p>
+            } @else {
+              <ol class="hist">
+                @for (verification of checks(); track verification.id_email_account_checks) {
+                  <li class="hist-row" [class.is-ko]="!verification.is_ok">
+                    <span class="hist-mark">
+                      <app-icon [name]="verification.is_ok ? 'check' : 'warn'" size="sm" />
+                    </span>
+                    <div class="hist-body">
+                      <div class="hist-top">
+                        <span class="hist-kind">{{ natureLisible(verification) }}</span>
+                        <span class="num hist-when">
+                          {{ verification.checked_at | date: 'dd/MM HH:mm' : 'UTC' : 'fr' }}
+                        </span>
+                        @if (verification.latency_ms !== null) {
+                          <span class="num hist-ms">{{ verification.latency_ms }} ms</span>
+                        }
+                      </div>
+                      <p class="hist-msg">{{ verification.message }}</p>
+                      @if (verification.recipient_email) {
+                        <p class="hist-to num">vers {{ verification.recipient_email }}</p>
+                      }
+                      @if (verification.checked_by_name) {
+                        <p class="hist-by">par {{ verification.checked_by_name }}</p>
+                      }
+                    </div>
+                  </li>
+                }
+              </ol>
+            }
+          </div>
+        </div>
+      </aside>
+    </div>
+  }
+</div>
+
+<!-- ---------- fenêtre : création et modification ---------- -->
+@if (draft(); as brouillon) {
+  <div class="modal-back" (click)="fermerFormulaire()" (keydown.escape)="fermerFormulaire()" tabindex="-1">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Compte d'envoi" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>{{ editing() === null ? "Nouveau compte d'envoi" : 'Modifier le compte' }}</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermerFormulaire()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form">
+          <div class="field">
+            <label for="label">Nom du compte</label>
+            <input
+              id="label"
+              class="input"
+              type="text"
+              placeholder="Datum Academy — contact"
+              [value]="brouillon.label"
+              (input)="majBrouillon('label', $any($event.target).value)"
+            />
+          </div>
+
+          <div class="duo">
+            <div class="field">
+              <label for="host">Serveur SMTP</label>
+              <input
+                id="host"
+                class="input"
+                type="text"
+                [value]="brouillon.host"
+                (input)="majBrouillon('host', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="security">Chiffrement</label>
+              <select
+                id="security"
+                class="select"
+                [value]="brouillon.security"
+                (change)="changerMode($any($event.target).value)"
+              >
+                <option value="ssl_tls">SSL/TLS — port 465</option>
+                <option value="starttls">STARTTLS — port 587</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="port">Port</label>
+              <input
+                id="port"
+                class="input num"
+                type="number"
+                min="1"
+                max="65535"
+                [value]="brouillon.port"
+                (input)="majBrouillon('port', $any($event.target).value)"
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="username">Identifiant SMTP</label>
+            <input
+              id="username"
+              class="input"
+              type="text"
+              autocomplete="off"
+              placeholder="contact@datum-academy.fr"
+              [value]="brouillon.username"
+              (input)="majBrouillon('username', $any($event.target).value)"
+            />
+            <p class="hint">Chez IONOS, c'est l'adresse complète de la boîte.</p>
+          </div>
+
+          @if (editing() === null) {
+            <div class="field">
+              <label for="password">Mot de passe de la boîte</label>
+              <input
+                id="password"
+                class="input"
+                type="password"
+                autocomplete="new-password"
+                [value]="brouillon.password"
+                (input)="majBrouillon('password', $any($event.target).value)"
+              />
+              <p class="hint">
+                Chiffré avant écriture en base, et jamais renvoyé par l'API. Ce n'est pas le
+                mot de passe du compte client IONOS, mais celui de la boîte.
+              </p>
+            </div>
+          }
+
+          <div class="duo">
+            <div class="field">
+              <label for="from_email">Adresse d'expédition</label>
+              <input
+                id="from_email"
+                class="input"
+                type="email"
+                [value]="brouillon.from_email"
+                (input)="majBrouillon('from_email', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="from_name">Nom affiché</label>
+              <input
+                id="from_name"
+                class="input"
+                type="text"
+                placeholder="Datum Academy"
+                [value]="brouillon.from_name"
+                (input)="majBrouillon('from_name', $any($event.target).value)"
+              />
+            </div>
+          </div>
+
+          <div class="duo">
+            <div class="field">
+              <label for="reply_to">Adresse de réponse</label>
+              <input
+                id="reply_to"
+                class="input"
+                type="email"
+                placeholder="facultative"
+                [value]="brouillon.reply_to_email"
+                (input)="majBrouillon('reply_to_email', $any($event.target).value)"
+              />
+            </div>
+            <div class="field">
+              <label for="timeout">Délai d'attente (s)</label>
+              <input
+                id="timeout"
+                class="input num"
+                type="number"
+                min="1"
+                max="120"
+                [value]="brouillon.timeout_seconds"
+                (input)="majBrouillon('timeout_seconds', $any($event.target).value)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="foot-note">
+          @if (editing() === null) {
+            La connexion est testée dès l'enregistrement.
+          } @else {
+            Changer le serveur, le port, le mode ou l'identifiant annule la dernière vérification.
+          }
+        </span>
+        <button class="btn" type="button" (click)="fermerFormulaire()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="busy() || !formulaireValide()"
+          (click)="enregistrer()"
+        >
+          {{ busy() ? 'Enregistrement…' : 'Enregistrer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ---------- fenêtre : remplacement du mot de passe ---------- -->
+@if (passwordFor() !== null) {
+  <div class="modal-back" (click)="fermerMotDePasse()" (keydown.escape)="fermerMotDePasse()" tabindex="-1">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-label="Mot de passe" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Remplacer le mot de passe</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermerMotDePasse()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="new_password">Nouveau mot de passe de la boîte</label>
+          <input
+            id="new_password"
+            class="input"
+            type="password"
+            autocomplete="new-password"
+            [value]="newPassword()"
+            (input)="newPassword.set($any($event.target).value)"
+          />
+          <p class="hint">
+            Le précédent n'est pas écrasé : il est daté et conservé chiffré, pour qu'on sache
+            à partir de quand les envois ont cessé de passer.
+          </p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="fermerMotDePasse()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="busy() || newPassword().length < 6"
+          (click)="enregistrerMotDePasse()"
+        >
+          {{ busy() ? 'Vérification…' : 'Enregistrer et tester' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ---------- fenêtre : message de test ---------- -->
+@if (testFor() !== null) {
+  <div class="modal-back" (click)="fermerMessageDeTest()" (keydown.escape)="fermerMessageDeTest()" tabindex="-1">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-label="Message de test" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Envoyer un message de test</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermerMessageDeTest()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="recipient">Destinataire</label>
+          <input
+            id="recipient"
+            class="input"
+            type="email"
+            placeholder="vous@exemple.fr"
+            [value]="testRecipient()"
+            (input)="testRecipient.set($any($event.target).value)"
+          />
+          <p class="hint">
+            Un vrai courriel part. C'est le seul essai qui montre que le serveur accepte
+            d'expédier pour l'adresse configurée, et non seulement l'authentification.
+          </p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="fermerMessageDeTest()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="busy() || !testRecipient().includes('@')"
+          (click)="envoyerMessageDeTest()"
+        >
+          <app-icon name="send" size="sm" />
+          {{ busy() ? 'Envoi…' : 'Envoyer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

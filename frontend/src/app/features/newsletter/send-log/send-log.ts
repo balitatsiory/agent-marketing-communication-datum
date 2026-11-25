@@ -1,6 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { toApiError } from '../../../core/api/api-error';
+import { EmailAccountDto, EmailAccountsApi } from '../../../core/api/email-accounts.api';
+import { Session } from '../../../core/services/session';
 import { NEWSLETTER_SENDS } from '../../../core/data/newsletter-sends.data';
 import {
   MAIL_CATEGORY_LABELS,
@@ -41,11 +44,14 @@ interface CategoryGroup {
 @Component({
   selector: 'app-send-log',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, RouterLink, Topbar, Icon, EmailPreview],
+  imports: [DatePipe, DecimalPipe, RouterLink, Topbar, Icon, EmailPreview],
   templateUrl: './send-log.html',
   styleUrl: './send-log.scss',
 })
 export class SendLog {
+  private readonly emailAccounts = inject(EmailAccountsApi);
+  private readonly session = inject(Session);
+
   protected readonly trail: readonly string[] = ['Événements', 'Newsletter', "Boîte d'envois"];
 
   protected readonly categoryLabels = MAIL_CATEGORY_LABELS;
@@ -127,6 +133,40 @@ export class SendLog {
       ).length,
     };
   });
+
+  /* ----------------------------------------------------------------
+     Compte d'envoi
+     ----------------------------------------------------------------
+     La boîte d'envois affiche d'où partent les courriels : sans compte
+     configuré, ou avec un mot de passe que le serveur refuse, rien ne
+     peut partir — et c'est ici qu'on s'en aperçoit, pas au premier
+     envoi raté. */
+
+  protected readonly sender = signal<EmailAccountDto | null>(null);
+  protected readonly senderLoaded = signal(false);
+  protected readonly senderError = signal<string | null>(null);
+
+  protected readonly canManageSenders = computed(() =>
+    this.session.has('manage_email_accounts'),
+  );
+
+  constructor() {
+    void this.chargerExpediteur();
+  }
+
+  private async chargerExpediteur(): Promise<void> {
+    try {
+      this.sender.set(await this.emailAccounts.default());
+    } catch (erreur) {
+      this.senderError.set(toApiError(erreur).message);
+    } finally {
+      this.senderLoaded.set(true);
+    }
+  }
+
+  protected senderMode(compte: EmailAccountDto): string {
+    return compte.security === 'ssl_tls' ? 'SSL/TLS' : 'STARTTLS';
+  }
 
   protected readonly hasActiveFilters = computed(
     () =>

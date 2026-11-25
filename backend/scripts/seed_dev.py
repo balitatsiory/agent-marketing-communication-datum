@@ -42,6 +42,7 @@ COMPTES = [
             "manage_social_accounts",
             "read_social_statistics",
             "manage_ai_models",
+            "manage_email_accounts",
         ],
         "is_active": True,
         "archive": False,

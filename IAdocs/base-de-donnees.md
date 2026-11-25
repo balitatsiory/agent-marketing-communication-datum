@@ -7,7 +7,11 @@
 > Régénérer après une migration, depuis `backend/` :
 > `.\venv\Scripts\python.exe -m app.cli db-doc > ..\IAdocs\base-de-donnees.md`
 
-Tables documentées : **8** · colonnes : **73**.
+Tables documentées : **11** · colonnes : **110**.
+
+> Les quatre tables du module Modèles IA (migration 0005) ne figurent pas
+> encore ici : le générateur `app.cli db-doc` annoncé ci-dessus n'existe plus
+> dans `backend/app/`, et cette page est tenue à la main depuis.
 
 ## Utilisateurs et accès
 
@@ -189,3 +193,87 @@ Statistiques d'un compte, une ligne par jour. Une valeur vide signifie « non co
 - `pk_social_account_metrics` — PRIMARY KEY (id_social_account_metrics)
 - `uq_social_account_metrics_id_social_accounts` — UNIQUE (id_social_accounts, metric_date)
 
+## Newsletter — comptes d'envoi
+
+### `email_accounts`
+
+Comptes d'envoi SMTP (IONOS et autres). Le mot de passe n'est pas ici : il vit chiffre dans email_account_credentials.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_email_accounts` | integer | non | Identifiant du compte d'envoi. |
+| `label` | varchar(120) | non | Nom lisible du compte, affiche dans l'interface. |
+| `host` | varchar(255) | non | Serveur SMTP sortant (ex: smtp.ionos.fr). |
+| `port` | integer | non | 465 en SSL/TLS implicite, 587 en STARTTLS. |
+| `security` | varchar(20) | non | ssl_tls (chiffre des l'ouverture) \| starttls (passage en TLS apres ouverture). |
+| `username` | varchar(255) | non | Identifiant SMTP, toujours en minuscules. Chez IONOS, l'adresse de la boite. |
+| `from_email` | varchar(255) | non | Adresse d'expedition, en minuscules. Le serveur la refuse si la boite ne la porte pas. |
+| `from_name` | varchar(120) | oui | Nom affiche devant l'adresse d'expedition. |
+| `reply_to_email` | varchar(255) | oui | Adresse de reponse, quand elle differe de l'expediteur. |
+| `timeout_seconds` | integer | non | Delai d'attente d'une operation SMTP, en secondes. |
+| `is_default` | boolean | non | Compte utilise par defaut pour les envois. Un seul a la fois. |
+| `last_verified_at` | timestamptz | oui | Date de la derniere verification (UTC), reussie ou non. |
+| `last_verify_ok` | boolean | oui | Resultat de la derniere verification. Vide si aucune n'a eu lieu. |
+| `last_verify_message` | text | oui | Compte rendu de la derniere verification, affiche tel quel. |
+| `id_users_created_by` | integer | oui | Utilisateur qui a enregistre le compte. |
+| `id_users_changed_by` | integer | oui | Utilisateur de la derniere modification. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+| `updated_at` | timestamptz | non | Date de derniere modification (UTC). |
+| `deleted_at` | timestamptz | oui | Archivage du compte : il n'est plus propose aux envois. |
+
+**Contraintes**
+
+- `ck_email_accounts_ck_email_accounts_port` — CHECK (((port >= 1) AND (port <= 65535)))
+- `ck_email_accounts_ck_email_accounts_security` — CHECK (((security)::text = ANY ((ARRAY['ssl_tls'::character varying, 'starttls'::character varying])::text[])))
+- `ck_email_accounts_ck_email_accounts_timeout_seconds` — CHECK (((timeout_seconds >= 1) AND (timeout_seconds <= 120)))
+- `fk_email_accounts_id_users_changed_by_users` — FOREIGN KEY (id_users_changed_by) REFERENCES users(id_users)
+- `fk_email_accounts_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
+- `pk_email_accounts` — PRIMARY KEY (id_email_accounts)
+- `uq_email_accounts_defaut` — UNIQUE (deleted_at IS NULL) WHERE (is_default AND (deleted_at IS NULL))
+- `uq_email_accounts_identifiant` — UNIQUE (deleted_at IS NULL) WHERE (deleted_at IS NULL)
+
+### `email_account_credentials`
+
+Mots de passe des comptes d'envoi, chiffres par Fernet. Un changement cree une nouvelle ligne et marque la precedente remplacee.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_email_account_credentials` | integer | non | Identifiant de la delivrance de mot de passe. |
+| `id_email_accounts` | integer | non | Compte d'envoi concerne. Ses mots de passe disparaissent avec lui. |
+| `password_encrypted` | text | non | Chiffre par Fernet (TOKEN_ENCRYPTION_KEY). Le mot de passe en clair ne touche jamais le disque. |
+| `password_masked` | varchar(40) | non | Apercu masque sans secret, pour que l'interface montre qu'il existe. |
+| `obtained_at` | timestamptz | non | Date de saisie du mot de passe (UTC). |
+| `superseded_at` | timestamptz | oui | Remplacement par un mot de passe plus recent. |
+| `revoked_at` | timestamptz | oui | Retrait sans remplacement : le compte ne peut plus envoyer. |
+| `id_users_created_by` | integer | oui | Utilisateur qui a saisi le mot de passe. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+
+**Contraintes**
+
+- `fk_email_account_credentials_id_email_accounts_email_accounts` — FOREIGN KEY (id_email_accounts) REFERENCES email_accounts(id_email_accounts) ON DELETE CASCADE
+- `fk_email_account_credentials_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
+- `pk_email_account_credentials` — PRIMARY KEY (id_email_account_credentials)
+- `uq_email_account_credentials_actif` — UNIQUE (revoked_at IS NULL) WHERE ((superseded_at IS NULL) AND (revoked_at IS NULL))
+
+### `email_account_checks`
+
+Historique des verifications d'un compte d'envoi : connexion authentifiee ou message de test. En ajout seul.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_email_account_checks` | integer | non | Identifiant de la verification. |
+| `id_email_accounts` | integer | non | Compte verifie. Ses verifications disparaissent avec lui. |
+| `kind` | varchar(20) | non | connection (connexion + authentification) \| test_message (message reellement envoye). |
+| `is_ok` | boolean | non | Vrai si le serveur a accepte l'operation. |
+| `message` | text | oui | Compte rendu en francais, affiche tel quel dans l'interface. |
+| `recipient_email` | varchar(255) | oui | Destinataire du message de test. Vide pour un simple test de connexion. |
+| `latency_ms` | integer | oui | Duree de l'echange avec le serveur, en millisecondes. |
+| `checked_at` | timestamptz | non | Moment de la verification (UTC). |
+| `id_users_checked_by` | integer | oui | Utilisateur qui a declenche la verification. |
+
+**Contraintes**
+
+- `ck_email_account_checks_ck_email_account_checks_kind` — CHECK (((kind)::text = ANY ((ARRAY['connection'::character varying, 'test_message'::character varying])::text[])))
+- `fk_email_account_checks_id_email_accounts_email_accounts` — FOREIGN KEY (id_email_accounts) REFERENCES email_accounts(id_email_accounts) ON DELETE CASCADE
+- `fk_email_account_checks_id_users_checked_by_users` — FOREIGN KEY (id_users_checked_by) REFERENCES users(id_users)
+- `pk_email_account_checks` — PRIMARY KEY (id_email_account_checks)

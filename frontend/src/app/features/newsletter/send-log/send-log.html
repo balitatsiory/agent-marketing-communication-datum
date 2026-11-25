@@ -21,6 +21,48 @@
     </div>
   </div>
 
+  <!-- D'où partent les courriels. Un compte absent, ou dont la dernière
+       vérification a échoué, se voit ici plutôt qu'au premier envoi raté. -->
+  @if (senderLoaded()) {
+    @if (sender(); as compte) {
+      <div class="banner" [class.banner-error]="compte.last_verify_ok === false">
+        <app-icon [name]="compte.last_verify_ok === false ? 'warn' : 'send'" size="sm" />
+        <span>
+          Compte d'envoi : <strong>{{ compte.from_email }}</strong> ·
+          <span class="num">{{ compte.host }}:{{ compte.port }}</span> ·
+          {{ senderMode(compte) }}
+          @if (compte.last_verified_at) {
+            @if (compte.last_verify_ok) {
+              · vérifié le {{ compte.last_verified_at | date: 'dd/MM/yyyy à HH:mm' : 'UTC' : 'fr' }}
+            } @else {
+              · dernière vérification en échec : {{ compte.last_verify_message }}
+            }
+          } @else {
+            · jamais vérifié
+          }
+        </span>
+        @if (canManageSenders()) {
+          <a class="btn btn-sm" routerLink="/newsletter/comptes-envoi">Gérer</a>
+        }
+      </div>
+    } @else if (senderError(); as message) {
+      <div class="banner banner-error">
+        <app-icon name="warn" size="sm" />
+        <span>Compte d'envoi indisponible : {{ message }}</span>
+      </div>
+    } @else {
+      <div class="banner banner-error">
+        <app-icon name="warn" size="sm" />
+        <span>
+          Aucun compte d'envoi n'est configuré : aucun courriel ne peut partir.
+        </span>
+        @if (canManageSenders()) {
+          <a class="btn btn-sm" routerLink="/newsletter/comptes-envoi">Configurer</a>
+        }
+      </div>
+    }
+  }
+
   <!-- Chiffres de la période. Motif `.stat-figures` du design system :
        l'icône porte le rôle, le rôle porte la couleur. Chaque chiffre a
        son rôle propre — un rejet n'est pas un envoi réussi, et la

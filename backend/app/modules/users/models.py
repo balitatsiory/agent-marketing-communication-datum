@@ -93,6 +93,15 @@ class User(Base):
         """Un compte archivé ou suspendu ne peut ni se connecter ni agir."""
         return self.deleted_at is None and self.is_active
 
+    @property
+    def nom_affiche(self) -> str:
+        """Nom à montrer dans l'interface, l'adresse à défaut de nom.
+
+        Déclaré ici plutôt que recopié dans chaque module : trois services
+        composaient déjà « prénom nom » à leur façon.
+        """
+        return f"{self.first_name} {self.last_name}".strip() or self.email
+
 
 class Permission(Base):
     """Droit attribuable. Référentiel alimenté par migration."""
