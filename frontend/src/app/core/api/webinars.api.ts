@@ -411,6 +411,19 @@ export class WebinarsApi {
     );
   }
 
+  /** Remplace le visuel par une image du poste. */
+  uploadFlyer(id: number, fichier: File): Promise<WebinarDetailDto> {
+    const formulaire = new FormData();
+    formulaire.set('file', fichier);
+    return firstValueFrom(
+      this.http.put<WebinarDetailDto>(`${this.base}/${id}/flyer`, formulaire),
+    );
+  }
+
+  removeFlyer(id: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`${this.base}/${id}/flyer`));
+  }
+
   /** Tous les inscrits en CSV, quelle que soit la page affichée. */
   exportRegistrations(id: number): Promise<Blob> {
     return firstValueFrom(

@@ -179,6 +179,28 @@ async def test_fetch_flyers_stores_images_and_refuses_the_rest(
     assert adresse.endswith(".png")
 
 
+async def test_import_site_export_keeps_an_uploaded_flyer(
+    client: AsyncClient, entete: dict[str, str]
+) -> None:
+    await _importer(client, entete)
+    identifiant = (await _fiches(client, entete))["Titre casse"]["id_webinars"]
+    image = io.BytesIO()
+    Image.new("RGB", (4, 4), "blue").save(image, "PNG")
+    depot = await client.put(
+        f"/api/v1/webinars/{identifiant}/flyer",
+        files={"file": ("affiche.png", image.getvalue(), "image/png")},
+        headers=entete,
+    )
+
+    rapport = await _importer(client, entete)
+    lot = await client.post("/api/v1/webinars/flyers/fetch?limit=10", headers=entete)
+
+    assert rapport["webinars_kept"] == 1
+    assert rapport["pending_flyers"] == 2
+    assert lot.json()["stored"] + lot.json()["failed"] == 2
+    assert (await _fiches(client, entete))["Titre casse"]["flyer_url"] == depot.json()["flyer_url"]
+
+
 @pytest.mark.parametrize(
     ("evenement", "attendu"),
     [

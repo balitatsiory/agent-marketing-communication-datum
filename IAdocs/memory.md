@@ -93,6 +93,7 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 26/11 | Le formulaire public répond **toujours le même message**, sans promettre de courriel | Zoom peut refuser l'inscription après coup |
 | 26/11 | Un webinaire **déjà validé ne passe plus** d'un lien fourni à « Zoom » | la réunion ne se crée qu'à la validation d'un brouillon |
 | 26/11 | Export CSV des inscrits réservé à **`manage_webinars`**, **sans** les lignes effacées ni le lien Zoom personnel ; les valeurs commençant comme une formule sont neutralisées | le fichier sort d'IAGORA : le lien donne accès à la réunion, et un tableur exécuterait un prénom saisi dans le formulaire public |
+| 26/11 | Visuel d'un webinaire **importé depuis le poste** (PNG, JPEG, WebP, 10 Mo), droit `manage_webinars` ; la fiche perd son adresse d'origine et compte comme modifiée à la main ; l'ancien fichier n'est pas supprimé du stockage | ni un nouvel import du site ni un rapatriement ne doivent écraser un visuel choisi ; une clé peut servir à plusieurs bases |
 
 ## 5. Faits vérifiés
 
