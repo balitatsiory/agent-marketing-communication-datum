@@ -308,3 +308,35 @@ async def list_models(api_key: str) -> list[dict[str, Any]]:
     if isinstance(corps, list):
         return [item for item in corps if isinstance(item, dict)]
     return []
+
+
+async def get_activity(management_key: str, date_iso: str | None = None) -> list[dict[str, Any]]:
+    """Récupère l'activité quotidienne agrégée par modèle via `GET /api/v1/activity`."""
+    params = {"date": date_iso} if date_iso else None
+    corps = await _requete(
+        "GET",
+        "/activity",
+        management_key,
+        contexte="lecture de l'activité OpenRouter",
+        params=params,
+    )
+    if isinstance(corps, dict) and isinstance(corps.get("data"), list):
+        return [item for item in corps["data"] if isinstance(item, dict)]
+    if isinstance(corps, list):
+        return [item for item in corps if isinstance(item, dict)]
+    return []
+
+
+async def list_remote_keys(management_key: str) -> list[dict[str, Any]]:
+    """Liste les clés API provisionnées sur OpenRouter via `GET /api/v1/keys`."""
+    corps = await _requete(
+        "GET",
+        "/keys",
+        management_key,
+        contexte="liste des clés OpenRouter",
+    )
+    if isinstance(corps, dict) and isinstance(corps.get("data"), list):
+        return [item for item in corps["data"] if isinstance(item, dict)]
+    if isinstance(corps, list):
+        return [item for item in corps if isinstance(item, dict)]
+    return []

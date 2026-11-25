@@ -18,9 +18,9 @@
 <div class="page">
   <div class="page-head">
     <div>
-      <h1>Modèles IA &amp; Workspaces OpenRouter <span class="v2-badge">v2</span></h1>
+      <h1>Modèles IA &amp; FinOps OpenRouter <span class="v2-badge">v2</span></h1>
       <p class="sub">
-        Gestion centralisée via OpenRouter : clés API Management et Standard chiffrées en base de données (Fernet), workspaces et catalogue des modèles IA.
+        Tableau de bord FinOps, observabilité des tokens, workspaces, catalogue modèles et clés API chiffrées en base (Fernet).
       </p>
     </div>
   </div>
@@ -44,42 +44,24 @@
        ============================================================ -->
   @if (overview(); as ov) {
     <div class="flash-banner" role="region" aria-label="Synthèse OpenRouter">
-      <div class="flash-item" (click)="setTab('keys')" title="Configurer la Management API Key">
-        <span class="flash-label">Management API Key</span>
+      <div class="flash-item" (click)="setTab('dashboard')" title="Voir le tableau de bord FinOps">
+        <span class="flash-label">Crédits OpenRouter</span>
         <div class="flash-val-row">
-          @if (ov.management_key) {
-            <span class="status" [class.status-published]="ov.management_key.last_verify_ok !== false" [class.status-warn]="ov.management_key.last_verify_ok === false">
-              ● {{ ov.management_key.last_verify_ok === false ? 'À vérifier' : 'Chiffrée & active' }}
-            </span>
-            <span class="flash-muted num">{{ ov.management_key.key_masked }}</span>
+          @if (ov.credits.available && ov.credits.remaining_credits !== null) {
+            <b class="num text-ok">{{ formatUsd(ov.credits.remaining_credits) }}</b>
+            <span class="flash-muted num">/ {{ formatUsd(ov.credits.total_credits) }}</span>
           } @else {
-            <span class="status status-draft">● Non configurée</span>
-          }
-        </div>
-      </div>
-
-      <div class="flash-item" (click)="setTab('keys')" title="Configurer la clé API Standard">
-        <span class="flash-label">API Standard Key</span>
-        <div class="flash-val-row">
-          @if (ov.standard_key) {
-            <span class="status" [class.status-published]="ov.standard_key.last_verify_ok !== false" [class.status-warn]="ov.standard_key.last_verify_ok === false">
-              ● {{ ov.standard_key.last_verify_ok === false ? 'À vérifier' : 'Chiffrée & active' }}
-            </span>
-            <span class="flash-muted num">{{ ov.standard_key.key_masked }}</span>
-          } @else {
-            <span class="status status-draft">● Non configurée</span>
+            <span class="status status-draft">● Indisponible</span>
           }
         </div>
       </div>
 
       <div class="flash-item" (click)="setTab('workspaces')" title="Gérer les workspaces OpenRouter">
-        <span class="flash-label">Workspaces &amp; Crédits</span>
+        <span class="flash-label">Workspaces</span>
         <div class="flash-val-row">
           <b class="num">{{ ov.workspaces_count }} workspace{{ ov.workspaces_count > 1 ? 's' : '' }}</b>
-          @if (ov.credits.available && ov.credits.remaining_credits !== null) {
-            <span class="flash-pill num">Solde : {{ formatUsd(ov.credits.remaining_credits) }}</span>
-          } @else if (ov.selected_workspace_name) {
-            <span class="flash-muted">Actif : {{ ov.selected_workspace_name }}</span>
+          @if (ov.selected_workspace_name) {
+            <span class="flash-pill">Actif : {{ ov.selected_workspace_name }}</span>
           }
         </div>
       </div>
@@ -91,24 +73,39 @@
           <span class="flash-muted num">/ {{ ov.models_total_count }} synchronisés</span>
         </div>
       </div>
+
+      <div class="flash-item" (click)="setTab('keys')" title="Gérer les clés OpenRouter chiffrées">
+        <span class="flash-label">Clés API Chiffrées</span>
+        <div class="flash-val-row">
+          @if (ov.management_key && ov.standard_key) {
+            <span class="status status-published">● 2/2 actives (Fernet)</span>
+          } @else {
+            <span class="status status-warn">
+              ● {{ (ov.management_key ? 1 : 0) + (ov.standard_key ? 1 : 0) }}/2 configurées
+            </span>
+          }
+        </div>
+      </div>
     </div>
   }
 
   <!-- ============================================================
-       Barre des 3 Onglets Métier
+       Barre des 4 Onglets Métier
        ============================================================ -->
   <div class="main-tabs" role="tablist" aria-label="Sections OpenRouter">
     <button
       type="button"
       role="tab"
       class="main-tab"
-      [class.is-active]="activeTab() === 'keys'"
-      [attr.aria-selected]="activeTab() === 'keys'"
-      (click)="setTab('keys')"
+      [class.is-active]="activeTab() === 'dashboard'"
+      [attr.aria-selected]="activeTab() === 'dashboard'"
+      (click)="setTab('dashboard')"
     >
-      <app-icon name="sliders" size="sm" />
-      <span>1. Clés OpenRouter (chiffrées)</span>
-      <span class="tab-count num">{{ (activeManagementKey() ? 1 : 0) + (activeStandardKey() ? 1 : 0) }}/2</span>
+      <app-icon name="chart" size="sm" />
+      <span>1. Tableau de bord FinOps</span>
+      @if (dashboard(); as d) {
+        <span class="tab-count num">{{ d.total_requests.toLocaleString('fr-FR') }} req.</span>
+      }
     </button>
 
     <button
@@ -136,269 +133,319 @@
       <span>3. Modèles IA &amp; Affectations</span>
       <span class="tab-count num">{{ enabledModels().length }}</span>
     </button>
+
+    <button
+      type="button"
+      role="tab"
+      class="main-tab"
+      [class.is-active]="activeTab() === 'keys'"
+      [attr.aria-selected]="activeTab() === 'keys'"
+      (click)="setTab('keys')"
+    >
+      <app-icon name="sliders" size="sm" />
+      <span>4. Clés OpenRouter (chiffrées)</span>
+      <span class="tab-count num">{{ (activeManagementKey() ? 1 : 0) + (activeStandardKey() ? 1 : 0) }}/2</span>
+    </button>
   </div>
 
   <!-- ========================================================================
-       ONGLET 1 : CLÉS OPENROUTER CHIFFRÉES EN BASE DE DONNÉES
+       ONGLET 1 : TABLEAU DE BORD FINOPS & OBSERVABILITÉ OPENROUTER
        ======================================================================== -->
-  @if (activeTab() === 'keys') {
-    <div class="tab-pane" role="tabpanel" aria-label="Clés API OpenRouter chiffrées">
-      <div class="security-callout">
-        <app-icon name="check" size="sm" />
-        <div>
-          <b>Stockage chiffré identique aux jetons réseaux sociaux</b>
-          <p>
-            Vos clés Management et Standard sont chiffrées côté serveur par <b>Fernet (TOKEN_ENCRYPTION_KEY)</b> avant écriture dans PostgreSQL (<code>openrouter_api_keys</code>). Elles ne sont jamais renvoyées en clair au navigateur et chaque rotation conserve l'historique de traçabilité.
-          </p>
-        </div>
-      </div>
-
-      <div class="keys-grid">
-        <!-- Carte 1 : Management API Key -->
-        <section class="panel key-card">
-          <div class="card-head">
+  @if (activeTab() === 'dashboard') {
+    <div class="tab-pane" role="tabpanel" aria-label="Tableau de bord FinOps OpenRouter">
+      @if (dashboard(); as d) {
+        <!-- Avertissements éventuels (ex: clé management non configurée ou scope /activity restreint) -->
+        @for (w of d.warnings; track w) {
+          <div class="empty-banner">
+            <app-icon name="warn" size="sm" />
             <div>
-              <span class="kind-pill kind-mgmt">Administration</span>
-              <h2>Management API Key</h2>
-              <p class="sub">
-                Indispensable pour lister, créer, modifier et supprimer les <b>workspaces</b>, consulter les <b>crédits</b> et piloter les clés.
-              </p>
+              <b>Information OpenRouter</b>
+              <p>{{ w }}</p>
             </div>
-            @if (activeManagementKey(); as mk) {
-              <span class="status" [class.status-published]="mk.last_verify_ok !== false" [class.status-warn]="mk.last_verify_ok === false">
-                {{ mk.last_verify_ok === false ? 'Erreur' : 'Active' }}
+            @if (!activeManagementKey()) {
+              <button type="button" class="btn btn-primary btn-sm" (click)="setTab('keys')">
+                Configurer la clé Management
+              </button>
+            }
+          </div>
+        }
+
+        <!-- Alerte solde faible (< 20%) -->
+        @if (creditsRemainingPct() !== null && creditsRemainingPct()! < 20) {
+          <div class="notice notice-error" role="alert">
+            <app-icon name="warn" size="sm" />
+            <span>
+              <b>Solde OpenRouter faible ({{ creditsRemainingPct()!.toFixed(1) }} % restants) :</b>
+              il reste {{ formatUsd(d.credits.remaining_credits) }} sur {{ formatUsd(d.credits.total_credits) }} achetés.
+            </span>
+          </div>
+        }
+
+        <!-- 4 Cartes KPI FinOps -->
+        <section class="finops-kpi-grid" aria-label="Indicateurs FinOps OpenRouter">
+          <!-- KPI 1 : Crédits globaux -->
+          <article class="panel kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Crédits Compte Restants</span>
+              <code class="endpoint-pill">GET /credits</code>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value num">
+                {{ d.credits.available ? formatUsd(d.credits.remaining_credits) : '—' }}
+              </b>
+              <span class="kpi-sub num">
+                / {{ d.credits.available ? formatUsd(d.credits.total_credits) : '—' }} achetés
               </span>
+            </div>
+            <div class="kpi-progress-wrap">
+              <div class="kpi-progress-row num">
+                <span>Solde disponible</span>
+                <b [class.text-ok]="(creditsRemainingPct() ?? 100) >= 20">
+                  {{ creditsRemainingPct() !== null ? creditsRemainingPct()!.toFixed(1) + ' %' : '—' }}
+                </b>
+              </div>
+              <div class="progress-track">
+                <div
+                  class="progress-fill"
+                  [class.fill-ok]="(creditsRemainingPct() ?? 0) >= 35"
+                  [class.fill-warn]="(creditsRemainingPct() ?? 0) >= 15 && (creditsRemainingPct() ?? 0) < 35"
+                  [class.fill-danger]="(creditsRemainingPct() ?? 100) < 15"
+                  [style.width.%]="creditsRemainingPct() ?? 0"
+                ></div>
+              </div>
+            </div>
+          </article>
+
+          <!-- KPI 2 : Dépense cumulée & Budgets Workspaces -->
+          <article class="panel kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Dépense Activité &amp; Plafonds</span>
+              <code class="endpoint-pill">GET /activity</code>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value num">{{ formatUsdPrecise(d.total_cost_usd) }}</b>
+              <span class="kpi-sub num">
+                @if (totalMonthlyWorkspacesBudget() > 0) {
+                  / {{ formatUsd(totalMonthlyWorkspacesBudget()) }} budgets WS
+                } @else {
+                  dépensés sur l'historique
+                }
+              </span>
+            </div>
+            <div class="kpi-foot-grid num">
+              <div>
+                <span class="kpi-mini-label">Coût moy. / req.</span>
+                <b>{{ formatUsdPrecise(d.avg_cost_per_request_usd) }}</b>
+              </div>
+              <div class="align-right">
+                <span class="kpi-mini-label">Usage total compte</span>
+                <b>{{ d.credits.available ? formatUsdPrecise(d.credits.total_usage) : '—' }}</b>
+              </div>
+            </div>
+          </article>
+
+          <!-- KPI 3 : Tokens & Raisonnement -->
+          <article class="panel kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Tokens Consommés</span>
+              <span class="reasoning-pill num">
+                Reasoning : {{ reasoningSharePct().toFixed(1) }} %
+              </span>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value num">{{ formatCompact(totalTokens()) }}</b>
+              <span class="kpi-sub">tokens totaux</span>
+            </div>
+            <div class="kpi-foot-three num">
+              <div>
+                <span class="kpi-mini-label">Prompt</span>
+                <b>{{ formatCompact(d.total_prompt_tokens) }}</b>
+              </div>
+              <div>
+                <span class="kpi-mini-label">Completion</span>
+                <b class="text-accent">{{ formatCompact(d.total_completion_tokens) }}</b>
+              </div>
+              <div class="align-right">
+                <span class="kpi-mini-label">Reasoning</span>
+                <b class="text-warn">{{ formatCompact(d.total_reasoning_tokens) }}</b>
+              </div>
+            </div>
+          </article>
+
+          <!-- KPI 4 : Requêtes & Gouvernance Clés -->
+          <article class="panel kpi-card">
+            <div class="kpi-head">
+              <span class="kpi-label">Requêtes &amp; Clés OpenRouter</span>
+              <code class="endpoint-pill">GET /keys</code>
+            </div>
+            <div class="kpi-main">
+              <b class="kpi-value num">{{ d.total_requests.toLocaleString('fr-FR') }}</b>
+              <span class="kpi-sub">générations</span>
+            </div>
+            <div class="kpi-foot-grid num">
+              <div>
+                <span class="kpi-mini-label">Modèles utilisés</span>
+                <b>{{ d.by_model.length }}</b>
+              </div>
+              <div class="align-right">
+                <span class="kpi-mini-label">Clés actives</span>
+                <b>{{ d.active_remote_keys_count }} / {{ d.total_remote_keys_count }}</b>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- 4 Graphiques FinOps (ECharts) -->
+        <section class="charts-grid" aria-label="Graphiques FinOps OpenRouter">
+          <!-- Graphique 1 : Évolution quotidienne -->
+          <div class="panel chart-card chart-wide">
+            <div class="chart-head">
+              <div>
+                <h3>Évolution quotidienne</h3>
+                <p class="sub">Consommation journalière agrégée depuis OpenRouter</p>
+              </div>
+              <div class="segmented" role="group" aria-label="Métrique quotidienne">
+                <button
+                  type="button"
+                  class="seg-btn"
+                  [class.is-active]="trendMode() === 'cost'"
+                  (click)="trendMode.set('cost')"
+                >
+                  Coût ($)
+                </button>
+                <button
+                  type="button"
+                  class="seg-btn"
+                  [class.is-active]="trendMode() === 'tokens'"
+                  (click)="trendMode.set('tokens')"
+                >
+                  Tokens
+                </button>
+              </div>
+            </div>
+            @if (d.daily_series.length > 0) {
+              <div class="chart-canvas" [appChart]="dailyTrendOption()"></div>
             } @else {
-              <span class="status status-draft">Absente</span>
+              <div class="chart-empty">Aucune activité quotidienne retournée pour le moment.</div>
             }
           </div>
 
-          @if (activeManagementKey(); as mk) {
-            <div class="active-key-box">
-              <div class="ak-row">
-                <span class="ak-label">{{ mk.label || 'Management API Key' }}</span>
-                <code class="num ak-mask">{{ mk.key_masked }}</code>
+          <!-- Graphique 2 : Répartition par Modèle (Doughnut) -->
+          <div class="panel chart-card chart-narrow">
+            <div class="chart-head">
+              <div>
+                <h3>Part de coût par Modèle</h3>
+                <p class="sub">Ventilation des dépenses OpenRouter</p>
               </div>
-              <div class="ak-meta">
-                <span>Enregistrée le {{ formatDate(mk.obtained_at) }}</span>
-                @if (mk.last_verified_at) {
-                  <span>· Vérifiée le {{ formatDate(mk.last_verified_at) }}</span>
+            </div>
+            @if (d.by_model.length > 0) {
+              <div class="chart-canvas chart-canvas-sm" [appChart]="modelShareDoughnutOption()"></div>
+              <div class="doughnut-legend">
+                @for (item of topModelsLegend(); track item.model) {
+                  <div class="legend-row">
+                    <div class="legend-left">
+                      <span class="legend-dot" [style.background]="item.color"></span>
+                      <span class="legend-name num" [title]="item.model">{{ item.model }}</span>
+                    </div>
+                    <span class="num legend-val">
+                      {{ formatUsdPrecise(item.costUsd) }}
+                      <span class="text-muted">({{ item.pct }} %)</span>
+                    </span>
+                  </div>
                 }
               </div>
-              @if (mk.last_verify_message) {
-                <p class="ak-msg" [class.is-err]="mk.last_verify_ok === false">{{ mk.last_verify_message }}</p>
-              }
-              <div class="ak-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  [disabled]="busyAction() !== null"
-                  (click)="verifyKey(mk)"
-                >
-                  <app-icon name="sparkle" size="sm" />
-                  {{ busyAction() === 'verify-' + mk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-danger"
-                  [disabled]="busyAction() !== null"
-                  (click)="revokeKey(mk)"
-                >
-                  Révoquer
-                </button>
-              </div>
-            </div>
-          }
-
-          <div class="key-form">
-            <div class="field">
-              <label for="mgmt-label">Libellé interne</label>
-              <input
-                id="mgmt-label"
-                type="text"
-                class="input"
-                [ngModel]="mgmtLabelInput()"
-                (ngModelChange)="mgmtLabelInput.set($event)"
-                placeholder="ex: Management API Key Org DATUM"
-              />
-            </div>
-
-            <div class="field">
-              <div class="field-head">
-                <label for="mgmt-key">
-                  {{ activeManagementKey() ? 'Remplacer la Management API Key' : 'Coller votre Management API Key' }}
-                </label>
-                <button type="button" class="btn-text" (click)="showMgmtKey.set(!showMgmtKey())">
-                  {{ showMgmtKey() ? 'Masquer' : 'Afficher' }}
-                </button>
-              </div>
-              <input
-                id="mgmt-key"
-                [type]="showMgmtKey() ? 'text' : 'password'"
-                class="input num"
-                autocomplete="off"
-                [ngModel]="mgmtKeyInput()"
-                (ngModelChange)="mgmtKeyInput.set($event)"
-                placeholder="sk-or-v1-..."
-              />
-            </div>
-
-            <button
-              type="button"
-              class="btn btn-primary"
-              [disabled]="busyAction() !== null || !mgmtKeyInput().trim()"
-              (click)="saveKey('management')"
-            >
-              <app-icon name="check" size="sm" />
-              {{ busyAction() === 'save-management' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Management' }}
-            </button>
-          </div>
-        </section>
-
-        <!-- Carte 2 : Standard API Key -->
-        <section class="panel key-card">
-          <div class="card-head">
-            <div>
-              <span class="kind-pill kind-std">Inférence &amp; Catalogue</span>
-              <h2>API Standard Key</h2>
-              <p class="sub">
-                Utilisée pour interroger les <b>modèles IA</b> (génération texte, vision, image) et synchroniser le catalogue OpenRouter.
-              </p>
-            </div>
-            @if (activeStandardKey(); as sk) {
-              <span class="status" [class.status-published]="sk.last_verify_ok !== false" [class.status-warn]="sk.last_verify_ok === false">
-                {{ sk.last_verify_ok === false ? 'Erreur' : 'Active' }}
-              </span>
             } @else {
-              <span class="status status-draft">Absente</span>
+              <div class="chart-empty">Aucune dépense par modèle enregistrée.</div>
             }
           </div>
 
-          @if (activeStandardKey(); as sk) {
-            <div class="active-key-box">
-              <div class="ak-row">
-                <span class="ak-label">{{ sk.label || 'Clé API Standard' }}</span>
-                <code class="num ak-mask">{{ sk.key_masked }}</code>
-              </div>
-              <div class="ak-meta">
-                <span>Enregistrée le {{ formatDate(sk.obtained_at) }}</span>
-                @if (sk.last_verified_at) {
-                  <span>· Vérifiée le {{ formatDate(sk.last_verified_at) }}</span>
-                }
-              </div>
-              @if (sk.last_verify_message) {
-                <p class="ak-msg" [class.is-err]="sk.last_verify_ok === false">{{ sk.last_verify_message }}</p>
-              }
-              <div class="ak-actions">
-                <button
-                  type="button"
-                  class="btn btn-sm"
-                  [disabled]="busyAction() !== null"
-                  (click)="verifyKey(sk)"
-                >
-                  <app-icon name="sparkle" size="sm" />
-                  {{ busyAction() === 'verify-' + sk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-sm btn-danger"
-                  [disabled]="busyAction() !== null"
-                  (click)="revokeKey(sk)"
-                >
-                  Révoquer
-                </button>
+          <!-- Graphique 3 : Dépenses par Modèle LLM (Barres) -->
+          <div class="panel chart-card chart-half">
+            <div class="chart-head">
+              <div>
+                <h3>Top Modèles LLM par Dépense ($)</h3>
+                <p class="sub">Comparatif des modèles les plus consommateurs</p>
               </div>
             </div>
-          }
+            @if (d.by_model.length > 0) {
+              <div class="chart-canvas" [appChart]="topModelsBarOption()"></div>
+            } @else {
+              <div class="chart-empty">En attente de données d'activité OpenRouter.</div>
+            }
+          </div>
 
-          <div class="key-form">
-            <div class="field">
-              <label for="std-label">Libellé interne</label>
-              <input
-                id="std-label"
-                type="text"
-                class="input"
-                [ngModel]="stdLabelInput()"
-                (ngModelChange)="stdLabelInput.set($event)"
-                placeholder="ex: Clé API Standard Production"
-              />
-            </div>
-
-            <div class="field">
-              <div class="field-head">
-                <label for="std-key">
-                  {{ activeStandardKey() ? 'Remplacer la clé API Standard' : 'Coller votre clé API Standard' }}
-                </label>
-                <button type="button" class="btn-text" (click)="showStdKey.set(!showStdKey())">
-                  {{ showStdKey() ? 'Masquer' : 'Afficher' }}
-                </button>
+          <!-- Graphique 4 : Décomposition des Tokens -->
+          <div class="panel chart-card chart-half">
+            <div class="chart-head">
+              <div>
+                <h3>Décomposition des Tokens</h3>
+                <p class="sub">Prompt (entrée), Completion visible et Reasoning tokens</p>
               </div>
-              <input
-                id="std-key"
-                [type]="showStdKey() ? 'text' : 'password'"
-                class="input num"
-                autocomplete="off"
-                [ngModel]="stdKeyInput()"
-                (ngModelChange)="stdKeyInput.set($event)"
-                placeholder="sk-or-v1-..."
-              />
             </div>
-
-            <button
-              type="button"
-              class="btn btn-primary"
-              [disabled]="busyAction() !== null || !stdKeyInput().trim()"
-              (click)="saveKey('standard')"
-            >
-              <app-icon name="check" size="sm" />
-              {{ busyAction() === 'save-standard' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Standard' }}
-            </button>
+            @if (totalTokens() > 0) {
+              <div class="chart-canvas" [appChart]="tokenBreakdownOption()"></div>
+            } @else {
+              <div class="chart-empty">Aucun volume de tokens enregistré pour le moment.</div>
+            }
           </div>
         </section>
-      </div>
 
-      <!-- Historique d'audit des clés -->
-      @if (keys().length > 0) {
-        <section class="panel history-panel">
+        <!-- Journal d'Activité & Télémétrie Tokens -->
+        <section class="panel history-panel" aria-label="Journal d'activité OpenRouter">
           <div class="panel-head">
             <div>
-              <h3>Historique des délivrances de clés</h3>
-              <p class="sub">Traçabilité complète des rotations et révocations (aperçus masqués uniquement).</p>
+              <h3>Journal d'Activité &amp; Télémétrie Tokens</h3>
+              <p class="sub">
+                Cliquez sur une ligne pour inspecter le détail JSON (<code>prompt_tokens</code>, <code>completion_tokens</code>, <code>reasoning_tokens</code>).
+              </p>
+            </div>
+            <div class="searchbox searchbox-sm">
+              <app-icon name="search" size="sm" />
+              <input
+                type="search"
+                placeholder="Filtrer par modèle, fournisseur, date…"
+                [value]="activitySearch()"
+                (input)="activitySearch.set($any($event.target).value)"
+              />
+              @if (activitySearch()) {
+                <button type="button" class="btn-clear" (click)="activitySearch.set('')" aria-label="Effacer">
+                  <app-icon name="close" size="sm" />
+                </button>
+              }
             </div>
           </div>
+
           <div class="tbl-wrap">
             <table class="tbl">
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>Libellé</th>
-                  <th>Aperçu masqué</th>
-                  <th>État</th>
-                  <th>Enregistrée par</th>
                   <th>Date</th>
+                  <th>Modèle</th>
+                  <th>Fournisseur</th>
+                  <th class="num">Requêtes</th>
+                  <th class="num">Prompt</th>
+                  <th class="num">Completion</th>
+                  <th class="num">Reasoning</th>
+                  <th class="num">Coût ($)</th>
                 </tr>
               </thead>
               <tbody>
-                @for (k of keys(); track k.id_openrouter_api_keys) {
+                @for (item of filteredActivity(); track item.date + '-' + item.model + '-' + (item.provider_name ?? '')) {
+                  <tr class="clickable-row" (click)="selectedActivityLog.set(item)">
+                    <td class="num">{{ item.date || '—' }}</td>
+                    <td class="num"><b>{{ item.model }}</b></td>
+                    <td><span class="provider-tag">{{ item.provider_name || '—' }}</span></td>
+                    <td class="num">{{ item.requests.toLocaleString('fr-FR') }}</td>
+                    <td class="num">{{ item.prompt_tokens.toLocaleString('fr-FR') }}</td>
+                    <td class="num">{{ item.completion_tokens.toLocaleString('fr-FR') }}</td>
+                    <td class="num text-warn">{{ item.reasoning_tokens.toLocaleString('fr-FR') }}</td>
+                    <td class="num"><b>{{ formatUsdPrecise(item.usage_usd) }}</b></td>
+                  </tr>
+                } @empty {
                   <tr>
-                    <td>
-                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind === 'standard'">
-                        {{ k.key_kind === 'management' ? 'Management' : 'Standard' }}
-                      </span>
+                    <td colspan="8" class="empty-cell">
+                      Aucune ligne d'activité disponible.
                     </td>
-                    <td>{{ k.label || '—' }}</td>
-                    <td class="num"><code>{{ k.key_masked }}</code></td>
-                    <td>
-                      @if (k.is_active) {
-                        <span class="status status-published">Active</span>
-                      } @else if (k.revoked_at) {
-                        <span class="status status-warn">Révoquée</span>
-                      } @else {
-                        <span class="status status-draft">Remplacée</span>
-                      }
-                    </td>
-                    <td>{{ k.created_by_name || '—' }}</td>
-                    <td class="num">{{ formatDate(k.obtained_at) }}</td>
                   </tr>
                 }
               </tbody>
@@ -643,7 +690,6 @@
        ======================================================================== -->
   @if (activeTab() === 'models') {
     <div class="tab-pane" role="tabpanel" aria-label="Catalogue des modèles OpenRouter et affectations">
-      <!-- Affectations par tâche métier -->
       <section class="task-grid" aria-label="Affectation des modèles par spécialité">
         @for (a of assignments(); track a.task_code) {
           <div class="task-card">
@@ -679,7 +725,6 @@
         }
       </section>
 
-      <!-- Barre catalogue -->
       <div class="section-toolbar">
         <div>
           <h2>Catalogue OpenRouter</h2>
@@ -832,4 +877,343 @@
       </div>
     </div>
   }
+
+  <!-- ========================================================================
+       ONGLET 4 : CLÉS OPENROUTER CHIFFRÉES + CLÉS DISTANTES
+       ======================================================================== -->
+  @if (activeTab() === 'keys') {
+    <div class="tab-pane" role="tabpanel" aria-label="Clés API OpenRouter chiffrées">
+      <div class="security-callout">
+        <app-icon name="check" size="sm" />
+        <div>
+          <b>Stockage chiffré identique aux jetons réseaux sociaux</b>
+          <p>
+            Vos clés Management et Standard sont chiffrées côté serveur par <b>Fernet (TOKEN_ENCRYPTION_KEY)</b> avant écriture dans PostgreSQL (<code>openrouter_api_keys</code>). Elles ne sont jamais renvoyées en clair au navigateur et chaque rotation conserve l'historique de traçabilité.
+          </p>
+        </div>
+      </div>
+
+      <div class="keys-grid">
+        <!-- Carte 1 : Management API Key -->
+        <section class="panel key-card">
+          <div class="card-head">
+            <div>
+              <span class="kind-pill kind-mgmt">Administration</span>
+              <h2>Management API Key</h2>
+              <p class="sub">
+                Indispensable pour les <b>tableaux de bord FinOps</b>, les <b>workspaces</b>, les <b>crédits</b> et les clés distantes.
+              </p>
+            </div>
+            @if (activeManagementKey(); as mk) {
+              <span class="status" [class.status-published]="mk.last_verify_ok !== false" [class.status-warn]="mk.last_verify_ok === false">
+                {{ mk.last_verify_ok === false ? 'Erreur' : 'Active' }}
+              </span>
+            } @else {
+              <span class="status status-draft">Absente</span>
+            }
+          </div>
+
+          @if (activeManagementKey(); as mk) {
+            <div class="active-key-box">
+              <div class="ak-row">
+                <span class="ak-label">{{ mk.label || 'Management API Key' }}</span>
+                <code class="num ak-mask">{{ mk.key_masked }}</code>
+              </div>
+              <div class="ak-meta">
+                <span>Enregistrée le {{ formatDate(mk.obtained_at) }}</span>
+                @if (mk.last_verified_at) {
+                  <span>· Vérifiée le {{ formatDate(mk.last_verified_at) }}</span>
+                }
+              </div>
+              @if (mk.last_verify_message) {
+                <p class="ak-msg" [class.is-err]="mk.last_verify_ok === false">{{ mk.last_verify_message }}</p>
+              }
+              <div class="ak-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [disabled]="busyAction() !== null"
+                  (click)="verifyKey(mk)"
+                >
+                  <app-icon name="sparkle" size="sm" />
+                  {{ busyAction() === 'verify-' + mk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  [disabled]="busyAction() !== null"
+                  (click)="revokeKey(mk)"
+                >
+                  Révoquer
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="key-form">
+            <div class="field">
+              <label for="mgmt-label">Libellé interne</label>
+              <input
+                id="mgmt-label"
+                type="text"
+                class="input"
+                [ngModel]="mgmtLabelInput()"
+                (ngModelChange)="mgmtLabelInput.set($event)"
+                placeholder="ex: Management API Key Org DATUM"
+              />
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label for="mgmt-key">
+                  {{ activeManagementKey() ? 'Remplacer la Management API Key' : 'Coller votre Management API Key' }}
+                </label>
+                <button type="button" class="btn-text" (click)="showMgmtKey.set(!showMgmtKey())">
+                  {{ showMgmtKey() ? 'Masquer' : 'Afficher' }}
+                </button>
+              </div>
+              <input
+                id="mgmt-key"
+                [type]="showMgmtKey() ? 'text' : 'password'"
+                class="input num"
+                autocomplete="off"
+                [ngModel]="mgmtKeyInput()"
+                (ngModelChange)="mgmtKeyInput.set($event)"
+                placeholder="sk-or-v1-..."
+              />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="busyAction() !== null || !mgmtKeyInput().trim()"
+              (click)="saveKey('management')"
+            >
+              <app-icon name="check" size="sm" />
+              {{ busyAction() === 'save-management' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Management' }}
+            </button>
+          </div>
+        </section>
+
+        <!-- Carte 2 : Standard API Key -->
+        <section class="panel key-card">
+          <div class="card-head">
+            <div>
+              <span class="kind-pill kind-std">Inférence &amp; Catalogue</span>
+              <h2>API Standard Key</h2>
+              <p class="sub">
+                Utilisée pour interroger les <b>modèles IA</b> (génération texte, vision, image) et synchroniser le catalogue OpenRouter.
+              </p>
+            </div>
+            @if (activeStandardKey(); as sk) {
+              <span class="status" [class.status-published]="sk.last_verify_ok !== false" [class.status-warn]="sk.last_verify_ok === false">
+                {{ sk.last_verify_ok === false ? 'Erreur' : 'Active' }}
+              </span>
+            } @else {
+              <span class="status status-draft">Absente</span>
+            }
+          </div>
+
+          @if (activeStandardKey(); as sk) {
+            <div class="active-key-box">
+              <div class="ak-row">
+                <span class="ak-label">{{ sk.label || 'Clé API Standard' }}</span>
+                <code class="num ak-mask">{{ sk.key_masked }}</code>
+              </div>
+              <div class="ak-meta">
+                <span>Enregistrée le {{ formatDate(sk.obtained_at) }}</span>
+                @if (sk.last_verified_at) {
+                  <span>· Vérifiée le {{ formatDate(sk.last_verified_at) }}</span>
+                }
+              </div>
+              @if (sk.last_verify_message) {
+                <p class="ak-msg" [class.is-err]="sk.last_verify_ok === false">{{ sk.last_verify_message }}</p>
+              }
+              <div class="ak-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [disabled]="busyAction() !== null"
+                  (click)="verifyKey(sk)"
+                >
+                  <app-icon name="sparkle" size="sm" />
+                  {{ busyAction() === 'verify-' + sk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  [disabled]="busyAction() !== null"
+                  (click)="revokeKey(sk)"
+                >
+                  Révoquer
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="key-form">
+            <div class="field">
+              <label for="std-label">Libellé interne</label>
+              <input
+                id="std-label"
+                type="text"
+                class="input"
+                [ngModel]="stdLabelInput()"
+                (ngModelChange)="stdLabelInput.set($event)"
+                placeholder="ex: Clé API Standard Production"
+              />
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label for="std-key">
+                  {{ activeStandardKey() ? 'Remplacer la clé API Standard' : 'Coller votre clé API Standard' }}
+                </label>
+                <button type="button" class="btn-text" (click)="showStdKey.set(!showStdKey())">
+                  {{ showStdKey() ? 'Masquer' : 'Afficher' }}
+                </button>
+              </div>
+              <input
+                id="std-key"
+                [type]="showStdKey() ? 'text' : 'password'"
+                class="input num"
+                autocomplete="off"
+                [ngModel]="stdKeyInput()"
+                (ngModelChange)="stdKeyInput.set($event)"
+                placeholder="sk-or-v1-..."
+              />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="busyAction() !== null || !stdKeyInput().trim()"
+              (click)="saveKey('standard')"
+            >
+              <app-icon name="check" size="sm" />
+              {{ busyAction() === 'save-standard' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Standard' }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Clés provisionnées côté OpenRouter (GET /api/v1/keys) -->
+      @if (dashboard()?.remote_keys?.length) {
+        <section class="panel history-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Clés provisionnées sur votre compte OpenRouter</h3>
+              <p class="sub">Consommation et plafonds en direct depuis <code>GET /api/v1/keys</code>.</p>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Nom / Label</th>
+                  <th class="num">Plafond ($)</th>
+                  <th class="num">Consommé ($)</th>
+                  <th class="num">Mois en cours</th>
+                  <th>Expiration</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (rk of dashboard()!.remote_keys; track rk.hash) {
+                  <tr>
+                    <td>
+                      <b>{{ rk.label }}</b>
+                      <div class="num text-muted">{{ rk.hash.slice(0, 12) }}…</div>
+                    </td>
+                    <td class="num">{{ rk.limit !== null ? formatUsd(rk.limit) : 'Illimité' }}</td>
+                    <td class="num"><b>{{ formatUsdPrecise(rk.usage) }}</b></td>
+                    <td class="num">{{ rk.usage_monthly !== null ? formatUsdPrecise(rk.usage_monthly) : '—' }}</td>
+                    <td class="num">{{ rk.expires_at ? formatDate(rk.expires_at) : 'Aucune' }}</td>
+                    <td>
+                      @if (rk.disabled) {
+                        <span class="status status-draft">Désactivée</span>
+                      } @else {
+                        <span class="status status-published">Active</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      <!-- Historique d'audit des clés chiffrées en base -->
+      @if (keys().length > 0) {
+        <section class="panel history-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Historique des délivrances de clés (base IAGORA)</h3>
+              <p class="sub">Traçabilité complète des rotations et révocations (aperçus masqués uniquement).</p>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Libellé</th>
+                  <th>Aperçu masqué</th>
+                  <th>État</th>
+                  <th>Enregistrée par</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (k of keys(); track k.id_openrouter_api_keys) {
+                  <tr>
+                    <td>
+                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind === 'standard'">
+                        {{ k.key_kind === 'management' ? 'Management' : 'Standard' }}
+                      </span>
+                    </td>
+                    <td>{{ k.label || '—' }}</td>
+                    <td class="num"><code>{{ k.key_masked }}</code></td>
+                    <td>
+                      @if (k.is_active) {
+                        <span class="status status-published">Active</span>
+                      } @else if (k.revoked_at) {
+                        <span class="status status-warn">Révoquée</span>
+                      } @else {
+                        <span class="status status-draft">Remplacée</span>
+                      }
+                    </td>
+                    <td>{{ k.created_by_name || '—' }}</td>
+                    <td class="num">{{ formatDate(k.obtained_at) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    </div>
+  }
 </div>
+
+<!-- Modale d'inspection JSON d'une ligne d'activité -->
+@if (selectedActivityLog(); as log) {
+  <div class="modal-backdrop" (click)="selectedActivityLog.set(null)">
+    <div class="panel modal-box" (click)="$event.stopPropagation()">
+      <div class="panel-head">
+        <div>
+          <h3>Détail Télémétrie OpenRouter</h3>
+          <p class="sub num">{{ log.date }} · {{ log.model }}</p>
+        </div>
+        <button type="button" class="btn btn-sm" (click)="selectedActivityLog.set(null)">
+          <app-icon name="close" size="sm" />
+          Fermer
+        </button>
+      </div>
+      <div class="modal-body">
+        <pre class="json-pre">{{ selectedActivityJson() }}</pre>
+      </div>
+    </div>
+  </div>
+}

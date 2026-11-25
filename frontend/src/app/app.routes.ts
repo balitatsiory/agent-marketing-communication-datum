@@ -216,6 +216,7 @@ export const routes: Routes = [
       {
         path: 'modeles-ia_v2',
         title: 'Modèles IA v2 (OpenRouter) · IAGORA',
+        canActivate: [permissionGuard('manage_ai_models')],
         loadComponent: () =>
           import('./features/admin/ai-models-v2/ai-models-v2').then((m) => m.AiModelsV2),
       },
