@@ -28,6 +28,11 @@ from app.modules.ai_models.schemas import (
     OpenRouterKeyVerifyRead,
     OpenRouterOverviewRead,
     PromptKind,
+    PublicationGenerationContextRead,
+    PublicationTextGenerationRequest,
+    PublicationTextGenerationResponse,
+    PublicationVisualGenerationRequest,
+    PublicationVisualGenerationResponse,
     SandboxCompareRequest,
     SandboxCompareResponse,
     SandboxRunHistoryRead,
@@ -406,3 +411,47 @@ async def supprimer_prompt(
     par: GestionnaireIA,
 ) -> None:
     await service.supprimer_prompt(session, id_prompt, par)
+
+
+# ---------------------------------------------------------------------------
+# Génération de publications v2 (relie Modèles IA, Prompts actifs, Médias & R2)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/generation/context",
+    response_model=PublicationGenerationContextRead,
+    summary="Lire la configuration IA active (modèles affectés, effort, prompts par défaut)",
+)
+async def obtenir_contexte_generation(
+    session: SessionDep,
+    _: CurrentUser,
+) -> PublicationGenerationContextRead:
+    return await service.obtenir_contexte_generation_publication(session)
+
+
+@router.post(
+    "/generation/texts",
+    response_model=PublicationTextGenerationResponse,
+    summary="Générer un lot de propositions de textes par réseau et angle",
+)
+async def generer_textes_publication(
+    corps: PublicationTextGenerationRequest,
+    session: SessionDep,
+    par: CurrentUser,
+) -> PublicationTextGenerationResponse:
+    return await service.generer_textes_publication(session, corps, par)
+
+
+@router.post(
+    "/generation/visual",
+    response_model=PublicationVisualGenerationResponse,
+    summary="Générer ou retoucher un visuel de publication (stocké dans R2 + table Media)",
+)
+async def generer_visuel_publication(
+    corps: PublicationVisualGenerationRequest,
+    session: SessionDep,
+    par: CurrentUser,
+    stockage: Stockage = Depends(get_stockage),
+) -> PublicationVisualGenerationResponse:
+    return await service.generer_visuel_publication(session, corps, par, stockage=stockage)

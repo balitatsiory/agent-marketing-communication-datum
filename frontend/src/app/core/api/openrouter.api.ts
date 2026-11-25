@@ -343,6 +343,97 @@ export interface AiPromptUpdateRequest {
   readonly description?: string | null;
 }
 
+/* ---------- Génération de publications v2 ---------- */
+
+export interface ActivePromptSummaryDto {
+  readonly id_ai_prompts: number;
+  readonly title: string;
+  readonly version_number: number;
+}
+
+export interface ActiveTaskModelSummaryDto {
+  readonly task_code: AiTaskCode;
+  readonly model_id: string | null;
+  readonly model_name: string | null;
+  readonly reasoning_effort: ReasoningEffort | null;
+}
+
+export interface PublicationGenerationContextDto {
+  readonly has_api_key: boolean;
+  readonly key_source: 'standard' | 'sandbox' | null;
+  readonly text_model: ActiveTaskModelSummaryDto;
+  readonly image_model: ActiveTaskModelSummaryDto;
+  readonly text_system_prompt: ActivePromptSummaryDto | null;
+  readonly text_template_prompt: ActivePromptSummaryDto | null;
+  readonly image_system_prompt: ActivePromptSummaryDto | null;
+  readonly image_template_prompt: ActivePromptSummaryDto | null;
+}
+
+export interface PublicationTextGenerationRequestDto {
+  readonly subject: string;
+  readonly format: string;
+  readonly networks: readonly string[];
+  readonly tone: string;
+  readonly language: string;
+  readonly hashtags_min: number;
+  readonly hashtags_max: number;
+  readonly use_knowledge_base: boolean;
+  readonly run_number: number;
+  readonly angles?: readonly string[];
+}
+
+export interface PublicationTextProposalDto {
+  readonly id: string;
+  readonly network: string;
+  readonly angle: string;
+  readonly run_number: number;
+  readonly title: string;
+  readonly paragraphs: readonly string[];
+  readonly hashtags: readonly string[];
+  readonly extra_hashtag_count: number;
+}
+
+export interface PublicationTextGenerationResponseDto {
+  readonly run_number: number;
+  readonly model_id: string;
+  readonly model_name: string | null;
+  readonly reasoning_effort: ReasoningEffort | null;
+  readonly system_prompt_label: string | null;
+  readonly template_prompt_label: string | null;
+  readonly key_source: 'standard' | 'sandbox';
+  readonly latency_ms: number;
+  readonly total_tokens: number;
+  readonly cost_usd: number;
+  readonly proposals_by_network: Readonly<Record<string, readonly PublicationTextProposalDto[]>>;
+}
+
+export interface PublicationVisualGenerationRequestDto {
+  readonly mode: 'create' | 'retouch';
+  readonly subject: string;
+  readonly visual_description: string;
+  readonly selected_caption: string;
+  readonly format: string;
+  readonly aspect_ratio: string;
+  readonly retouch_instruction?: string | null;
+  readonly source_image_url?: string | null;
+  readonly reference_media_ids: readonly number[];
+}
+
+export interface PublicationVisualGenerationResponseDto {
+  readonly image_url: string;
+  readonly storage_key: string | null;
+  readonly id_media: number | null;
+  readonly assistant_message: string;
+  readonly model_id: string;
+  readonly model_name: string | null;
+  readonly reasoning_effort: ReasoningEffort | null;
+  readonly system_prompt_label: string | null;
+  readonly template_prompt_label: string | null;
+  readonly key_source: 'standard' | 'sandbox';
+  readonly latency_ms: number;
+  readonly cost_usd: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OpenRouterApi {
   private readonly http = inject(HttpClient);
@@ -506,5 +597,32 @@ export class OpenRouterApi {
 
   deletePrompt(idPrompt: number): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`${this.base}/prompts/${idPrompt}`));
+  }
+
+  /* ---------- Génération de publications v2 ---------- */
+
+  generationContext(): Promise<PublicationGenerationContextDto> {
+    return firstValueFrom(
+      this.http.get<PublicationGenerationContextDto>(`${this.base}/generation/context`),
+    );
+  }
+
+  generatePublicationTexts(
+    payload: PublicationTextGenerationRequestDto,
+  ): Promise<PublicationTextGenerationResponseDto> {
+    return firstValueFrom(
+      this.http.post<PublicationTextGenerationResponseDto>(`${this.base}/generation/texts`, payload),
+    );
+  }
+
+  generatePublicationVisual(
+    payload: PublicationVisualGenerationRequestDto,
+  ): Promise<PublicationVisualGenerationResponseDto> {
+    return firstValueFrom(
+      this.http.post<PublicationVisualGenerationResponseDto>(
+        `${this.base}/generation/visual`,
+        payload,
+      ),
+    );
   }
 }

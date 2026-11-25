@@ -14,6 +14,7 @@ import base64
 from datetime import UTC, datetime
 from decimal import Decimal
 import io
+import json
 import logging
 import re
 import time
@@ -33,9 +34,13 @@ from app.modules.ai_models.constants import (
     KEY_KIND_MANAGEMENT,
     KEY_KIND_SANDBOX,
     KEY_KIND_STANDARD,
+    PROMPT_KIND_SYSTEM,
+    PROMPT_KIND_TEMPLATE,
     PROMPT_TASKS_META,
     TASK_CODES,
+    TASK_IMAGE_GENERATION,
     TASK_LABELS,
+    TASK_TEXT_GENERATION,
 )
 from app.modules.ai_models.models import (
     AiModel,
@@ -74,7 +79,16 @@ from app.modules.ai_models.schemas import (
     SandboxRunHistoryRead,
     SandboxVariantInput,
     SandboxVariantResult,
+    ActivePromptSummaryRead,
+    ActiveTaskModelSummaryRead,
+    PublicationGenerationContextRead,
+    PublicationTextGenerationRequest,
+    PublicationTextGenerationResponse,
+    PublicationTextProposalRead,
+    PublicationVisualGenerationRequest,
+    PublicationVisualGenerationResponse,
 )
+from app.modules.media.models import Media, MediaReference, MediaReferenceNature
 from app.modules.users.models import User
 
 
@@ -1808,3 +1822,637 @@ async def supprimer_prompt(
     prompt.is_default = False
     prompt.id_users_changed_by = par.id_users
     await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Génération de publications v2 (relie Modèles IA, Prompts actifs, Médias & R2)
+# ---------------------------------------------------------------------------
+
+_TONE_LABELS_FR: dict[str, str] = {
+    "inspiring": "Inspirant",
+    "direct": "Direct et percutant",
+    "funny": "Décalé / drôle mais maîtrisé",
+    "professional": "Professionnel, accessible et concret",
+}
+
+_NETWORK_LABELS_FR: dict[str, str] = {
+    "linkedin": "LinkedIn",
+    "facebook": "Facebook",
+    "instagram": "Instagram",
+    "tiktok": "TikTok",
+    "youtube": "YouTube",
+    "x": "X (Twitter)",
+}
+
+
+async def _get_active_generation_key(
+    session: AsyncSession,
+) -> tuple[OpenRouterApiKey | None, str | None]:
+    """Privilégie la clé Standard pour la production, avec repli sur Sandbox si seule celle-ci existe."""
+    std = await _get_active_key_row(session, KEY_KIND_STANDARD)
+    if std is not None:
+        return std, "standard"
+    sbx = await _get_active_key_row(session, KEY_KIND_SANDBOX)
+    if sbx is not None:
+        return sbx, "sandbox"
+    return None, None
+
+
+async def _get_task_assignment_with_model(
+    session: AsyncSession, task_code: str
+) -> tuple[AiTaskAssignment | None, AiModel | None]:
+    ligne = (
+        await session.execute(
+            select(AiTaskAssignment, AiModel)
+            .outerjoin(AiModel, AiModel.id_ai_models == AiTaskAssignment.id_ai_models)
+            .where(AiTaskAssignment.task_code == task_code)
+        )
+    ).first()
+    if ligne is None:
+        return None, None
+    return ligne[0], ligne[1]
+
+
+async def _get_default_prompt(
+    session: AsyncSession, prompt_kind: str, task_code: str
+) -> AiPrompt | None:
+    return (
+        await session.execute(
+            select(AiPrompt).where(
+                AiPrompt.prompt_kind == prompt_kind,
+                AiPrompt.task_code == task_code,
+                AiPrompt.is_default.is_(True),
+                AiPrompt.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+
+
+def _prompt_summary(p: AiPrompt | None) -> ActivePromptSummaryRead | None:
+    if p is None:
+        return None
+    return ActivePromptSummaryRead(
+        id_ai_prompts=p.id_ai_prompts,
+        title=p.title,
+        version_number=p.version_number,
+    )
+
+
+def _prompt_label(p: AiPrompt | None) -> str | None:
+    if p is None:
+        return None
+    return f"v{p.version_number} · {p.title}"
+
+
+def _interpoler_gabarit(template: str, variables: dict[str, str]) -> str:
+    """Remplace les placeholders `{{cle}}` présents dans un gabarit sans échouer sur les inconnus."""
+    resultat = template
+    for cle, valeur in variables.items():
+        resultat = resultat.replace(f"{{{{{cle}}}}}", valeur)
+    return resultat
+
+
+def _extraire_json_bloc(texte: str) -> dict[str, Any]:
+    """Parse le JSON retourné par un LLM même s'il est entouré de fences Markdown."""
+    nettoye = texte.strip()
+    if nettoye.startswith("```"):
+        nettoye = re.sub(r"^```(?:json)?\s*", "", nettoye, flags=re.IGNORECASE)
+        nettoye = re.sub(r"\s*```$", "", nettoye)
+    try:
+        data = json.loads(nettoye)
+        return data if isinstance(data, dict) else {}
+    except ValueError:
+        debut = nettoye.find("{")
+        fin = nettoye.rfind("}")
+        if debut != -1 and fin > debut:
+            try:
+                data = json.loads(nettoye[debut : fin + 1])
+                return data if isinstance(data, dict) else {}
+            except ValueError:
+                return {}
+        return {}
+
+
+async def obtenir_contexte_generation_publication(
+    session: AsyncSession,
+) -> PublicationGenerationContextRead:
+    """Renvoie la configuration IA active (modèles affectés, effort, prompts par défaut, clé)."""
+    key_row, key_source = await _get_active_generation_key(session)
+    text_assign, text_model = await _get_task_assignment_with_model(session, TASK_TEXT_GENERATION)
+    img_assign, img_model = await _get_task_assignment_with_model(session, TASK_IMAGE_GENERATION)
+
+    text_sys = await _get_default_prompt(session, PROMPT_KIND_SYSTEM, "publication_description")
+    text_tpl = await _get_default_prompt(session, PROMPT_KIND_TEMPLATE, "publication_description")
+    img_sys = await _get_default_prompt(session, PROMPT_KIND_SYSTEM, "image_generation")
+    img_tpl = await _get_default_prompt(session, PROMPT_KIND_TEMPLATE, "image_generation")
+
+    return PublicationGenerationContextRead(
+        has_api_key=key_row is not None,
+        key_source=key_source,  # type: ignore[arg-type]
+        text_model=ActiveTaskModelSummaryRead(
+            task_code=TASK_TEXT_GENERATION,  # type: ignore[arg-type]
+            model_id=text_model.openrouter_model_id if text_model else None,
+            model_name=text_model.name if text_model else None,
+            reasoning_effort=text_assign.reasoning_effort if text_assign else None,  # type: ignore[arg-type]
+        ),
+        image_model=ActiveTaskModelSummaryRead(
+            task_code=TASK_IMAGE_GENERATION,  # type: ignore[arg-type]
+            model_id=img_model.openrouter_model_id if img_model else None,
+            model_name=img_model.name if img_model else None,
+            reasoning_effort=img_assign.reasoning_effort if img_assign else None,  # type: ignore[arg-type]
+        ),
+        text_system_prompt=_prompt_summary(text_sys),
+        text_template_prompt=_prompt_summary(text_tpl),
+        image_system_prompt=_prompt_summary(img_sys),
+        image_template_prompt=_prompt_summary(img_tpl),
+    )
+
+
+async def generer_textes_publication(
+    session: AsyncSession,
+    donnees: PublicationTextGenerationRequest,
+    par: User,
+) -> PublicationTextGenerationResponse:
+    """Génère un lot de propositions de textes par réseau et par angle via OpenRouter."""
+    del par  # réservé pour le futur journal d'audit / module 08
+    key_row, key_source = await _get_active_generation_key(session)
+    if key_row is None or key_source is None:
+        raise ApiError(
+            "openrouter_key_missing",
+            "Aucune clé OpenRouter active n'est configurée. Rendez-vous dans Modèles IA v2 pour enregistrer une clé Standard.",
+            400,
+        )
+
+    assign, modele = await _get_task_assignment_with_model(session, TASK_TEXT_GENERATION)
+    if modele is None:
+        raise ApiError(
+            "ai_model_not_assigned",
+            "Aucun modèle IA n'est affecté à la tâche « Génération de texte ». Configurez-le dans Modèles IA v2.",
+            400,
+        )
+
+    sys_prompt = await _get_default_prompt(session, PROMPT_KIND_SYSTEM, "publication_description")
+    tpl_prompt = await _get_default_prompt(session, PROMPT_KIND_TEMPLATE, "publication_description")
+
+    reseaux = [n.strip().lower() for n in donnees.networks if n.strip()]
+    angles = [a.strip() for a in donnees.angles if a.strip()] or ["Annonce", "Bénéfice", "Question"]
+    ton_fr = _TONE_LABELS_FR.get(donnees.tone, donnees.tone)
+    h_min = min(donnees.hashtags_min, donnees.hashtags_max)
+    h_max = max(donnees.hashtags_min, donnees.hashtags_max)
+
+    system_base = (
+        sys_prompt.content
+        if sys_prompt is not None
+        else (
+            "Tu es le responsable éditorial de DATUM Academy. Rédige des publications engageantes, "
+            "structurées et calibrées pour chaque réseau social demandé."
+        )
+    )
+    consigne_json = (
+        "Réponds STRICTEMENT avec un objet JSON valide respectant exactement cette structure :\n"
+        "{\n"
+        '  "proposals_by_network": {\n'
+        '    "<network_code>": [\n'
+        "      {\n"
+        '        "angle": "Annonce | Bénéfice | Question",\n'
+        '        "title": "Titre court interne",\n'
+        '        "paragraphs": ["Paragraphe 1", "Paragraphe 2", "Appel à l\'action"],\n'
+        '        "hashtags": ["#Tag1", "#Tag2"]\n'
+        "      }\n"
+        "    ]\n"
+        "  }\n"
+        "}\n"
+        f"Réseaux attendus comme clés exactes : {', '.join(reseaux)}.\n"
+        f"Pour CHAQUE réseau, produis exactement {len(angles)} propositions dans l'ordre des angles : "
+        f"{', '.join(angles)}.\n"
+        f"Ton imposé : {ton_fr}. Langue : {donnees.language}. Format : {donnees.format}.\n"
+        + (
+            "Ne produis aucun hashtag (liste vide [])."
+            if h_max == 0
+            else f"Produis entre {h_min} et {h_max} hashtags pertinents commençant par #."
+        )
+    )
+    if donnees.run_number > 1:
+        consigne_json += (
+            f"\nCeci est le lot de régénération n°{donnees.run_number} : propose des accroches, "
+            "formulations et angles frais différents des formulations habituelles."
+        )
+
+    variables_tpl = {
+        "sujet": donnees.subject,
+        "theme": donnees.subject,
+        "ton": ton_fr,
+        "langue": donnees.language,
+        "format": donnees.format,
+        "reseaux": ", ".join(_NETWORK_LABELS_FR.get(r, r) for r in reseaux),
+        "hashtags_min": str(h_min),
+        "hashtags_max": str(h_max),
+    }
+    if tpl_prompt is not None:
+        user_content = (
+            _interpoler_gabarit(tpl_prompt.content, variables_tpl)
+            + f"\n\nBrief de la publication :\n- Sujet : {donnees.subject}\n"
+            + f"- Réseaux visés : {', '.join(reseaux)}\n"
+            + f"- Ton : {ton_fr}\n"
+            + f"- Langue : {donnees.language}"
+        )
+    else:
+        user_content = (
+            f"Sujet de la publication : {donnees.subject}\n"
+            f"Format : {donnees.format}\n"
+            f"Réseaux visés : {', '.join(reseaux)}\n"
+            f"Ton : {ton_fr}\n"
+            f"Langue : {donnees.language}\n"
+            f"Angles à couvrir : {', '.join(angles)}\n"
+            f"Hashtags demandés : entre {h_min} et {h_max}."
+        )
+
+    messages = [
+        {"role": "system", "content": f"{system_base}\n\n{consigne_json}"},
+        {"role": "user", "content": user_content},
+    ]
+
+    api_key = decrypt_token(key_row.api_key_encrypted)
+    debut = time.perf_counter()
+    corps = await openrouter_client.run_chat_completion(
+        api_key,
+        model=modele.openrouter_model_id,
+        messages=messages,
+        temperature=0.7 if donnees.run_number > 1 else 0.5,
+        reasoning_effort=assign.reasoning_effort if assign else None,
+        json_object=True,
+    )
+    latence = int((time.perf_counter() - debut) * 1000)
+
+    choices = corps.get("choices")
+    message = (
+        choices[0].get("message", {})
+        if isinstance(choices, list) and choices and isinstance(choices[0], dict)
+        else {}
+    )
+    texte_brut = _extraire_texte_reponse(message if isinstance(message, dict) else {})
+    parsed = _extraire_json_bloc(texte_brut)
+    raw_by_net = parsed.get("proposals_by_network")
+    if not isinstance(raw_by_net, dict):
+        raw_by_net = parsed
+
+    proposals_by_network: dict[str, list[PublicationTextProposalRead]] = {}
+    for net in reseaux:
+        items_net = raw_by_net.get(net) if isinstance(raw_by_net, dict) else None
+        if not isinstance(items_net, list) or not items_net:
+            # Repli propre si le modèle a utilisé la casse d'affichage (ex. "LinkedIn")
+            if isinstance(raw_by_net, dict):
+                for k, v in raw_by_net.items():
+                    if isinstance(k, str) and k.strip().lower() == net and isinstance(v, list):
+                        items_net = v
+                        break
+        liste_propre: list[PublicationTextProposalRead] = []
+        if isinstance(items_net, list) and items_net:
+            for idx, item in enumerate(items_net):
+                if not isinstance(item, dict):
+                    continue
+                angle = str(item.get("angle") or (angles[idx] if idx < len(angles) else "Proposition")).strip()
+                titre = str(item.get("title") or f"{angle} — {donnees.subject[:50]}").strip()
+                raw_p = item.get("paragraphs")
+                if isinstance(raw_p, list):
+                    paragraphes = [str(p).strip() for p in raw_p if str(p).strip()]
+                elif isinstance(item.get("text"), str) and item["text"].strip():
+                    paragraphes = [p.strip() for p in item["text"].split("\n\n") if p.strip()]
+                else:
+                    paragraphes = []
+                if not paragraphes:
+                    continue
+                raw_tags = item.get("hashtags") if isinstance(item.get("hashtags"), list) else []
+                tags: list[str] = []
+                if h_max > 0:
+                    for t in raw_tags:
+                        s = str(t).strip()
+                        if not s:
+                            continue
+                        if not s.startswith("#"):
+                            s = "#" + s.lstrip("#")
+                        if s not in tags:
+                            tags.append(s)
+                liste_propre.append(
+                    PublicationTextProposalRead(
+                        id=f"r{donnees.run_number}-{net}-{idx + 1}-{uuid.uuid4().hex[:6]}",
+                        network=net,
+                        angle=angle,
+                        run_number=donnees.run_number,
+                        title=titre,
+                        paragraphs=paragraphes,
+                        hashtags=tags[: max(h_max, len(tags))] if h_max > 0 else [],
+                        extra_hashtag_count=0,
+                    )
+                )
+
+        if not liste_propre:
+            # Secours si la réponse du modèle n'était pas structurée comme attendu
+            fallback_text = texte_brut.strip() or f"Proposition pour {donnees.subject}"
+            liste_propre.append(
+                PublicationTextProposalRead(
+                    id=f"r{donnees.run_number}-{net}-1-{uuid.uuid4().hex[:6]}",
+                    network=net,
+                    angle=angles[0],
+                    run_number=donnees.run_number,
+                    title=donnees.subject[:60],
+                    paragraphs=[p.strip() for p in fallback_text.split("\n\n") if p.strip()] or [fallback_text],
+                    hashtags=[],
+                    extra_hashtag_count=0,
+                )
+            )
+        proposals_by_network[net] = liste_propre
+
+    usage = corps.get("usage") if isinstance(corps.get("usage"), dict) else {}
+    prompt_tok = _to_int(usage.get("prompt_tokens"))
+    comp_tok = _to_int(usage.get("completion_tokens"))
+    total_tok = _to_int(usage.get("total_tokens")) or (prompt_tok + comp_tok)
+    raw_cost = usage.get("cost")
+    if isinstance(raw_cost, (int, float)):
+        cost_usd = round(float(raw_cost), 7)
+    else:
+        cost_usd = round(
+            prompt_tok * _to_float(modele.pricing_prompt)
+            + comp_tok * _to_float(modele.pricing_completion),
+            7,
+        )
+
+    return PublicationTextGenerationResponse(
+        run_number=donnees.run_number,
+        model_id=modele.openrouter_model_id,
+        model_name=modele.name,
+        reasoning_effort=assign.reasoning_effort if assign else None,  # type: ignore[arg-type]
+        system_prompt_label=_prompt_label(sys_prompt),
+        template_prompt_label=_prompt_label(tpl_prompt),
+        key_source=key_source,  # type: ignore[arg-type]
+        latency_ms=latence,
+        total_tokens=total_tok,
+        cost_usd=cost_usd,
+        proposals_by_network=proposals_by_network,
+    )
+
+
+async def _stocker_image_publication(
+    session: AsyncSession,
+    stockage: Stockage | None,
+    raw_src: str,
+    display_name: str,
+    par: User,
+) -> tuple[str, str | None, int | None]:
+    """Dépose l'image générée dans R2 sous `publications-generees/` et crée son entrée `Media`."""
+    if stockage is None:
+        return raw_src, None, None
+
+    octets: bytes | None = None
+    mime = "image/png"
+
+    match = _DATA_URL_IMAGE_RE.match(raw_src.strip())
+    if match:
+        mime = match.group(1).lower()
+        try:
+            octets = base64.b64decode(match.group(2))
+        except Exception:
+            logger.warning("Décodage base64 impossible pour l'image générée.")
+            return raw_src, None, None
+    elif raw_src.startswith(("http://", "https://")):
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                rep = await client.get(raw_src)
+                if rep.status_code == 200 and rep.content:
+                    octets = rep.content
+                    ct = rep.headers.get("content-type", "").split(";")[0].strip().lower()
+                    if ct in _MIME_TO_EXT:
+                        mime = ct
+        except Exception:
+            logger.warning("Téléchargement impossible pour l'image générée %s", raw_src[:120])
+            return raw_src, None, None
+
+    if not octets:
+        return raw_src, None, None
+
+    ext = _MIME_TO_EXT.get(mime, "png")
+    maintenant = datetime.now(UTC)
+    cle = f"publications-generees/{maintenant:%Y}/{maintenant:%m}/{uuid.uuid4().hex}.{ext}"
+
+    try:
+        await stockage.deposer(cle, io.BytesIO(octets), mime)
+        url_pub = stockage.url_publique(cle)
+    except Exception:
+        logger.exception("Échec du dépôt R2 de l'image générée sous %s", cle)
+        return raw_src, None, None
+
+    media = Media(
+        storage_key=cle,
+        file_type=mime,
+        source="generated",
+        display_name=display_name[:255],
+        size_bytes=len(octets),
+        width=None,
+        height=None,
+        id_users_created_by=par.id_users,
+    )
+    session.add(media)
+    await session.commit()
+    await session.refresh(media)
+    return url_pub, cle, media.id_media
+
+
+async def generer_visuel_publication(
+    session: AsyncSession,
+    donnees: PublicationVisualGenerationRequest,
+    par: User,
+    stockage: Stockage | None = None,
+) -> PublicationVisualGenerationResponse:
+    """Génère ou retouche un visuel de publication via OpenRouter + stockage R2 + table Media."""
+    key_row, key_source = await _get_active_generation_key(session)
+    if key_row is None or key_source is None:
+        raise ApiError(
+            "openrouter_key_missing",
+            "Aucune clé OpenRouter active n'est configurée. Rendez-vous dans Modèles IA v2.",
+            400,
+        )
+
+    assign, modele = await _get_task_assignment_with_model(session, TASK_IMAGE_GENERATION)
+    if modele is None:
+        raise ApiError(
+            "ai_model_not_assigned",
+            "Aucun modèle IA n'est affecté à la tâche « Génération d'image ». Configurez-le dans Modèles IA v2.",
+            400,
+        )
+
+    if donnees.mode == "retouch" and not (donnees.retouch_instruction or "").strip():
+        raise ApiError(
+            "validation_error",
+            "Veuillez saisir une consigne de retouche.",
+            422,
+        )
+
+    sys_prompt = await _get_default_prompt(session, PROMPT_KIND_SYSTEM, "image_generation")
+    tpl_prompt = await _get_default_prompt(session, PROMPT_KIND_TEMPLATE, "image_generation")
+
+    # Résoudre les médias de référence IAGORA (URLs R2 + descriptions)
+    ref_urls: list[str] = []
+    ref_notes: list[str] = []
+    if donnees.reference_media_ids:
+        lignes_ref = (
+            await session.execute(
+                select(MediaReference, Media, MediaReferenceNature)
+                .join(Media, Media.id_media == MediaReference.id_media)
+                .outerjoin(
+                    MediaReferenceNature,
+                    MediaReferenceNature.code == MediaReference.nature_code,
+                )
+                .where(
+                    MediaReference.id_media_references.in_(donnees.reference_media_ids),
+                    MediaReference.deleted_at.is_(None),
+                    Media.deleted_at.is_(None),
+                )
+            )
+        ).all()
+        for ref, media, nature in lignes_ref:
+            nature_lbl = nature.label if nature else ref.nature_code
+            desc = f" — {ref.description}" if ref.description else ""
+            ref_notes.append(f"- [{nature_lbl}] {ref.label}{desc}")
+            if stockage is not None:
+                url = stockage.url_publique(media.storage_key)
+                if url and url not in ref_urls:
+                    ref_urls.append(url)
+
+    system_blocks: list[str] = [
+        sys_prompt.content
+        if sys_prompt is not None
+        else (
+            "Tu es directeur artistique pour DATUM Academy. Conçois des visuels professionnels, "
+            "lisibles sur mobile, cohérents avec la charte graphique et les médias de référence fournis."
+        ),
+        f"Format cible : {donnees.format} (ratio {donnees.aspect_ratio}).",
+    ]
+    if ref_notes:
+        system_blocks.append("Médias de référence à respecter :\n" + "\n".join(ref_notes))
+
+    if donnees.mode == "retouch":
+        user_text = (
+            f"Retouche le visuel source fourni selon cette consigne précise : "
+            f"{(donnees.retouch_instruction or '').strip()}\n"
+            f"Sujet de la publication : {donnees.subject}\n"
+            + (
+                f"Direction artistique initiale : {donnees.visual_description}\n"
+                if donnees.visual_description
+                else ""
+            )
+            + f"Conserve la cohérence de la marque et le ratio {donnees.aspect_ratio}."
+        )
+    else:
+        tpl_vars = {
+            "ratio": donnees.aspect_ratio,
+            "titre_evenement": donnees.subject,
+            "sujet": donnees.subject,
+            "style_visuel": donnees.visual_description or "moderne et professionnel",
+            "format": donnees.format,
+        }
+        base_user = (
+            _interpoler_gabarit(tpl_prompt.content, tpl_vars)
+            if tpl_prompt is not None
+            else f"Crée un visuel {donnees.aspect_ratio} pour la publication : {donnees.subject}."
+        )
+        parties_texte = [base_user, f"Sujet : {donnees.subject}"]
+        if donnees.visual_description:
+            parties_texte.append(f"Direction visuelle souhaitée : {donnees.visual_description}")
+        if donnees.selected_caption:
+            parties_texte.append(
+                f"Légende retenue (pour cohérence du message) : {donnees.selected_caption[:500]}"
+            )
+        user_text = "\n\n".join(parties_texte)
+
+    image_inputs: list[str] = []
+    if donnees.mode == "retouch" and donnees.source_image_url and donnees.source_image_url.strip():
+        image_inputs.append(donnees.source_image_url.strip())
+    for u in ref_urls:
+        if u not in image_inputs:
+            image_inputs.append(u)
+
+    if image_inputs:
+        content_parts: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
+        for img_url in image_inputs:
+            content_parts.append({"type": "image_url", "image_url": {"url": img_url}})
+        user_msg: dict[str, Any] = {"role": "user", "content": content_parts}
+    else:
+        user_msg = {"role": "user", "content": user_text}
+
+    messages = [
+        {"role": "system", "content": "\n\n".join(system_blocks)},
+        user_msg,
+    ]
+
+    api_key = decrypt_token(key_row.api_key_encrypted)
+    debut = time.perf_counter()
+    corps = await openrouter_client.run_chat_completion(
+        api_key,
+        model=modele.openrouter_model_id,
+        messages=messages,
+        temperature=0.6,
+        reasoning_effort=assign.reasoning_effort if assign else None,
+        request_image_output=True,
+        image_aspect_ratio=donnees.aspect_ratio,
+    )
+    latence = int((time.perf_counter() - debut) * 1000)
+
+    choices = corps.get("choices")
+    message = (
+        choices[0].get("message", {})
+        if isinstance(choices, list) and choices and isinstance(choices[0], dict)
+        else {}
+    )
+    if not isinstance(message, dict):
+        message = {}
+
+    raw_images = _extraire_images_reponse(message)
+    if not raw_images:
+        raise ApiError(
+            "image_generation_empty",
+            f"Le modèle {modele.openrouter_model_id} n'a retourné aucune image. "
+            "Vérifiez qu'un modèle compatible génération d'image est affecté dans Modèles IA v2.",
+            502,
+        )
+
+    prefix_nom = "Retouche" if donnees.mode == "retouch" else "Visuel"
+    display_name = f"{prefix_nom} IA — {donnees.subject[:80]}"
+    image_url, storage_key, id_media = await _stocker_image_publication(
+        session, stockage, raw_images[0], display_name, par
+    )
+
+    texte_assistant = _extraire_texte_reponse(message).strip()
+    if not texte_assistant:
+        texte_assistant = (
+            f"Nouvelle version retouchée selon votre consigne : « {(donnees.retouch_instruction or '').strip()} »."
+            if donnees.mode == "retouch"
+            else f"Visuel généré avec {modele.name} ({donnees.aspect_ratio})."
+        )
+
+    usage = corps.get("usage") if isinstance(corps.get("usage"), dict) else {}
+    raw_cost = usage.get("cost")
+    if isinstance(raw_cost, (int, float)):
+        cost_usd = round(float(raw_cost), 7)
+    else:
+        prompt_tok = _to_int(usage.get("prompt_tokens"))
+        comp_tok = _to_int(usage.get("completion_tokens"))
+        cost_usd = round(
+            prompt_tok * _to_float(modele.pricing_prompt)
+            + comp_tok * _to_float(modele.pricing_completion),
+            7,
+        )
+
+    return PublicationVisualGenerationResponse(
+        image_url=image_url,
+        storage_key=storage_key,
+        id_media=id_media,
+        assistant_message=texte_assistant,
+        model_id=modele.openrouter_model_id,
+        model_name=modele.name,
+        reasoning_effort=assign.reasoning_effort if assign else None,  # type: ignore[arg-type]
+        system_prompt_label=_prompt_label(sys_prompt),
+        template_prompt_label=_prompt_label(tpl_prompt),
+        key_source=key_source,  # type: ignore[arg-type]
+        latency_ms=latence,
+        cost_usd=cost_usd,
+    )

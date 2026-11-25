@@ -623,3 +623,121 @@ async def test_prompts_systeme_et_gabarits(
     defauts = [p for p in r_list.json() if p["is_default"]]
     assert len(defauts) == 1
     assert defauts[0]["id_ai_prompts"] == cree["id_ai_prompts"]
+
+
+@pytest.mark.asyncio
+async def test_generation_publication_v2_utilise_modele_et_prompt_actifs(
+    client, fabrique_utilisateur, connexion, monkeypatch
+):
+    """Vérifie que `/generation/context` et `/generation/texts` consomment l'affectation IA + le prompt actif."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    # 1. Enregistrer une clé Standard (vérification mockée)
+    async def _fake_verify_std(_key: str):
+        return openrouter_client.VerifyKeyResult(ok=True, message="OK")
+
+    async def _fake_list_models(_key: str):
+        return [
+            {
+                "id": "openai/gpt-4o-mini",
+                "name": "GPT-4o mini",
+                "context_length": 128000,
+                "pricing": {"prompt": "0.00000015", "completion": "0.0000006"},
+                "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
+            }
+        ]
+
+    monkeypatch.setattr(openrouter_client, "verify_standard_key", _fake_verify_std)
+    monkeypatch.setattr(openrouter_client, "list_models", _fake_list_models)
+
+    r_key = await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={"key_kind": "standard", "api_key": "sk-or-v1-test-generation-key-123456"},
+    )
+    assert r_key.status_code == 201, r_key.text
+
+    r_sync = await client.post("/api/v1/openrouter/models/sync", headers=entete(jetons))
+    assert r_sync.status_code == 200, r_sync.text
+    models = (await client.get("/api/v1/openrouter/models", headers=entete(jetons))).json()
+    id_model = models[0]["id_ai_models"]
+
+    # 2. Affecter le modèle + effort de raisonnement à `text-generation`
+    r_assign = await client.put(
+        "/api/v1/openrouter/assignments/text-generation",
+        headers=entete(jetons),
+        json={"id_ai_models": id_model, "reasoning_effort": "medium"},
+    )
+    assert r_assign.status_code == 200, r_assign.text
+
+    # 3. Créer & activer un prompt système spécifique pour `publication_description`
+    r_prompt = await client.post(
+        "/api/v1/openrouter/prompts",
+        headers=entete(jetons),
+        json={
+            "prompt_kind": "system",
+            "task_code": "publication_description",
+            "title": "Prompt Editorial v2",
+            "content": "SIGNATURE_PROMPT_ACTIF_DATUM",
+            "is_default": True,
+        },
+    )
+    assert r_prompt.status_code == 201, r_prompt.text
+
+    # 4. Vérifier `/generation/context`
+    r_ctx = await client.get("/api/v1/openrouter/generation/context", headers=entete(jetons))
+    assert r_ctx.status_code == 200, r_ctx.text
+    ctx = r_ctx.json()
+    assert ctx["has_api_key"] is True
+    assert ctx["key_source"] == "standard"
+    assert ctx["text_model"]["model_id"] == "openai/gpt-4o-mini"
+    assert ctx["text_model"]["reasoning_effort"] == "medium"
+    assert ctx["text_system_prompt"]["title"] == "Prompt Editorial v2"
+
+    # 5. Appeler `/generation/texts` avec OpenRouter mocké et vérifier la propagation
+    captured: dict = {}
+
+    async def _fake_completion(api_key: str, **kwargs):
+        captured["model"] = kwargs["model"]
+        captured["reasoning_effort"] = kwargs["reasoning_effort"]
+        captured["messages"] = kwargs["messages"]
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"proposals_by_network":{"linkedin":['
+                            '{"angle":"Annonce","title":"Bootcamp","paragraphs":["Paragraphe 1","Paragraphe 2"],"hashtags":["#Datum","#Cloud"]}'
+                            "]}}"
+                        )
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 80, "total_tokens": 200, "cost": 0.00042},
+        }
+
+    monkeypatch.setattr(openrouter_client, "run_chat_completion", _fake_completion)
+
+    r_gen = await client.post(
+        "/api/v1/openrouter/generation/texts",
+        headers=entete(jetons),
+        json={
+            "subject": "Lancement Bootcamp Cloud AWS",
+            "format": "image",
+            "networks": ["linkedin"],
+            "tone": "professional",
+            "language": "Français",
+            "hashtags_min": 2,
+            "hashtags_max": 4,
+            "run_number": 1,
+        },
+    )
+    assert r_gen.status_code == 200, r_gen.text
+    body = r_gen.json()
+    assert captured["model"] == "openai/gpt-4o-mini"
+    assert captured["reasoning_effort"] == "medium"
+    assert "SIGNATURE_PROMPT_ACTIF_DATUM" in captured["messages"][0]["content"]
+    assert body["cost_usd"] == pytest.approx(0.00042)
+    assert len(body["proposals_by_network"]["linkedin"]) == 1
+    assert body["proposals_by_network"]["linkedin"][0]["hashtags"] == ["#Datum", "#Cloud"]
