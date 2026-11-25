@@ -7,7 +7,7 @@
 > Régénérer après une migration, depuis `backend/` :
 > `.\venv\Scripts\python.exe -m app.cli db-doc > ..\IAdocs\base-de-donnees.md`
 
-Tables documentées : **11** · colonnes : **110**.
+Tables documentées : **17** · colonnes : **172**.
 
 > Les quatre tables du module Modèles IA (migration 0005) ne figurent pas
 > encore ici : le générateur `app.cli db-doc` annoncé ci-dessus n'existe plus
@@ -279,3 +279,155 @@ Historique des verifications d'un compte d'envoi : connexion authentifiee ou mes
 - `fk_email_account_checks_id_users_checked_by_users` — FOREIGN KEY (id_users_checked_by) REFERENCES users(id_users)
 - `pk_email_account_checks` — PRIMARY KEY (id_email_account_checks)
 - `trg_email_account_checks_ajout_seul` — déclencheur : UPDATE et DELETE refusés. Une vérification passée ne se réécrit pas.
+
+## Newsletter — modèles de mail et envois
+
+### `mail_categories`
+
+Categories de courriel liees aux evenements. Elles classent a la fois les modeles et les envois : un envoi herite de la categorie de son modele.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_mail_categories` | integer | non | Identifiant de la categorie. |
+| `code` | varchar(40) | non | Code technique lu par le code Python. Ne change jamais. |
+| `label` | varchar(120) | non | Libelle affiche dans l'interface. |
+| `note` | varchar(255) | non | Ce que la categorie sert a dire, affiche sous son titre. |
+| `sort_order` | smallint | non | Ordre d'affichage : celui du cycle de vie d'un evenement. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+| `updated_at` | timestamptz | non | Date de derniere modification (UTC). |
+
+**Contraintes**
+
+- `pk_mail_categories` — PRIMARY KEY (id_mail_categories)
+- `uq_mail_categories_code` — UNIQUE (code)
+- `uq_mail_categories_code` — UNIQUE (code) WHERE 
+
+### `mail_templates`
+
+Modeles de courriel. Le corps est insere dans la coquille commune : la banniere et la signature ne sont donc pas recopiees a chaque modele.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_mail_templates` | integer | non | Identifiant du modele. |
+| `id_mail_categories` | integer | non | Categorie du modele. Les envois en heritent. |
+| `name` | varchar(160) | non | Nom du modele dans la liste. |
+| `subject` | varchar(200) | non | Objet du message, variables comprises. |
+| `preheader` | varchar(255) | oui | Premiere ligne visible dans la liste de la boite de reception. |
+| `body_html` | text | non | Corps du message, insere dans la coquille commune (banniere et signature). Les variables s'y ecrivent entre doubles accolades. |
+| `variables_json` | jsonb | oui | Variables attendues par le modele, sans les accolades. |
+| `status` | varchar(20) | non | draft (non proposable a l'envoi) \| published. |
+| `version_label` | varchar(20) | non | Version courante, recopiee sur chaque envoi produit. |
+| `is_standard` | boolean | non | Modele livre avec l'application, cree par l'installation des standards. |
+| `id_users_created_by` | integer | oui | Utilisateur qui a cree le modele. |
+| `id_users_changed_by` | integer | oui | Utilisateur de la derniere modification. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+| `updated_at` | timestamptz | non | Date de derniere modification (UTC). |
+| `deleted_at` | timestamptz | oui | Archivage : le modele disparait des listes, les envois y renvoient toujours. |
+
+**Contraintes**
+
+- `ck_mail_templates_ck_mail_templates_status` — CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying])::text[])))
+- `fk_mail_templates_id_mail_categories_mail_categories` — FOREIGN KEY (id_mail_categories) REFERENCES mail_categories(id_mail_categories)
+- `fk_mail_templates_id_users_changed_by_users` — FOREIGN KEY (id_users_changed_by) REFERENCES users(id_users)
+- `fk_mail_templates_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
+- `pk_mail_templates` — PRIMARY KEY (id_mail_templates)
+- `uq_mail_templates_name` — UNIQUE (deleted_at IS NULL) WHERE (deleted_at IS NULL)
+
+### `mail_template_versions`
+
+Historique des versions d'un modele, en ajout seul. Chaque enregistrement du modele y depose l'etat precedent.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_mail_template_versions` | integer | non | Identifiant de la version. |
+| `id_mail_templates` | integer | non | Modele concerne. Ses versions disparaissent avec lui. |
+| `label` | varchar(20) | non | Nom de la version (v1, v2...). |
+| `subject` | varchar(200) | non | Objet, tel qu'a cette date. |
+| `preheader` | varchar(255) | oui | Pre-entete, tel qu'a cette date. |
+| `body_html` | text | non | Corps, tel qu'a cette date. |
+| `change_note` | text | oui | Ce que cette version a change, saisi par l'auteur. |
+| `id_users_created_by` | integer | oui | Utilisateur qui a enregistre la version. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+
+**Contraintes**
+
+- `fk_mail_template_versions_id_mail_templates_mail_templates` — FOREIGN KEY (id_mail_templates) REFERENCES mail_templates(id_mail_templates) ON DELETE CASCADE
+- `fk_mail_template_versions_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
+- `pk_mail_template_versions` — PRIMARY KEY (id_mail_template_versions)
+- `uq_mail_template_versions_id_mail_templates` — UNIQUE (id_mail_templates, label)
+- `uq_mail_template_versions_id_mail_templates` — UNIQUE (id_mail_templates, label) WHERE 
+
+### `newsletter_send_statuses`
+
+Etats d'un envoi : envoye, programme, envoye en partie, echec. L'etat est DEDUIT du resultat de l'envoi, jamais saisi.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_newsletter_send_statuses` | integer | non | Identifiant de l'etat. |
+| `code` | varchar(40) | non | Code technique lu par le code Python. Ne change jamais. |
+| `label` | varchar(120) | non | Libelle affiche dans l'interface. |
+| `sort_order` | smallint | non | Ordre d'affichage des filtres. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+| `updated_at` | timestamptz | non | Date de derniere modification (UTC). |
+
+**Contraintes**
+
+- `pk_newsletter_send_statuses` — PRIMARY KEY (id_newsletter_send_statuses)
+- `uq_newsletter_send_statuses_code` — UNIQUE (code)
+- `uq_newsletter_send_statuses_code` — UNIQUE (code) WHERE 
+
+### `newsletter_sends`
+
+Un envoi de newsletter : le message parti, le compte qui l'a expedie et ses cumuls de remise.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_newsletter_sends` | integer | non | Identifiant de l'envoi. |
+| `id_mail_templates` | integer | oui | Modele utilise. Vide si le modele a ete archive depuis. |
+| `id_mail_categories` | integer | non | Categorie, heritee du modele au moment de l'envoi. |
+| `id_email_accounts` | integer | non | Compte d'envoi qui a expedie les messages. |
+| `id_newsletter_send_statuses` | integer | non | Etat de l'envoi. |
+| `subject` | varchar(200) | non | Objet reellement expedie, variables substituees. |
+| `event_title` | varchar(200) | oui | Evenement auquel l'envoi se rattache. |
+| `template_name_denormalized` | varchar(160) | non | Nom du modele AU MOMENT de l'envoi : le modele peut etre renomme depuis. |
+| `template_version_denormalized` | varchar(20) | non | Version du modele au moment de l'envoi. |
+| `recipient_count` | integer | non | Destinataires vises. |
+| `delivered_count` | integer | non | Messages acceptes par le serveur d'envoi. C'est tout ce qu'un serveur SMTP rend : ni ouvertures ni clics ne transitent par lui. |
+| `failure_note` | text | oui | Renseigne quand l'envoi a echoue, en tout ou partie. |
+| `scheduled_at` | timestamptz | oui | Date prevue d'un envoi programme (UTC). |
+| `sent_at` | timestamptz | oui | Moment ou l'envoi a ete tente (UTC). Vide tant qu'il est programme. |
+| `id_users_created_by` | integer | oui | Utilisateur qui a declenche l'envoi. |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+| `updated_at` | timestamptz | non | Date de derniere modification (UTC). |
+
+**Contraintes**
+
+- `ck_newsletter_sends_ck_newsletter_sends_delivered_count` — CHECK ((delivered_count <= recipient_count))
+- `fk_newsletter_sends_id_email_accounts_email_accounts` — FOREIGN KEY (id_email_accounts) REFERENCES email_accounts(id_email_accounts)
+- `fk_newsletter_sends_id_mail_categories_mail_categories` — FOREIGN KEY (id_mail_categories) REFERENCES mail_categories(id_mail_categories)
+- `fk_newsletter_sends_id_mail_templates_mail_templates` — FOREIGN KEY (id_mail_templates) REFERENCES mail_templates(id_mail_templates)
+- `fk_newsletter_sends_id_users_created_by_users` — FOREIGN KEY (id_users_created_by) REFERENCES users(id_users)
+- `fk_newsletter_sends_status` — FOREIGN KEY (id_newsletter_send_statuses) REFERENCES newsletter_send_statuses(id_newsletter_send_statuses)
+- `pk_newsletter_sends` — PRIMARY KEY (id_newsletter_sends)
+
+### `newsletter_send_recipients`
+
+Detail par destinataire d'un envoi : accepte ou refuse, et le motif du refus. C'est de ces lignes que viennent les cumuls de l'envoi.
+
+| Colonne | Type | Nul | Description |
+|---|---|---|---|
+| `id_newsletter_send_recipients` | integer | non | Identifiant de la ligne destinataire. |
+| `id_newsletter_sends` | integer | non | Envoi concerne. Ses destinataires disparaissent avec lui. |
+| `email` | varchar(255) | non | Adresse du destinataire, toujours en minuscules. |
+| `display_name` | varchar(120) | oui | Nom du destinataire, utilise par la variable prenom. |
+| `is_delivered` | boolean | non | Vrai si le serveur d'envoi a accepte le message pour cette adresse. |
+| `error_message` | text | oui | Refus du serveur pour cette adresse, tel qu'il l'a formule. |
+| `sent_at` | timestamptz | oui | Moment de la tentative pour cette adresse (UTC). |
+| `created_at` | timestamptz | non | Date de creation (UTC). |
+
+**Contraintes**
+
+- `fk_newsletter_send_recipients_send` — FOREIGN KEY (id_newsletter_sends) REFERENCES newsletter_sends(id_newsletter_sends) ON DELETE CASCADE
+- `pk_newsletter_send_recipients` — PRIMARY KEY (id_newsletter_send_recipients)
+- `uq_newsletter_send_recipients_id_newsletter_sends` — UNIQUE (id_newsletter_sends, email)
+- `uq_newsletter_send_recipients_id_newsletter_sends` — UNIQUE (id_newsletter_sends, email) WHERE

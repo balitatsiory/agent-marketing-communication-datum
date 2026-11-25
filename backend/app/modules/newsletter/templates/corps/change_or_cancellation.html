@@ -1,0 +1,74 @@
+          <tr>
+            <td class="px" style="padding:36px 32px 0 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;">
+              <div class="h-title" style="font-size:22px;line-height:30px;font-weight:600;color:#073C4E;">
+                {{prenom}}, une mise &agrave; jour sur votre s&eacute;ance
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:18px 32px 0 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-left:3px solid #C9A227;background-color:#FBF6E7;">
+                <tr>
+                  <td style="padding:14px 18px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:14px;line-height:22px;color:#6A5612;">
+                    <strong style="font-weight:600;">{{nature_du_changement}}</strong><br />
+                    {{detail_du_changement}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:20px 32px 0 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:14.5px;line-height:24px;color:#44525A;">
+              Le webinaire concern&eacute; est
+              &laquo;&nbsp;<span style="color:#0A4D64;font-weight:500;">{{titre_webinaire}}</span>&nbsp;&raquo;.
+              Nous sommes d&eacute;sol&eacute;s pour la g&ecirc;ne occasionn&eacute;e.
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:26px 32px 0 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #D0E5ED;border-radius:8px;">
+                <tr>
+                  <td width="34%" bgcolor="#E9F0F3" style="background-color:#E9F0F3;padding:13px 18px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6B7D85;font-weight:600;">Avant</td>
+                  <td bgcolor="#E9F0F3" style="background-color:#E9F0F3;padding:13px 18px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:13.5px;color:#8A9AA2;text-decoration:line-through;">{{ancienne_date}}</td>
+                </tr>
+                <tr>
+                  <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding:13px 18px;border-top:1px solid #D0E5ED;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6B7D85;font-weight:600;">Maintenant</td>
+                  <td bgcolor="#FFFFFF" style="background-color:#FFFFFF;padding:13px 18px;border-top:1px solid #D0E5ED;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:13.5px;color:#073C4E;font-weight:500;">{{date}} &agrave; {{heure}} ({{fuseau}})</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:28px 32px 0 32px;" align="left">
+              <!--[if mso]>
+              <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                           href="{{lien_acces}}" style="height:48px;v-text-anchor:middle;width:244px;" arcsize="13%" stroke="f" fillcolor="#167FA4">
+                <w:anchorlock/>
+                <center style="color:#FFFFFF;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:500;">Voir la nouvelle s&eacute;ance</center>
+              </v:roundrect>
+              <![endif]-->
+              <!--[if !mso]><!-- -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="btn" style="border-collapse:collapse;">
+                <tr>
+                  <td align="center" bgcolor="#167FA4" style="background-color:#167FA4;border-radius:6px;">
+                    <a href="{{lien_acces}}"
+                       style="display:inline-block;padding:15px 34px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:15px;font-weight:500;line-height:18px;color:#FFFFFF;text-decoration:none;border-radius:6px;">
+                      Voir la nouvelle s&eacute;ance
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <!--<![endif]-->
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:22px 32px 36px 32px;font-family:'Poppins','Segoe UI',Arial,sans-serif;font-size:14.5px;line-height:24px;color:#44525A;">
+              Si ce nouveau cr&eacute;neau ne vous convient pas, r&eacute;pondez &agrave; ce message : nous vous
+              enverrons la rediffusion d&egrave;s sa mise en ligne.
+            </td>
+          </tr>

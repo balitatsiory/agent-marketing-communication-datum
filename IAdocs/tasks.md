@@ -71,12 +71,15 @@ Démarrage et commandes : `backend/README.md`. Tables et colonnes : `IAdocs/base
       (ni son propre compte, ni le dernier administrateur)
 - [x] **`social_accounts`** : tables `platforms`, `social_account_statuses`, `social_accounts`,
       `social_account_metrics` — modèles et migrations, sans service ni endpoints
-- [x] **Migrations** : 9 appliquées, valeurs initiales comprises (droits, réseaux, statuts)
+- [x] **Migrations** : 10 appliquées, valeurs initiales comprises (droits, réseaux, statuts)
 - [x] **Commentaires SQL** sur les 8 tables et 73 colonnes, et leur document généré
 - [x] **Swagger** : bouton Authorize, sections, exemples, erreurs documentées
-- [x] **Tests** : 177, dont les conventions de nommage en base
+- [x] **Tests** : 197, dont les conventions de nommage en base
 - [x] **`email_accounts`** : comptes d'envoi SMTP — tables `email_accounts`, `email_account_credentials` (mots de passe chiffrés par Fernet, en ajout seul) et `email_account_checks`, service, endpoints, droit `manage_email_accounts`, écran « Comptes d'envoi » et bandeau sur la boîte d'envois
 - [ ] **Collecte des statistiques Meta** — étape en cours
+- [x] **`newsletter`** : catégories, modèles de mail et leurs versions, envois et destinataires ;
+      coquille commune (bannière et signature du gabarit A7/B1), cinq modèles standards,
+      envoi réel message par message depuis un compte d'envoi
 - [ ] **`publications`** : tables de référence, versions, cibles, historiques
 - [ ] `media`, `messages`, `webinars`, `calendar`, `activity`, `notifications`, `webhooks`
 

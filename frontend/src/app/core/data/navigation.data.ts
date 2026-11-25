@@ -71,8 +71,9 @@ export const NAVIGATION: readonly NavigationEntry[] = [
         label: 'Newsletter',
         icon: 'send',
         items: [
-          { key: 'sends', label: "Boîte d'envois", icon: 'files', route: '/newsletter/envois', count: '14' },
-          { key: 'templates', label: 'Modèles de mail', icon: 'pencil', route: '/newsletter/modeles', count: '6' },
+          { key: 'sends', label: "Boîte d'envois", icon: 'files', route: '/newsletter/envois' },
+          { key: 'templates', label: 'Modèles de mail', icon: 'pencil', route: '/newsletter/modeles' },
+          { key: 'sends-proto', label: "Boîte d'envois (démo)", icon: 'files', route: '/newsletter/envois_prototype' },
           { key: 'senders', label: "Comptes d'envoi", icon: 'gear', route: '/newsletter/comptes-envoi', requiresPermission: 'manage_email_accounts' },
         ],
       },

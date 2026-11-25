@@ -563,6 +563,27 @@ async def verifier_compte(
     )
 
 
+async def envoyer_messages(
+    session: AsyncSession, id_email_accounts: int, messages: list[EmailMessage]
+) -> list[SmtpResult]:
+    """Expédie un lot de messages déjà composés, sur une seule connexion.
+
+    C'est le point d'entrée des AUTRES modules : le module Newsletter compose
+    ses messages et les confie ici, sans jamais toucher ni au mot de passe ni
+    au client SMTP. Le compte doit être actif et porter un mot de passe.
+    """
+    compte, _ = await _charger(session, id_email_accounts)
+    clair = await _mot_de_passe_en_clair(session, id_email_accounts)
+    resultats = await smtp_client.send_messages(_cible(compte, clair), messages)
+    logger.info(
+        "Lot de %s message(s) expédié par le compte %s : %s accepté(s)",
+        len(messages),
+        id_email_accounts,
+        sum(1 for resultat in resultats if resultat.ok),
+    )
+    return resultats
+
+
 def _message_de_test(compte: EmailAccount, donnees: EmailAccountTestMessage) -> EmailMessage:
     """Compose le message de test : c'est une règle métier, pas du transport."""
     mode = "SSL/TLS" if compte.security == SECURITY_SSL_TLS else "STARTTLS"
