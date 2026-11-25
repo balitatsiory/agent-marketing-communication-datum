@@ -77,6 +77,12 @@ def upgrade() -> None:
             name="task_code",
         ),
         sa.CheckConstraint("version_number >= 1", name="version_positive"),
+        sa.UniqueConstraint(
+            "prompt_kind",
+            "task_code",
+            "version_number",
+            name="uq_ai_prompts_kind_task_version",
+        ),
         comment=(
             "Prompts systeme et gabarits (templates) versionnes par tache metier IA. "
             "Au plus un gabarit actif par defaut par couple (prompt_kind, task_code)."

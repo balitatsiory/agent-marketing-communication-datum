@@ -413,6 +413,8 @@ class AiPromptTaskRead(BaseModel):
 class AiPromptCreate(BaseModel):
     """Création d'un prompt système ou d'un gabarit (nouvelle version auto-incrémentée)."""
 
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     prompt_kind: PromptKind
     task_code: PromptTaskCode
     title: str = Field(..., min_length=2, max_length=160)
@@ -423,6 +425,8 @@ class AiPromptCreate(BaseModel):
 
 class AiPromptUpdate(BaseModel):
     """Modification d'un prompt existant."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
 
     title: str | None = Field(default=None, min_length=2, max_length=160)
     content: str | None = Field(default=None, min_length=1, max_length=30000)

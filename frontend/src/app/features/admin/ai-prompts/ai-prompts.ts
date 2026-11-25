@@ -93,14 +93,21 @@ export class AiPrompts {
     );
   });
 
+  private loadSeq = 0;
+  private lastTaskLoadFailed = false;
+
   protected async loadAll(kindOverride?: AiPromptKind): Promise<void> {
+    const seq = ++this.loadSeq;
     this.loading.set(true);
     this.errorMessage.set(null);
+    this.lastTaskLoadFailed = false;
+    this.prompts.set([]);
     this.expandedPrompt.set(null);
     this.showEditorModal.set(false);
     try {
       const kind = kindOverride ?? this.kind();
       const tasks = await this.api.listPromptTasks(kind);
+      if (seq !== this.loadSeq) return;
       this.tasks.set(tasks);
 
       const currentCode = this.selectedTaskCode();
@@ -110,26 +117,40 @@ export class AiPrompts {
       this.selectedTaskCode.set(targetCode);
 
       const prompts = await this.api.listPrompts(kind, targetCode);
+      if (seq !== this.loadSeq) return;
       this.prompts.set(prompts);
     } catch (err) {
+      if (seq !== this.loadSeq) return;
+      this.lastTaskLoadFailed = true;
       this.errorMessage.set(toApiError(err).message);
     } finally {
-      this.loading.set(false);
+      if (seq === this.loadSeq) {
+        this.loading.set(false);
+      }
     }
   }
 
   protected async selectTask(code: AiPromptTaskCode): Promise<void> {
-    if (this.selectedTaskCode() === code) return;
+    if (this.selectedTaskCode() === code && !this.lastTaskLoadFailed) return;
+    const seq = ++this.loadSeq;
     this.selectedTaskCode.set(code);
     this.searchTerm.set('');
+    this.prompts.set([]);
     this.loading.set(true);
     this.errorMessage.set(null);
+    this.lastTaskLoadFailed = false;
     try {
-      this.prompts.set(await this.api.listPrompts(this.kind(), code));
+      const prompts = await this.api.listPrompts(this.kind(), code);
+      if (seq !== this.loadSeq) return;
+      this.prompts.set(prompts);
     } catch (err) {
+      if (seq !== this.loadSeq) return;
+      this.lastTaskLoadFailed = true;
       this.errorMessage.set(toApiError(err).message);
     } finally {
-      this.loading.set(false);
+      if (seq === this.loadSeq) {
+        this.loading.set(false);
+      }
     }
   }
 
@@ -245,13 +266,23 @@ export class AiPrompts {
   }
 
   private async refreshCurrentTask(): Promise<void> {
+    const seq = ++this.loadSeq;
     const kind = this.kind();
-    const [tasks, prompts] = await Promise.all([
-      this.api.listPromptTasks(kind),
-      this.api.listPrompts(kind, this.selectedTaskCode()),
-    ]);
-    this.tasks.set(tasks);
-    this.prompts.set(prompts);
+    const taskCode = this.selectedTaskCode();
+    try {
+      const [tasks, prompts] = await Promise.all([
+        this.api.listPromptTasks(kind),
+        this.api.listPrompts(kind, taskCode),
+      ]);
+      if (seq !== this.loadSeq) return;
+      this.lastTaskLoadFailed = false;
+      this.tasks.set(tasks);
+      this.prompts.set(prompts);
+    } finally {
+      if (seq === this.loadSeq) {
+        this.loading.set(false);
+      }
+    }
   }
 
   /* ---------- Utilitaires ---------- */

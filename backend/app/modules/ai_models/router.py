@@ -331,7 +331,7 @@ async def supprimer_historique_bac_a_sable(
 )
 async def lister_taches_prompts(
     session: SessionDep,
-    _: CurrentUser,
+    _: GestionnaireIA,
     kind: PromptKind = Query("system", description="system ou template."),
 ) -> list[AiPromptTaskRead]:
     return await service.lister_taches_prompts(session, kind)
@@ -344,7 +344,7 @@ async def lister_taches_prompts(
 )
 async def lister_prompts(
     session: SessionDep,
-    _: CurrentUser,
+    _: GestionnaireIA,
     kind: PromptKind = Query("system", description="system ou template."),
     task_code: str | None = Query(None, description="Filtrer par tâche métier."),
 ) -> list[AiPromptRead]:

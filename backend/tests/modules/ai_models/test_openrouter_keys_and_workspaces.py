@@ -591,6 +591,21 @@ async def test_prompts_systeme_et_gabarits(
     assert cree["version_number"] >= 1
     assert cree["is_default"] is False
 
+    # Vérifier l'incrément exact du numéro de version sur une 2e création
+    r_create_2 = await client.post(
+        "/api/v1/openrouter/prompts",
+        headers=entete(jetons),
+        json={
+            "prompt_kind": "system",
+            "task_code": "publication_description",
+            "title": "Version test LinkedIn v+1",
+            "content": "Tu es expert LinkedIn Datum Academy (v+1).",
+            "is_default": False,
+        },
+    )
+    assert r_create_2.status_code == 201, r_create_2.text
+    assert r_create_2.json()["version_number"] == cree["version_number"] + 1
+
     # Activer par défaut
     r_def = await client.post(
         f"/api/v1/openrouter/prompts/{cree['id_ai_prompts']}/set-default",

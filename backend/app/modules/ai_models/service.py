@@ -22,9 +22,10 @@ import uuid
 
 import httpx
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ApiError, NotFoundError
+from app.core.errors import ApiError, ConflictError, NotFoundError
 from app.core.security import decrypt_token, encrypt_token
 from app.core.storage import Stockage
 from app.modules.ai_models import openrouter_client
@@ -1645,44 +1646,70 @@ async def creer_prompt(
     session: AsyncSession, donnees: AiPromptCreate, par: User
 ) -> AiPromptRead:
     """Crée une nouvelle version de prompt système ou gabarit."""
-    max_ver = (
-        await session.execute(
-            select(func.coalesce(func.max(AiPrompt.version_number), 0)).where(
-                AiPrompt.prompt_kind == donnees.prompt_kind,
-                AiPrompt.task_code == donnees.task_code,
-            )
+    titre = donnees.title.strip()
+    contenu = donnees.content.strip()
+    if len(titre) < 2:
+        raise ApiError(
+            "validation_error",
+            "Le titre du prompt doit contenir au moins 2 caractères.",
+            status_code=422,
         )
-    ).scalar_one()
-    next_version = int(max_ver) + 1
-
-    if donnees.is_default:
-        await session.execute(
-            update(AiPrompt)
-            .where(
-                AiPrompt.prompt_kind == donnees.prompt_kind,
-                AiPrompt.task_code == donnees.task_code,
-                AiPrompt.deleted_at.is_(None),
-                AiPrompt.is_default.is_(True),
-            )
-            .values(is_default=False, id_users_changed_by=par.id_users)
+    if not contenu:
+        raise ApiError(
+            "validation_error",
+            "Le contenu du prompt ne peut pas être vide.",
+            status_code=422,
         )
-        await session.flush()
+    description = (donnees.description or "").strip() or None
 
-    nouveau = AiPrompt(
-        prompt_kind=donnees.prompt_kind,
-        task_code=donnees.task_code,
-        title=donnees.title.strip(),
-        version_number=next_version,
-        content=donnees.content.strip(),
-        description=(donnees.description or "").strip() or None,
-        is_default=donnees.is_default,
-        id_users_created_by=par.id_users,
-        id_users_changed_by=par.id_users,
-    )
-    session.add(nouveau)
-    await session.commit()
-    await session.refresh(nouveau)
-    return _prompt_to_read(nouveau, par)
+    for tentative in range(3):
+        max_ver = (
+            await session.execute(
+                select(func.coalesce(func.max(AiPrompt.version_number), 0)).where(
+                    AiPrompt.prompt_kind == donnees.prompt_kind,
+                    AiPrompt.task_code == donnees.task_code,
+                )
+            )
+        ).scalar_one()
+        next_version = int(max_ver) + 1
+
+        if donnees.is_default:
+            await session.execute(
+                update(AiPrompt)
+                .where(
+                    AiPrompt.prompt_kind == donnees.prompt_kind,
+                    AiPrompt.task_code == donnees.task_code,
+                    AiPrompt.deleted_at.is_(None),
+                    AiPrompt.is_default.is_(True),
+                )
+                .values(is_default=False, id_users_changed_by=par.id_users)
+            )
+            await session.flush()
+
+        nouveau = AiPrompt(
+            prompt_kind=donnees.prompt_kind,
+            task_code=donnees.task_code,
+            title=titre,
+            version_number=next_version,
+            content=contenu,
+            description=description,
+            is_default=donnees.is_default,
+            id_users_created_by=par.id_users,
+            id_users_changed_by=par.id_users,
+        )
+        session.add(nouveau)
+        try:
+            await session.commit()
+            await session.refresh(nouveau)
+            return _prompt_to_read(nouveau, par)
+        except IntegrityError as exc:
+            await session.rollback()
+            if tentative == 2:
+                raise ConflictError(
+                    "Conflit de version concurrente lors de la création du prompt. Veuillez réessayer."
+                ) from exc
+
+    raise ConflictError("Impossible d'allouer un numéro de version unique.")
 
 
 async def modifier_prompt(
@@ -1701,9 +1728,23 @@ async def modifier_prompt(
     prompt, auteur = ligne
 
     if donnees.title is not None:
-        prompt.title = donnees.title.strip()
+        titre = donnees.title.strip()
+        if len(titre) < 2:
+            raise ApiError(
+                "validation_error",
+                "Le titre du prompt doit contenir au moins 2 caractères.",
+                status_code=422,
+            )
+        prompt.title = titre
     if donnees.content is not None:
-        prompt.content = donnees.content.strip()
+        contenu = donnees.content.strip()
+        if not contenu:
+            raise ApiError(
+                "validation_error",
+                "Le contenu du prompt ne peut pas être vide.",
+                status_code=422,
+            )
+        prompt.content = contenu
     if donnees.description is not None:
         prompt.description = donnees.description.strip() or None
     prompt.id_users_changed_by = par.id_users

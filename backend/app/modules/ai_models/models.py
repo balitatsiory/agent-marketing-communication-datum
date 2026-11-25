@@ -286,6 +286,12 @@ class AiPrompt(Base):
             name="task_code",
         ),
         CheckConstraint("version_number >= 1", name="version_positive"),
+        UniqueConstraint(
+            "prompt_kind",
+            "task_code",
+            "version_number",
+            name="uq_ai_prompts_kind_task_version",
+        ),
         Index(
             "uq_ai_prompts_defaut_actif",
             "prompt_kind",

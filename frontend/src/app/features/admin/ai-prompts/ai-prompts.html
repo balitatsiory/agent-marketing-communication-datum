@@ -314,7 +314,10 @@
         </button>
       </div>
 
-      <div class="modal-body">
+      <div class="modal-body modal-scroll">
+        @if (errorMessage()) {
+          <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>
+        }
         <div class="field">
           <label for="prompt-title">Titre *</label>
           <input
@@ -352,7 +355,7 @@
             class="textarea"
             [ngModel]="formContent()"
             (ngModelChange)="formContent.set($event)"
-            placeholder="Saisissez le texte du prompt (utilisez {{variable}} pour les gabarits)…"
+            [placeholder]="'Saisissez le texte du prompt (utilisez {{variable}} pour les gabarits)…'"
           ></textarea>
         </div>
 
