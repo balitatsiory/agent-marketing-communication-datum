@@ -13,6 +13,52 @@ SANDBOX_USE_CASES = (
     "message_rag",
 )
 
+PROMPT_KIND_SYSTEM = "system"
+PROMPT_KIND_TEMPLATE = "template"
+PROMPT_KINDS = (PROMPT_KIND_SYSTEM, PROMPT_KIND_TEMPLATE)
+
+PROMPT_TASK_CODES = (
+    "publication_description",
+    "message_reply",
+    "image_generation",
+    "image_description",
+    "rag_synthesis",
+    "newsletter_content",
+)
+
+PROMPT_TASKS_META: tuple[dict[str, str], ...] = (
+    {
+        "code": "publication_description",
+        "label": "Génération de description",
+        "description": "Rédaction de descriptions et légendes pour publications LinkedIn, Facebook et Instagram.",
+    },
+    {
+        "code": "message_reply",
+        "label": "Génération de messages",
+        "description": "Réponses prospects et apprenants sur la messagerie unifiée (WhatsApp, Messenger, DM).",
+    },
+    {
+        "code": "image_generation",
+        "label": "Génération & retouche d'image",
+        "description": "Création de visuels réseaux sociaux et consignes de modification d'images.",
+    },
+    {
+        "code": "image_description",
+        "label": "Description d'image (Vision)",
+        "description": "Analyse sémantique des médias de référence, chartes graphiques et textes alternatifs.",
+    },
+    {
+        "code": "rag_synthesis",
+        "label": "Synthèse Base de connaissances",
+        "description": "Réponses documentaires strictement ancrées sur le syllabus et les règlements.",
+    },
+    {
+        "code": "newsletter_content",
+        "label": "Rédaction Newsletter",
+        "description": "Création d'objets, chapeaux et contenus éditoriaux pour les envois email.",
+    },
+)
+
 PROVIDER_SORTS = ("price", "throughput", "latency", "exacto")
 REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh")
 

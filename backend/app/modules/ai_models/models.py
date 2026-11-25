@@ -35,6 +35,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 from app.modules.ai_models.constants import (
     KEY_KINDS,
+    PROMPT_KINDS,
+    PROMPT_TASK_CODES,
     PROVIDER_SORTS,
     REASONING_EFFORTS,
     SANDBOX_USE_CASES,
@@ -268,3 +270,61 @@ class AiSandboxRun(Base):
         ForeignKey("users.id_users", name="fk_ai_sandbox_runs_id_users_created_by_users")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AiPrompt(Base):
+    """Prompt système ou gabarit (template) versionné par tâche métier IA."""
+
+    __tablename__ = "ai_prompts"
+    __table_args__ = (
+        CheckConstraint(
+            "prompt_kind IN ('" + "', '".join(PROMPT_KINDS) + "')",
+            name="prompt_kind",
+        ),
+        CheckConstraint(
+            "task_code IN ('" + "', '".join(PROMPT_TASK_CODES) + "')",
+            name="task_code",
+        ),
+        CheckConstraint("version_number >= 1", name="version_positive"),
+        UniqueConstraint(
+            "prompt_kind",
+            "task_code",
+            "version_number",
+            name="uq_ai_prompts_kind_task_version",
+        ),
+        Index(
+            "uq_ai_prompts_defaut_actif",
+            "prompt_kind",
+            "task_code",
+            unique=True,
+            postgresql_where=text("is_default IS TRUE AND deleted_at IS NULL"),
+        ),
+        Index("ix_ai_prompts_kind_task", "prompt_kind", "task_code"),
+        {
+            "comment": (
+                "Prompts systeme et gabarits (templates) versionnes par tache metier IA. "
+                "Au plus un gabarit actif par defaut par couple (prompt_kind, task_code)."
+            )
+        },
+    )
+
+    id_ai_prompts: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prompt_kind: Mapped[str] = mapped_column(
+        String(20),
+        comment="system (prompt systeme) | template (gabarit reutilisable).",
+    )
+    task_code: Mapped[str] = mapped_column(String(60))
+    title: Mapped[str] = mapped_column(String(160))
+    version_number: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    content: Mapped[str] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(String(300))
+    is_default: Mapped[bool] = mapped_column(Boolean, server_default=func.false())
+    id_users_created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id_users", name="fk_ai_prompts_id_users_created_by_users")
+    )
+    id_users_changed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id_users", name="fk_ai_prompts_id_users_changed_by_users")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -10,6 +10,15 @@ KeyKind = Literal["management", "standard", "sandbox"]
 ProviderSort = Literal["price", "throughput", "latency", "exacto"]
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 SandboxUseCase = Literal["publication_text", "image_generation", "message_rag"]
+PromptKind = Literal["system", "template"]
+PromptTaskCode = Literal[
+    "publication_description",
+    "message_reply",
+    "image_generation",
+    "image_description",
+    "rag_synthesis",
+    "newsletter_content",
+]
 TaskCode = Literal[
     "text-generation",
     "image-description",
@@ -384,3 +393,58 @@ class SandboxRunHistoryRead(BaseModel):
     results: list[SandboxVariantResult]
     created_by_name: str | None = None
     created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Prompts système & Prompt templates (versionnés par tâche)
+# ---------------------------------------------------------------------------
+
+
+class AiPromptTaskRead(BaseModel):
+    """Tâche métier affichée dans l'aside des écrans Prompts."""
+
+    code: PromptTaskCode
+    label: str
+    description: str
+    count: int = 0
+    has_default: bool = False
+
+
+class AiPromptCreate(BaseModel):
+    """Création d'un prompt système ou d'un gabarit (nouvelle version auto-incrémentée)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    prompt_kind: PromptKind
+    task_code: PromptTaskCode
+    title: str = Field(..., min_length=2, max_length=160)
+    content: str = Field(..., min_length=1, max_length=30000)
+    description: str | None = Field(default=None, max_length=300)
+    is_default: bool = False
+
+
+class AiPromptUpdate(BaseModel):
+    """Modification d'un prompt existant."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str | None = Field(default=None, min_length=2, max_length=160)
+    content: str | None = Field(default=None, min_length=1, max_length=30000)
+    description: str | None = Field(default=None, max_length=300)
+
+
+class AiPromptRead(BaseModel):
+    """Fiche complète d'un prompt système ou gabarit."""
+
+    id_ai_prompts: int
+    prompt_kind: PromptKind
+    task_code: PromptTaskCode
+    title: str
+    version_number: int
+    content: str
+    char_count: int
+    description: str | None
+    is_default: bool
+    created_by_name: str | None = None
+    created_at: datetime
+    updated_at: datetime

@@ -258,6 +258,24 @@ export const routes: Routes = [
           import('./features/admin/ai-sandbox/ai-sandbox').then((m) => m.AiSandbox),
       },
 
+      {
+        path: 'admin/prompts/system',
+        title: 'Prompts système · IAGORA',
+        canActivate: [permissionGuard('manage_ai_models')],
+        data: { kind: 'system' },
+        loadComponent: () =>
+          import('./features/admin/ai-prompts/ai-prompts').then((m) => m.AiPrompts),
+      },
+
+      {
+        path: 'admin/prompts/templates',
+        title: 'Prompt templates · IAGORA',
+        canActivate: [permissionGuard('manage_ai_models')],
+        data: { kind: 'template' },
+        loadComponent: () =>
+          import('./features/admin/ai-prompts/ai-prompts').then((m) => m.AiPrompts),
+      },
+
 
       {
         path: 'parametres/modeles-ia',

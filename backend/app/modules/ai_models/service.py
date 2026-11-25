@@ -22,9 +22,10 @@ import uuid
 
 import httpx
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ApiError, NotFoundError
+from app.core.errors import ApiError, ConflictError, NotFoundError
 from app.core.security import decrypt_token, encrypt_token
 from app.core.storage import Stockage
 from app.modules.ai_models import openrouter_client
@@ -32,11 +33,13 @@ from app.modules.ai_models.constants import (
     KEY_KIND_MANAGEMENT,
     KEY_KIND_SANDBOX,
     KEY_KIND_STANDARD,
+    PROMPT_TASKS_META,
     TASK_CODES,
     TASK_LABELS,
 )
 from app.modules.ai_models.models import (
     AiModel,
+    AiPrompt,
     AiSandboxRun,
     AiTaskAssignment,
     AiWorkspace,
@@ -45,6 +48,10 @@ from app.modules.ai_models.models import (
 from app.modules.ai_models.schemas import (
     AiModelRead,
     AiModelsSyncRead,
+    AiPromptCreate,
+    AiPromptRead,
+    AiPromptTaskRead,
+    AiPromptUpdate,
     AiTaskAssignmentRead,
     AiTaskAssignmentUpdate,
     AiWorkspaceCreate,
@@ -1551,4 +1558,253 @@ async def supprimer_historique_bac_a_sable(session: AsyncSession, id_run: int) -
     if run is None:
         raise NotFoundError("Exécution Bac à sable introuvable.")
     await session.delete(run)
+    await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Prompts système & Prompt templates
+# ---------------------------------------------------------------------------
+
+
+def _prompt_to_read(p: AiPrompt, auteur: User | None = None) -> AiPromptRead:
+    return AiPromptRead(
+        id_ai_prompts=p.id_ai_prompts,
+        prompt_kind=p.prompt_kind,  # type: ignore[arg-type]
+        task_code=p.task_code,  # type: ignore[arg-type]
+        title=p.title,
+        version_number=p.version_number,
+        content=p.content,
+        char_count=len(p.content),
+        description=p.description,
+        is_default=p.is_default,
+        created_by_name=_nom_utilisateur(auteur),
+        created_at=p.created_at,
+        updated_at=p.updated_at,
+    )
+
+
+async def lister_taches_prompts(
+    session: AsyncSession, prompt_kind: str
+) -> list[AiPromptTaskRead]:
+    """Renvoie la liste des tâches métier avec le compteur de gabarits et l'état par défaut."""
+    rows = (
+        await session.execute(
+            select(AiPrompt.task_code, AiPrompt.is_default).where(
+                AiPrompt.prompt_kind == prompt_kind,
+                AiPrompt.deleted_at.is_(None),
+            )
+        )
+    ).all()
+
+    counts: dict[str, int] = {}
+    has_default: dict[str, bool] = {}
+    for tc, is_def in rows:
+        counts[tc] = counts.get(tc, 0) + 1
+        if is_def:
+            has_default[tc] = True
+
+    return [
+        AiPromptTaskRead(
+            code=meta["code"],  # type: ignore[arg-type]
+            label=meta["label"],
+            description=meta["description"],
+            count=counts.get(meta["code"], 0),
+            has_default=has_default.get(meta["code"], False),
+        )
+        for meta in PROMPT_TASKS_META
+    ]
+
+
+async def lister_prompts(
+    session: AsyncSession,
+    *,
+    prompt_kind: str,
+    task_code: str | None = None,
+) -> list[AiPromptRead]:
+    """Liste les prompts/gabarits non supprimés (actif par défaut d'abord, puis versions récentes)."""
+    stmt = (
+        select(AiPrompt, User)
+        .outerjoin(User, User.id_users == AiPrompt.id_users_created_by)
+        .where(
+            AiPrompt.prompt_kind == prompt_kind,
+            AiPrompt.deleted_at.is_(None),
+        )
+        .order_by(
+            AiPrompt.is_default.desc(),
+            AiPrompt.version_number.desc(),
+            AiPrompt.id_ai_prompts.desc(),
+        )
+    )
+    if task_code:
+        stmt = stmt.where(AiPrompt.task_code == task_code)
+
+    lignes = (await session.execute(stmt)).all()
+    return [_prompt_to_read(p, auteur) for p, auteur in lignes]
+
+
+async def creer_prompt(
+    session: AsyncSession, donnees: AiPromptCreate, par: User
+) -> AiPromptRead:
+    """Crée une nouvelle version de prompt système ou gabarit."""
+    titre = donnees.title.strip()
+    contenu = donnees.content.strip()
+    if len(titre) < 2:
+        raise ApiError(
+            "validation_error",
+            "Le titre du prompt doit contenir au moins 2 caractères.",
+            status_code=422,
+        )
+    if not contenu:
+        raise ApiError(
+            "validation_error",
+            "Le contenu du prompt ne peut pas être vide.",
+            status_code=422,
+        )
+    description = (donnees.description or "").strip() or None
+
+    for tentative in range(3):
+        max_ver = (
+            await session.execute(
+                select(func.coalesce(func.max(AiPrompt.version_number), 0)).where(
+                    AiPrompt.prompt_kind == donnees.prompt_kind,
+                    AiPrompt.task_code == donnees.task_code,
+                )
+            )
+        ).scalar_one()
+        next_version = int(max_ver) + 1
+
+        if donnees.is_default:
+            await session.execute(
+                update(AiPrompt)
+                .where(
+                    AiPrompt.prompt_kind == donnees.prompt_kind,
+                    AiPrompt.task_code == donnees.task_code,
+                    AiPrompt.deleted_at.is_(None),
+                    AiPrompt.is_default.is_(True),
+                )
+                .values(is_default=False, id_users_changed_by=par.id_users)
+            )
+            await session.flush()
+
+        nouveau = AiPrompt(
+            prompt_kind=donnees.prompt_kind,
+            task_code=donnees.task_code,
+            title=titre,
+            version_number=next_version,
+            content=contenu,
+            description=description,
+            is_default=donnees.is_default,
+            id_users_created_by=par.id_users,
+            id_users_changed_by=par.id_users,
+        )
+        session.add(nouveau)
+        try:
+            await session.commit()
+            await session.refresh(nouveau)
+            return _prompt_to_read(nouveau, par)
+        except IntegrityError as exc:
+            await session.rollback()
+            if tentative == 2:
+                raise ConflictError(
+                    "Conflit de version concurrente lors de la création du prompt. Veuillez réessayer."
+                ) from exc
+
+    raise ConflictError("Impossible d'allouer un numéro de version unique.")
+
+
+async def modifier_prompt(
+    session: AsyncSession, id_prompt: int, donnees: AiPromptUpdate, par: User
+) -> AiPromptRead:
+    """Met à jour le titre, la description ou le contenu d'un prompt existant."""
+    ligne = (
+        await session.execute(
+            select(AiPrompt, User)
+            .outerjoin(User, User.id_users == AiPrompt.id_users_created_by)
+            .where(AiPrompt.id_ai_prompts == id_prompt, AiPrompt.deleted_at.is_(None))
+        )
+    ).first()
+    if ligne is None:
+        raise NotFoundError("Prompt introuvable.")
+    prompt, auteur = ligne
+
+    if donnees.title is not None:
+        titre = donnees.title.strip()
+        if len(titre) < 2:
+            raise ApiError(
+                "validation_error",
+                "Le titre du prompt doit contenir au moins 2 caractères.",
+                status_code=422,
+            )
+        prompt.title = titre
+    if donnees.content is not None:
+        contenu = donnees.content.strip()
+        if not contenu:
+            raise ApiError(
+                "validation_error",
+                "Le contenu du prompt ne peut pas être vide.",
+                status_code=422,
+            )
+        prompt.content = contenu
+    if donnees.description is not None:
+        prompt.description = donnees.description.strip() or None
+    prompt.id_users_changed_by = par.id_users
+
+    await session.commit()
+    await session.refresh(prompt)
+    return _prompt_to_read(prompt, auteur)
+
+
+async def activer_prompt_par_defaut(
+    session: AsyncSession, id_prompt: int, par: User
+) -> AiPromptRead:
+    """Définit ce prompt/gabarit comme actif par défaut pour son couple (kind, task_code)."""
+    ligne = (
+        await session.execute(
+            select(AiPrompt, User)
+            .outerjoin(User, User.id_users == AiPrompt.id_users_created_by)
+            .where(AiPrompt.id_ai_prompts == id_prompt, AiPrompt.deleted_at.is_(None))
+        )
+    ).first()
+    if ligne is None:
+        raise NotFoundError("Prompt introuvable.")
+    prompt, auteur = ligne
+
+    await session.execute(
+        update(AiPrompt)
+        .where(
+            AiPrompt.prompt_kind == prompt.prompt_kind,
+            AiPrompt.task_code == prompt.task_code,
+            AiPrompt.deleted_at.is_(None),
+            AiPrompt.id_ai_prompts != prompt.id_ai_prompts,
+            AiPrompt.is_default.is_(True),
+        )
+        .values(is_default=False, id_users_changed_by=par.id_users)
+    )
+    await session.flush()
+
+    prompt.is_default = True
+    prompt.id_users_changed_by = par.id_users
+    await session.commit()
+    await session.refresh(prompt)
+    return _prompt_to_read(prompt, auteur)
+
+
+async def supprimer_prompt(
+    session: AsyncSession, id_prompt: int, par: User
+) -> None:
+    """Archive (soft-delete) un prompt/gabarit."""
+    prompt = (
+        await session.execute(
+            select(AiPrompt).where(
+                AiPrompt.id_ai_prompts == id_prompt,
+                AiPrompt.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if prompt is None:
+        raise NotFoundError("Prompt introuvable.")
+
+    prompt.deleted_at = datetime.now(UTC)
+    prompt.is_default = False
+    prompt.id_users_changed_by = par.id_users
     await session.commit()
