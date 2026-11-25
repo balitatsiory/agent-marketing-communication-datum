@@ -1,4 +1,4 @@
-"""Ce que la migration 0006 garantit, vérifié dans la base.
+"""Ce que la migration 0009 garantit, vérifié dans la base.
 
 Ces tests n'empruntent aucun modèle : ils interrogent le schéma directement.
 Une contrainte oubliée dans la migration ne serait pas rattrapée par

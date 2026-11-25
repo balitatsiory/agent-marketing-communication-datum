@@ -14,7 +14,7 @@ compte a cessé de fonctionner — précisément ce qu'on cherche quand les envo
 s'arrêtent du jour au lendemain.
 
 Les contraintes, index et commentaires sont déclarés ici À L'IDENTIQUE de la
-migration 0006 : `alembic check` échoue sur le moindre écart.
+migration 0009 : `alembic check` échoue sur le moindre écart.
 """
 
 from datetime import datetime

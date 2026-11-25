@@ -7,8 +7,8 @@ Trois tables :
 
 Insère également le droit `manage_email_accounts` (module 07, sort_order 700).
 
-Révision : 0006
-Révision précédente : 0005
+Révision : 0009
+Révision précédente : 0008
 """
 
 from collections.abc import Sequence
@@ -16,8 +16,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0006"
-down_revision: str | None = "0005"
+revision: str = "0009"
+down_revision: str | None = "0008"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

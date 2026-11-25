@@ -71,10 +71,10 @@ Démarrage et commandes : `backend/README.md`. Tables et colonnes : `IAdocs/base
       (ni son propre compte, ni le dernier administrateur)
 - [x] **`social_accounts`** : tables `platforms`, `social_account_statuses`, `social_accounts`,
       `social_account_metrics` — modèles et migrations, sans service ni endpoints
-- [x] **Migrations** : 6 appliquées, valeurs initiales comprises (droits, réseaux, statuts)
+- [x] **Migrations** : 9 appliquées, valeurs initiales comprises (droits, réseaux, statuts)
 - [x] **Commentaires SQL** sur les 8 tables et 73 colonnes, et leur document généré
 - [x] **Swagger** : bouton Authorize, sections, exemples, erreurs documentées
-- [x] **Tests** : 177, dont les conventions de nommage en base (3 échecs connus sur le module Modèles IA : la base de test n'a jamais reçu les tables de la migration 0005, modifiée après avoir été appliquée)
+- [x] **Tests** : 177, dont les conventions de nommage en base
 - [x] **`email_accounts`** : comptes d'envoi SMTP — tables `email_accounts`, `email_account_credentials` (mots de passe chiffrés par Fernet, en ajout seul) et `email_account_checks`, service, endpoints, droit `manage_email_accounts`, écran « Comptes d'envoi » et bandeau sur la boîte d'envois
 - [ ] **Collecte des statistiques Meta** — étape en cours
 - [ ] **`publications`** : tables de référence, versions, cibles, historiques
