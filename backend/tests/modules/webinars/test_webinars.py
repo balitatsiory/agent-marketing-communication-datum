@@ -531,6 +531,24 @@ async def test_export_registrations_writes_a_safe_csv(
     assert lignes[1][5] == "oui"
 
 
+async def test_export_registrations_neutralizes_a_zoom_name_after_a_line_feed(
+    client: AsyncClient, entete: dict[str, str], compte: int, faux_zoom: FauxZoom
+) -> None:
+    # La reprise depuis Zoom garde le prénom tel quel, sans le contrôle du formulaire.
+    fiche = await _programmer(client, entete, compte, registration_mode="zoom_page")
+    faux_zoom.inscrits[fiche["external_zoom_meeting_id"]] = [
+        {"id": "z1", "email": "e@example.com", "first_name": "\n=1+1", "status": "approved"}
+    ]
+    base = f"/api/v1/webinars/{fiche['id_webinars']}/registrations"
+    await client.post(f"{base}/zoom-sync", headers=entete)
+
+    reponse = await client.get(f"{base}/export", headers=entete)
+
+    texte = reponse.content.decode("utf-8-sig")
+    lignes = list(csv.reader(io.StringIO(texte, newline=""), delimiter=";"))
+    assert lignes[1][0] == "'\n=1+1"
+
+
 async def test_export_registrations_without_right_is_forbidden(
     client: AsyncClient, entete: dict[str, str], ouvrir: Any
 ) -> None:

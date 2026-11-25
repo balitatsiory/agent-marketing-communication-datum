@@ -332,30 +332,34 @@ export class WebinarDetailDialog {
 
   /* ---------- inscrits ---------- */
 
-  protected async loadRegistrations(page: number): Promise<void> {
+  protected async loadRegistrations(
+    page: number,
+    taille: number = this.registrationSize(),
+  ): Promise<void> {
     const id = this.id();
     const numero = ++this.registrationRequest;
     const perime = (): boolean => numero !== this.registrationRequest || this.id() !== id;
     try {
-      const reponse = await this.api.registrations(id, page, this.registrationSize());
+      const reponse = await this.api.registrations(id, page, taille);
       if (perime()) return;
       // La dernière ligne de la dernière page vient de partir : on recule.
       if (reponse.pages > 0 && page > reponse.pages) {
-        await this.loadRegistrations(reponse.pages);
+        await this.loadRegistrations(reponse.pages, taille);
         return;
       }
       this.registrations.set(reponse.items);
       this.registrationPage.set(reponse.page);
       this.registrationPages.set(reponse.pages);
       this.registrationTotal.set(reponse.total);
+      // La taille suit les lignes affichées : une demande ratée ne la change pas.
+      this.registrationSize.set(taille);
     } catch (erreur) {
       if (!perime()) this.error.set(toApiError(erreur).message);
     }
   }
 
-  protected chooseRegistrationSize(taille: number): void {
-    this.registrationSize.set(taille);
-    void this.loadRegistrations(1);
+  protected chooseRegistrationSize(taille: number): Promise<void> {
+    return this.loadRegistrations(1, taille);
   }
 
   protected async exportRegistrations(): Promise<void> {
