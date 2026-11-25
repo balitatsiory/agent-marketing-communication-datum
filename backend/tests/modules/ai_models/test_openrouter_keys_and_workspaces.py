@@ -371,3 +371,91 @@ async def test_tableau_de_bord_finops_openrouter(
         )
         assert r_ws.status_code == 200, r_ws.text
         assert r_ws.json()["scope_workspace_id"] == "ws_test_123"
+
+
+async def test_bac_a_sable_ia_comparaison_parallele(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Le Bac à sable exécute les variantes en parallèle avec la clé Sandbox chiffrée."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    # Enregistrer une clé Sandbox isolée (chiffrée Fernet)
+    r_key = await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "sandbox",
+            "api_key": "sk-or-v1-sandbox-isolated-key-7777",
+            "label": "Sandbox DATUM",
+            "verify_immediately": False,
+        },
+    )
+    assert r_key.status_code == 201, r_key.text
+
+    async def _fake_completion(*args, **kwargs):
+        effort = kwargs.get("reasoning_effort")
+        reason_tok = 1500 if effort == "high" else 40
+        cost = 0.0145 if effort == "high" else 0.0018
+        return {
+            "id": f"gen-sbx-{effort}",
+            "model": kwargs["model"],
+            "provider": "google-vertex",
+            "choices": [
+                {
+                    "message": {
+                        "content": f"Post généré (effort={effort})",
+                        "reasoning": "Analyse de la cible et structuration AIDA.",
+                    }
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 310,
+                "completion_tokens": 180 + reason_tok,
+                "total_tokens": 490 + reason_tok,
+                "prompt_tokens_details": {"cached_tokens": 50},
+                "completion_tokens_details": {"reasoning_tokens": reason_tok},
+                "cost": cost,
+            },
+        }
+
+    with patch(
+        "app.modules.ai_models.openrouter_client.run_chat_completion",
+        new=AsyncMock(side_effect=_fake_completion),
+    ):
+        r = await client.post(
+            "/api/v1/openrouter/sandbox/compare",
+            headers=entete(jetons),
+            json={
+                "use_case": "publication_text",
+                "system_prompt": "Tu es le responsable éditorial de Datum Academy.",
+                "user_prompt": "Rédige un post LinkedIn de lancement.",
+                "tone": "Professionnel et concret",
+                "json_output_enabled": False,
+                "variants": [
+                    {
+                        "slot_id": "A",
+                        "model_id": "google/gemini-2.5-flash",
+                        "reasoning_effort": "low",
+                        "temperature": 0.4,
+                    },
+                    {
+                        "slot_id": "B",
+                        "model_id": "google/gemini-2.5-flash",
+                        "reasoning_effort": "high",
+                        "temperature": 0.4,
+                    },
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["key_source"] == "sandbox"
+        assert len(data["results"]) == 2
+        res_a, res_b = data["results"]
+        assert res_a["ok"] is True
+        assert res_a["cost_usd"] == 0.0018
+        assert res_b["reasoning_tokens"] == 1500
+        assert data["total_batch_cost_usd"] == round(0.0018 + 0.0145, 7)
