@@ -1,0 +1,388 @@
+<app-topbar [trail]="['Administrer', 'Intelligence artificielle', pageTitle()]">
+  <span class="num quota">{{ prompts().length }} version{{ prompts().length > 1 ? 's' : '' }}</span>
+  <button
+    type="button"
+    class="btn btn-primary"
+    [disabled]="busyAction() !== null"
+    (click)="openCreateModal()"
+  >
+    <app-icon name="plus" size="sm" />
+    {{ isSystemKind() ? 'Nouveau prompt système' : 'Nouveau gabarit' }}
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>{{ pageTitle() }}</h1>
+      <p class="sub">{{ pageSubtitle() }}</p>
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice" role="status">
+      <app-icon name="check" size="sm" />
+      <span>{{ message }}</span>
+    </p>
+  }
+
+  @if (errorMessage(); as err) {
+    <p class="notice notice-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      <span>{{ err }}</span>
+    </p>
+  }
+
+  <!-- ========================================================================
+       LAYOUT 2 COLONNES : ASIDE (LISTE DES TÂCHES) + GRILLE DE GABARITS
+       ======================================================================== -->
+  <div class="prompts-layout">
+    <!-- ASIDE : Liste des tâches métier IA -->
+    <aside class="panel tasks-aside" aria-label="Liste des tâches IA">
+      <div class="aside-head">
+        <h2>Tâches métier IA</h2>
+        <span class="text-muted">{{ tasks().length }} tâches</span>
+      </div>
+
+      <nav class="tasks-nav">
+        @for (task of tasks(); track task.code) {
+          <button
+            type="button"
+            class="task-item"
+            [class.is-active]="selectedTaskCode() === task.code"
+            (click)="selectTask(task.code)"
+          >
+            <div class="ti-top">
+              <span class="ti-label">{{ task.label }}</span>
+              <span class="ti-count num">{{ task.count }}</span>
+            </div>
+            <div class="ti-bottom">
+              @if (task.has_default) {
+                <span class="ti-default-dot">● Défaut actif</span>
+              } @else {
+                <span class="text-muted">Aucun défaut</span>
+              }
+            </div>
+          </button>
+        }
+      </nav>
+    </aside>
+
+    <!-- ZONE PRINCIPALE : Grille de gabarits -->
+    <section class="prompts-main" aria-label="Grille des gabarits">
+      @if (selectedTask(); as task) {
+        <div class="main-head">
+          <div>
+            <h2>{{ task.label }}</h2>
+            <p class="sub">{{ task.description }}</p>
+          </div>
+          <div class="main-head-actions">
+            <div class="searchbox">
+              <app-icon name="search" size="sm" />
+              <input
+                type="search"
+                placeholder="Rechercher un titre, contenu, v1…"
+                [value]="searchTerm()"
+                (input)="searchTerm.set($any($event.target).value)"
+              />
+              @if (searchTerm()) {
+                <button type="button" class="btn-clear" (click)="searchTerm.set('')" aria-label="Effacer">
+                  <app-icon name="close" size="sm" />
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
+      @if (loading()) {
+        <div class="prompts-grid" aria-busy="true" aria-label="Chargement des gabarits">
+          @for (i of [1, 2, 3]; track i) {
+            <article class="panel prompt-card">
+              <div class="pc-head">
+                <span class="skel skel-xs" style="width: 55px"></span>
+                <span class="skel skel-xs" style="width: 90px"></span>
+              </div>
+              <span class="skel skel-md" style="width: 72%"></span>
+              <span class="skel skel-box"></span>
+              <div class="pc-foot">
+                <span class="skel skel-btn"></span>
+                <span class="skel skel-btn"></span>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="prompts-grid">
+          @for (prompt of filteredPrompts(); track prompt.id_ai_prompts) {
+            <article class="panel prompt-card" [class.is-default]="prompt.is_default">
+              <div class="pc-head">
+                <div class="pc-badges">
+                  <span class="version-badge num">v{{ prompt.version_number }}</span>
+                  @if (prompt.is_default) {
+                    <span class="status status-published">● Actif par défaut</span>
+                  }
+                </div>
+                <span class="char-badge num" title="Nombre de caractères et estimation tokens">
+                  {{ prompt.char_count.toLocaleString('fr-FR') }} car. · ~{{ estimateTokens(prompt.char_count) }} tok.
+                </span>
+              </div>
+
+              <div class="pc-title-block">
+                <h3>{{ prompt.title }}</h3>
+                @if (prompt.description) {
+                  <p class="pc-desc">{{ prompt.description }}</p>
+                }
+              </div>
+
+              <div class="pc-preview">{{ prompt.content }}</div>
+
+              @if (extractVariables(prompt.content); as vars) {
+                @if (vars.length > 0) {
+                  <div class="pc-vars">
+                    @for (v of vars; track v) {
+                      <code class="var-pill">{{ v }}</code>
+                    }
+                  </div>
+                }
+              }
+
+              <div class="pc-meta num">
+                <span>Mis à jour le {{ formatDate(prompt.updated_at) }}</span>
+                @if (prompt.created_by_name) {
+                  <span>· {{ prompt.created_by_name }}</span>
+                }
+              </div>
+
+              <div class="pc-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  (click)="expandedPrompt.set(prompt)"
+                >
+                  <app-icon name="external" size="sm" />
+                  Agrandir
+                </button>
+
+                @if (prompt.is_default) {
+                  <button type="button" class="btn btn-sm btn-active-default" disabled>
+                    <app-icon name="check" size="sm" />
+                    Actif par défaut
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-primary"
+                    [disabled]="busyAction() !== null"
+                    (click)="activateDefault(prompt)"
+                  >
+                    <app-icon name="check" size="sm" />
+                    Activer par défaut
+                  </button>
+                }
+
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  title="Modifier ce gabarit"
+                  (click)="openEditModal(prompt)"
+                >
+                  <app-icon name="pencil" size="sm" />
+                </button>
+              </div>
+            </article>
+          } @empty {
+            <div class="panel empty-grid">
+              <p>Aucun {{ isSystemKind() ? 'prompt système' : 'gabarit' }} pour cette tâche.</p>
+              <button type="button" class="btn btn-primary btn-sm" (click)="openCreateModal()">
+                <app-icon name="plus" size="sm" />
+                Créer la version v1
+              </button>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>
+
+<!-- ==========================================================================
+     POP-UP AGRANDI D'UN GABARIT
+     ========================================================================== -->
+@if (expandedPrompt(); as p) {
+  <div class="modal-backdrop" (click)="expandedPrompt.set(null)">
+    <div class="panel modal-box modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <div class="pc-badges">
+            <span class="version-badge num">v{{ p.version_number }}</span>
+            @if (p.is_default) {
+              <span class="status status-published">● Actif par défaut</span>
+            }
+            <span class="char-badge num">
+              {{ p.char_count.toLocaleString('fr-FR') }} caractères · ~{{ estimateTokens(p.char_count) }} tokens
+            </span>
+          </div>
+          <h3>{{ p.title }}</h3>
+          @if (p.description) {
+            <p class="sub">{{ p.description }}</p>
+          }
+        </div>
+        <button type="button" class="btn btn-sm" (click)="expandedPrompt.set(null)">
+          <app-icon name="close" size="sm" />
+          Fermer
+        </button>
+      </div>
+
+      <div class="modal-body modal-scroll">
+        <pre class="prompt-full-content">{{ p.content }}</pre>
+
+        @if (extractVariables(p.content); as vars) {
+          @if (vars.length > 0) {
+            <div class="pc-vars">
+              <span class="text-muted">Variables détectées :</span>
+              @for (v of vars; track v) {
+                <code class="var-pill">{{ v }}</code>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      <div class="modal-foot">
+        <div class="mf-left">
+          <button type="button" class="btn btn-sm" (click)="copyContent(p.content)">
+            Copier
+          </button>
+          <button type="button" class="btn btn-sm" (click)="openEditModal(p)">
+            <app-icon name="pencil" size="sm" />
+            Modifier
+          </button>
+          <button type="button" class="btn btn-sm" (click)="openDuplicateAsNewVersion(p)">
+            <app-icon name="plus" size="sm" />
+            Nouvelle version
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-danger"
+            [disabled]="busyAction() !== null"
+            (click)="deletePrompt(p)"
+          >
+            Supprimer
+          </button>
+        </div>
+        <div>
+          @if (!p.is_default) {
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              [disabled]="busyAction() !== null"
+              (click)="activateDefault(p)"
+            >
+              <app-icon name="check" size="sm" />
+              Activer par défaut
+            </button>
+          } @else {
+            <span class="status status-published">● Actif par défaut</span>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ==========================================================================
+     MODALE CRÉATION / ÉDITION D'UN GABARIT
+     ========================================================================== -->
+@if (showEditorModal()) {
+  <div class="modal-backdrop" (click)="showEditorModal.set(false)">
+    <div class="panel modal-box modal-lg" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h3>
+            {{
+              editingPromptId() === null
+                ? (isSystemKind() ? 'Nouvelle version de prompt système' : 'Nouvelle version de gabarit')
+                : 'Modifier le gabarit'
+            }}
+          </h3>
+          <p class="sub">Tâche : <b>{{ selectedTask()?.label }}</b></p>
+        </div>
+        <button type="button" class="btn btn-sm" (click)="showEditorModal.set(false)">
+          <app-icon name="close" size="sm" />
+          Fermer
+        </button>
+      </div>
+
+      <div class="modal-body modal-scroll">
+        @if (errorMessage()) {
+          <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>
+        }
+        <div class="field">
+          <label for="prompt-title">Titre *</label>
+          <input
+            id="prompt-title"
+            type="text"
+            class="input"
+            [ngModel]="formTitle()"
+            (ngModelChange)="formTitle.set($event)"
+            placeholder="ex: Éditorial LinkedIn Datum Academy"
+          />
+        </div>
+
+        <div class="field">
+          <label for="prompt-desc">Description courte</label>
+          <input
+            id="prompt-desc"
+            type="text"
+            class="input"
+            [ngModel]="formDescription()"
+            (ngModelChange)="formDescription.set($event)"
+            placeholder="Note sur l'usage ou les changements de cette version"
+          />
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <label for="prompt-content">Contenu du {{ isSystemKind() ? 'prompt système' : 'gabarit' }} *</label>
+            <span class="num text-muted">
+              {{ formContent().length.toLocaleString('fr-FR') }} car. · ~{{ estimateTokens(formContent().length) }} tokens
+            </span>
+          </div>
+          <textarea
+            id="prompt-content"
+            rows="9"
+            class="textarea"
+            [ngModel]="formContent()"
+            (ngModelChange)="formContent.set($event)"
+            [placeholder]="'Saisissez le texte du prompt (utilisez {{variable}} pour les gabarits)…'"
+          ></textarea>
+        </div>
+
+        @if (editingPromptId() === null) {
+          <label class="checkbox-row">
+            <input
+              type="checkbox"
+              [ngModel]="formIsDefault()"
+              (ngModelChange)="formIsDefault.set($event)"
+            />
+            <span>Activer immédiatement cette nouvelle version par défaut</span>
+          </label>
+        }
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn" (click)="showEditorModal.set(false)">Annuler</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="busyAction() !== null || !formTitle().trim() || !formContent().trim()"
+          (click)="submitEditor()"
+        >
+          <app-icon name="check" size="sm" />
+          {{ busyAction() === 'save-prompt' ? 'Enregistrement…' : 'Enregistrer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
