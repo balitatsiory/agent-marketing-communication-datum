@@ -355,7 +355,7 @@ export interface ActiveTaskModelSummaryDto {
   readonly task_code: AiTaskCode;
   readonly model_id: string | null;
   readonly model_name: string | null;
-  readonly reasoning_effort: ReasoningEffort | null;
+  readonly reasoning_effort: AiReasoningEffort | null;
 }
 
 export interface PublicationGenerationContextDto {
@@ -397,7 +397,7 @@ export interface PublicationTextGenerationResponseDto {
   readonly run_number: number;
   readonly model_id: string;
   readonly model_name: string | null;
-  readonly reasoning_effort: ReasoningEffort | null;
+  readonly reasoning_effort: AiReasoningEffort | null;
   readonly system_prompt_label: string | null;
   readonly template_prompt_label: string | null;
   readonly key_source: 'standard' | 'sandbox';
@@ -426,7 +426,7 @@ export interface PublicationVisualGenerationResponseDto {
   readonly assistant_message: string;
   readonly model_id: string;
   readonly model_name: string | null;
-  readonly reasoning_effort: ReasoningEffort | null;
+  readonly reasoning_effort: AiReasoningEffort | null;
   readonly system_prompt_label: string | null;
   readonly template_prompt_label: string | null;
   readonly key_source: 'standard' | 'sandbox';
