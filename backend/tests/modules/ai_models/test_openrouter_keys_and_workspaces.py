@@ -555,3 +555,56 @@ async def test_bac_a_sable_ia_image_stockee_dans_r2_bac_a_sable_et_max_tokens(
         assert res_a["stored_image_keys"][0].startswith("bac-a-sable/")
         assert res_a["images"][0].startswith("https://medias.test/bac-a-sable/")
         assert res_a["raw_response_json"] is not None
+
+
+async def test_prompts_systeme_et_gabarits(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Création versionnée, comptage de caractères et bascule d'activation par défaut."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    r_tasks = await client.get(
+        "/api/v1/openrouter/prompts/tasks?kind=system", headers=entete(jetons)
+    )
+    assert r_tasks.status_code == 200, r_tasks.text
+    assert any(t["code"] == "publication_description" for t in r_tasks.json())
+
+    # Créer une nouvelle version sur publication_description
+    r_create = await client.post(
+        "/api/v1/openrouter/prompts",
+        headers=entete(jetons),
+        json={
+            "prompt_kind": "system",
+            "task_code": "publication_description",
+            "title": "Version test LinkedIn",
+            "content": "Tu es expert LinkedIn Datum Academy.",
+            "description": "Test vNext",
+            "is_default": False,
+        },
+    )
+    assert r_create.status_code == 201, r_create.text
+    cree = r_create.json()
+    assert cree["char_count"] == len("Tu es expert LinkedIn Datum Academy.")
+    assert cree["version_number"] >= 1
+    assert cree["is_default"] is False
+
+    # Activer par défaut
+    r_def = await client.post(
+        f"/api/v1/openrouter/prompts/{cree['id_ai_prompts']}/set-default",
+        headers=entete(jetons),
+    )
+    assert r_def.status_code == 200, r_def.text
+    assert r_def.json()["is_default"] is True
+
+    # Vérifier qu'un seul défaut est actif pour ce couple (system, publication_description)
+    r_list = await client.get(
+        "/api/v1/openrouter/prompts?kind=system&task_code=publication_description",
+        headers=entete(jetons),
+    )
+    assert r_list.status_code == 200
+    defauts = [p for p in r_list.json() if p["is_default"]]
+    assert len(defauts) == 1
+    assert defauts[0]["id_ai_prompts"] == cree["id_ai_prompts"]

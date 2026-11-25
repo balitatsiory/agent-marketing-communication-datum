@@ -8,6 +8,14 @@ export type OpenRouterKeyKind = 'management' | 'standard' | 'sandbox';
 export type OpenRouterProviderSort = 'price' | 'throughput' | 'latency' | 'exacto';
 export type AiReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export type SandboxUseCase = 'publication_text' | 'image_generation' | 'message_rag';
+export type AiPromptKind = 'system' | 'template';
+export type AiPromptTaskCode =
+  | 'publication_description'
+  | 'message_reply'
+  | 'image_generation'
+  | 'image_description'
+  | 'rag_synthesis'
+  | 'newsletter_content';
 export type AiTaskCode =
   | 'text-generation'
   | 'image-description'
@@ -297,6 +305,44 @@ export interface SandboxRunHistoryDto {
   readonly created_at: string;
 }
 
+export interface AiPromptTaskDto {
+  readonly code: AiPromptTaskCode;
+  readonly label: string;
+  readonly description: string;
+  readonly count: number;
+  readonly has_default: boolean;
+}
+
+export interface AiPromptDto {
+  readonly id_ai_prompts: number;
+  readonly prompt_kind: AiPromptKind;
+  readonly task_code: AiPromptTaskCode;
+  readonly title: string;
+  readonly version_number: number;
+  readonly content: string;
+  readonly char_count: number;
+  readonly description: string | null;
+  readonly is_default: boolean;
+  readonly created_by_name: string | null;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
+export interface AiPromptCreateRequest {
+  readonly prompt_kind: AiPromptKind;
+  readonly task_code: AiPromptTaskCode;
+  readonly title: string;
+  readonly content: string;
+  readonly description?: string | null;
+  readonly is_default?: boolean;
+}
+
+export interface AiPromptUpdateRequest {
+  readonly title?: string;
+  readonly content?: string;
+  readonly description?: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OpenRouterApi {
   private readonly http = inject(HttpClient);
@@ -421,5 +467,44 @@ export class OpenRouterApi {
     return firstValueFrom(
       this.http.delete<void>(`${this.base}/sandbox/history/${idRun}`),
     );
+  }
+
+  /* ---------- Prompts système & Prompt templates ---------- */
+
+  listPromptTasks(kind: AiPromptKind): Promise<readonly AiPromptTaskDto[]> {
+    const params = new HttpParams().set('kind', kind);
+    return firstValueFrom(
+      this.http.get<AiPromptTaskDto[]>(`${this.base}/prompts/tasks`, { params }),
+    );
+  }
+
+  listPrompts(kind: AiPromptKind, taskCode?: AiPromptTaskCode | null): Promise<readonly AiPromptDto[]> {
+    let params = new HttpParams().set('kind', kind);
+    if (taskCode) {
+      params = params.set('task_code', taskCode);
+    }
+    return firstValueFrom(
+      this.http.get<AiPromptDto[]>(`${this.base}/prompts`, { params }),
+    );
+  }
+
+  createPrompt(payload: AiPromptCreateRequest): Promise<AiPromptDto> {
+    return firstValueFrom(this.http.post<AiPromptDto>(`${this.base}/prompts`, payload));
+  }
+
+  updatePrompt(idPrompt: number, payload: AiPromptUpdateRequest): Promise<AiPromptDto> {
+    return firstValueFrom(
+      this.http.patch<AiPromptDto>(`${this.base}/prompts/${idPrompt}`, payload),
+    );
+  }
+
+  setDefaultPrompt(idPrompt: number): Promise<AiPromptDto> {
+    return firstValueFrom(
+      this.http.post<AiPromptDto>(`${this.base}/prompts/${idPrompt}/set-default`, {}),
+    );
+  }
+
+  deletePrompt(idPrompt: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`${this.base}/prompts/${idPrompt}`));
   }
 }

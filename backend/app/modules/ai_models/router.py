@@ -12,6 +12,10 @@ from app.modules.ai_models.schemas import (
     AiModelRead,
     AiModelsSyncRead,
     AiModelToggle,
+    AiPromptCreate,
+    AiPromptRead,
+    AiPromptTaskRead,
+    AiPromptUpdate,
     AiTaskAssignmentRead,
     AiTaskAssignmentUpdate,
     AiWorkspaceCreate,
@@ -23,6 +27,7 @@ from app.modules.ai_models.schemas import (
     OpenRouterKeySave,
     OpenRouterKeyVerifyRead,
     OpenRouterOverviewRead,
+    PromptKind,
     SandboxCompareRequest,
     SandboxCompareResponse,
     SandboxRunHistoryRead,
@@ -312,3 +317,92 @@ async def supprimer_historique_bac_a_sable(
     _: GestionnaireIA,
 ) -> None:
     await service.supprimer_historique_bac_a_sable(session, id_run)
+
+
+# ---------------------------------------------------------------------------
+# Prompts système & Prompt templates
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/prompts/tasks",
+    response_model=list[AiPromptTaskRead],
+    summary="Lister les tâches métier IA avec leur nombre de prompts/gabarits",
+)
+async def lister_taches_prompts(
+    session: SessionDep,
+    _: CurrentUser,
+    kind: PromptKind = Query("system", description="system ou template."),
+) -> list[AiPromptTaskRead]:
+    return await service.lister_taches_prompts(session, kind)
+
+
+@router.get(
+    "/prompts",
+    response_model=list[AiPromptRead],
+    summary="Lister les prompts système ou gabarits pour une tâche métier",
+)
+async def lister_prompts(
+    session: SessionDep,
+    _: CurrentUser,
+    kind: PromptKind = Query("system", description="system ou template."),
+    task_code: str | None = Query(None, description="Filtrer par tâche métier."),
+) -> list[AiPromptRead]:
+    return await service.lister_prompts(session, prompt_kind=kind, task_code=task_code)
+
+
+@router.post(
+    "/prompts",
+    response_model=AiPromptRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Créer une nouvelle version de prompt système ou gabarit",
+)
+async def creer_prompt(
+    corps: AiPromptCreate,
+    session: SessionDep,
+    par: GestionnaireIA,
+    reponse: Response,
+) -> AiPromptRead:
+    cree = await service.creer_prompt(session, corps, par)
+    reponse.headers["Location"] = f"/api/v1/openrouter/prompts/{cree.id_ai_prompts}"
+    return cree
+
+
+@router.patch(
+    "/prompts/{id_prompt}",
+    response_model=AiPromptRead,
+    summary="Modifier un prompt système ou gabarit",
+)
+async def modifier_prompt(
+    id_prompt: int,
+    corps: AiPromptUpdate,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> AiPromptRead:
+    return await service.modifier_prompt(session, id_prompt, corps, par)
+
+
+@router.post(
+    "/prompts/{id_prompt}/set-default",
+    response_model=AiPromptRead,
+    summary="Activer ce prompt/gabarit par défaut pour sa tâche métier",
+)
+async def activer_prompt_par_defaut(
+    id_prompt: int,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> AiPromptRead:
+    return await service.activer_prompt_par_defaut(session, id_prompt, par)
+
+
+@router.delete(
+    "/prompts/{id_prompt}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Archiver un prompt système ou gabarit",
+)
+async def supprimer_prompt(
+    id_prompt: int,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> None:
+    await service.supprimer_prompt(session, id_prompt, par)
