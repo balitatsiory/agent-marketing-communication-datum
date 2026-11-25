@@ -53,7 +53,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
       </div>
       <label class="cap per-page">
         Par page
-        <select class="select" (change)="sizeChange.emit(+$any($event.target).value)">
+        <select class="select" (change)="chooseSize($event)">
           @for (taille of sizes(); track taille) {
             <option [value]="taille" [selected]="size() === taille">{{ taille }}</option>
           }
@@ -111,6 +111,14 @@ export class Pager {
     const debut = (this.page() - 1) * this.size() + 1;
     return `${debut}–${Math.min(total, debut + this.size() - 1)} sur ${total}`;
   });
+
+  protected chooseSize(evenement: Event): void {
+    const liste = evenement.target as HTMLSelectElement;
+    const taille = Number(liste.value);
+    // La liste ne change que si le parent applique la taille : sa demande peut échouer.
+    liste.value = String(this.size());
+    this.sizeChange.emit(taille);
+  }
 
   /** Numéros affichés ; `null` figure un saut. */
   protected readonly numbers = computed<readonly (number | null)[]>(() => {

@@ -107,4 +107,4 @@ EXPORT_SOURCE_LABELS = {
     SOURCE_ZOOM_SYNC: "Zoom",
 }
 # Débuts de cellule qu'un tableur interprète comme une formule.
-EXPORT_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+EXPORT_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
