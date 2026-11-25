@@ -10,16 +10,23 @@ Points clés de sécurité :
 """
 
 import asyncio
+import base64
 from datetime import UTC, datetime
 from decimal import Decimal
+import io
+import logging
+import re
 import time
 from typing import Any
+import uuid
 
+import httpx
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError, NotFoundError
 from app.core.security import decrypt_token, encrypt_token
+from app.core.storage import Stockage
 from app.modules.ai_models import openrouter_client
 from app.modules.ai_models.constants import (
     KEY_KIND_MANAGEMENT,
@@ -1114,6 +1121,21 @@ async def modifier_affectation(
 # ---------------------------------------------------------------------------
 
 
+logger = logging.getLogger(__name__)
+
+_DATA_URL_IMAGE_RE = re.compile(
+    r"^data:(image/(?:png|jpeg|jpg|webp|gif));base64,(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_MIME_TO_EXT = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+
+
 def _construire_messages_bac_a_sable(donnees: SandboxCompareRequest) -> list[dict[str, Any]]:
     """Assemble les messages system/user selon le cas d'utilisation strict."""
     blocs_systeme: list[str] = [donnees.system_prompt.strip()]
@@ -1123,13 +1145,17 @@ def _construire_messages_bac_a_sable(donnees: SandboxCompareRequest) -> list[dic
 
     if donnees.use_case == "image_generation":
         mode_txt = (
-            "Modification d'image existante à partir du visuel de référence fourni."
+            "Modification d'image existante à partir du/des visuels de référence fournis."
             if donnees.image_mode == "edit"
             else "Création d'un nouveau visuel original."
         )
         blocs_systeme.append(f"Mode visuel : {mode_txt}")
         if donnees.image_aspect_ratio:
             blocs_systeme.append(f"Format / ratio souhaité : {donnees.image_aspect_ratio}.")
+        if donnees.reference_media_notes:
+            notes = "\n".join(f"- {n.strip()}" for n in donnees.reference_media_notes if n.strip())
+            if notes:
+                blocs_systeme.append(f"Médias de référence fournis :\n{notes}")
 
     if donnees.knowledge_context and donnees.knowledge_context.strip():
         titre_ctx = (
@@ -1150,24 +1176,88 @@ def _construire_messages_bac_a_sable(donnees: SandboxCompareRequest) -> list[dic
     system_content = "\n\n".join(blocs_systeme)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
 
-    # Si image de référence fournie (modification ou analyse d'image), envoyer un contenu multimodal
+    # Collecter toutes les images de référence (médias de référence IAGORA + fichier/URL manuel)
+    ref_urls: list[str] = []
+    for u in donnees.reference_image_urls:
+        nettoyee = (u or "").strip()
+        if nettoyee and nettoyee not in ref_urls:
+            ref_urls.append(nettoyee)
     if donnees.reference_image_url and donnees.reference_image_url.strip():
-        messages.append(
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": donnees.user_prompt.strip()},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": donnees.reference_image_url.strip()},
-                    },
-                ],
-            }
-        )
+        u = donnees.reference_image_url.strip()
+        if u not in ref_urls:
+            ref_urls.append(u)
+
+    if ref_urls:
+        parts: list[dict[str, Any]] = [{"type": "text", "text": donnees.user_prompt.strip()}]
+        for url in ref_urls:
+            parts.append({"type": "image_url", "image_url": {"url": url}})
+        messages.append({"role": "user", "content": parts})
     else:
         messages.append({"role": "user", "content": donnees.user_prompt.strip()})
 
     return messages
+
+
+async def _stocker_image_bac_a_sable(
+    stockage: Stockage | None,
+    raw_src: str,
+    slot_id: str,
+) -> tuple[str, str | None]:
+    """Dépose une image générée (data URL base64 ou URL distante) dans R2 sous `bac-a-sable/`."""
+    if stockage is None:
+        return raw_src, None
+
+    octets: bytes | None = None
+    mime = "image/png"
+
+    match = _DATA_URL_IMAGE_RE.match(raw_src.strip())
+    if match:
+        mime = match.group(1).lower()
+        try:
+            octets = base64.b64decode(match.group(2))
+        except Exception:
+            logger.warning("Décodage base64 impossible pour une image du bac à sable.")
+            return raw_src, None
+    elif raw_src.startswith(("http://", "https://")):
+        try:
+            async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client:
+                rep = await client.get(raw_src)
+                if rep.status_code == 200 and rep.content:
+                    octets = rep.content
+                    ct = rep.headers.get("content-type", "").split(";")[0].strip().lower()
+                    if ct in _MIME_TO_EXT:
+                        mime = ct
+        except Exception:
+            logger.warning("Téléchargement impossible pour l'image générée %s", raw_src[:120])
+            return raw_src, None
+
+    if not octets:
+        return raw_src, None
+
+    ext = _MIME_TO_EXT.get(mime, "png")
+    maintenant = datetime.now(UTC)
+    slug_slot = re.sub(r"[^a-z0-9_-]", "", slot_id.lower()) or "var"
+    cle = f"bac-a-sable/{maintenant:%Y}/{maintenant:%m}/{uuid.uuid4().hex}_{slug_slot}.{ext}"
+
+    try:
+        await stockage.deposer(cle, io.BytesIO(octets), mime)
+        return stockage.url_publique(cle), cle
+    except Exception:
+        logger.exception("Échec du dépôt R2 de l'image générée sous %s", cle)
+        return raw_src, None
+
+
+def _nettoyer_json_brut(corps: dict[str, Any], urls_r2: list[str]) -> dict[str, object]:
+    """Remplace les gros blobs base64 par les URLs R2 pour garder le JSON inspectable léger."""
+    import copy
+
+    copie = copy.deepcopy(corps)
+    choices = copie.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        msg = choices[0].get("message")
+        if isinstance(msg, dict) and urls_r2 and isinstance(msg.get("images"), list):
+            msg["images"] = [{"url": u} for u in urls_r2]
+    return copie
 
 
 def _extraire_images_reponse(message: dict[str, Any]) -> list[str]:
@@ -1210,7 +1300,10 @@ def _extraire_texte_reponse(message: dict[str, Any]) -> str:
 
 
 async def comparer_bac_a_sable(
-    session: AsyncSession, donnees: SandboxCompareRequest, par: User
+    session: AsyncSession,
+    donnees: SandboxCompareRequest,
+    par: User,
+    stockage: Stockage | None = None,
 ) -> SandboxCompareResponse:
     """Exécute en parallèle les variantes choisies sur OpenRouter via la clé Sandbox (ou Standard)."""
     sandbox_key = await _get_active_key_row(session, KEY_KIND_SANDBOX)
@@ -1259,6 +1352,7 @@ async def comparer_bac_a_sable(
                 model=v.model_id,
                 messages=messages,
                 temperature=v.temperature,
+                max_tokens=donnees.max_tokens,
                 reasoning_effort=v.reasoning_effort,
                 json_object=donnees.json_output_enabled and not want_image_out,
                 request_image_output=want_image_out,
@@ -1287,7 +1381,15 @@ async def comparer_bac_a_sable(
             message = {}
 
         texte = _extraire_texte_reponse(message)
-        images = _extraire_images_reponse(message)
+        raw_images = _extraire_images_reponse(message)
+        stored_urls: list[str] = []
+        stored_keys: list[str] = []
+        for img_src in raw_images:
+            url_finale, cle_r2 = await _stocker_image_bac_a_sable(stockage, img_src, v.slot_id)
+            stored_urls.append(url_finale)
+            if cle_r2:
+                stored_keys.append(cle_r2)
+
         reasoning_trace = message.get("reasoning")
         if not isinstance(reasoning_trace, str):
             reasoning_trace = None
@@ -1330,8 +1432,11 @@ async def comparer_bac_a_sable(
             "provider": corps.get("provider"),
             "reasoning_effort": v.reasoning_effort,
             "temperature": v.temperature,
+            "max_tokens": donnees.max_tokens,
+            "stored_image_keys": stored_keys,
             "usage": usage,
         }
+        raw_response_json = _nettoyer_json_brut(corps, stored_urls)
 
         return SandboxVariantResult(
             slot_id=v.slot_id,
@@ -1340,7 +1445,8 @@ async def comparer_bac_a_sable(
             temperature=v.temperature,
             ok=True,
             text=texte,
-            images=images,
+            images=stored_urls,
+            stored_image_keys=stored_keys,
             reasoning_trace=reasoning_trace,
             prompt_tokens=prompt_tok,
             completion_tokens=comp_tok,
@@ -1352,6 +1458,7 @@ async def comparer_bac_a_sable(
             projected_monthly_5k_usd=projected_5k,
             latency_ms=latence,
             raw_usage_json=raw_usage_json,
+            raw_response_json=raw_response_json,
         )
 
     results = list(await asyncio.gather(*(_executer_variante(v) for v in donnees.variants)))

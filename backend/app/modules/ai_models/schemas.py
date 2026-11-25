@@ -314,12 +314,15 @@ class SandboxCompareRequest(BaseModel):
     system_prompt: str = Field(..., min_length=1, max_length=12000)
     user_prompt: str = Field(..., min_length=1, max_length=12000)
     tone: str | None = Field(default=None, max_length=160)
+    max_tokens: int | None = Field(default=None, ge=1, le=128000)
     json_output_enabled: bool = False
     json_output_schema: str | None = Field(default=None, max_length=6000)
     knowledge_context: str | None = Field(default=None, max_length=20000)
     image_mode: Literal["create", "edit"] = "create"
     image_aspect_ratio: str | None = Field(default=None, max_length=20)
     reference_image_url: str | None = Field(default=None, max_length=10_000_000)
+    reference_image_urls: list[str] = Field(default_factory=list, max_length=8)
+    reference_media_notes: list[str] = Field(default_factory=list, max_length=8)
     variants: list[SandboxVariantInput] = Field(..., min_length=1, max_length=4)
 
 
@@ -334,6 +337,7 @@ class SandboxVariantResult(BaseModel):
     error: str | None = None
     text: str = ""
     images: list[str] = Field(default_factory=list)
+    stored_image_keys: list[str] = Field(default_factory=list)
     reasoning_trace: str | None = None
     prompt_tokens: int = 0
     completion_tokens: int = 0
@@ -345,6 +349,7 @@ class SandboxVariantResult(BaseModel):
     projected_monthly_5k_usd: float = 0.0
     latency_ms: int = 0
     raw_usage_json: dict[str, object] | None = None
+    raw_response_json: dict[str, object] | None = None
 
 
 class SandboxCompareResponse(BaseModel):

@@ -365,6 +365,7 @@ async def run_chat_completion(
     model: str,
     messages: list[dict[str, Any]],
     temperature: float = 0.4,
+    max_tokens: int | None = None,
     reasoning_effort: str | None = None,
     json_object: bool = False,
     request_image_output: bool = False,
@@ -377,11 +378,10 @@ async def run_chat_completion(
         "temperature": temperature,
         "usage": {"include": True},
     }
+    if max_tokens is not None and max_tokens > 0:
+        payload["max_tokens"] = max_tokens
     if reasoning_effort:
-        if reasoning_effort == "none":
-            payload["reasoning"] = {"effort": "none"}
-        else:
-            payload["reasoning"] = {"effort": reasoning_effort}
+        payload["reasoning"] = {"effort": reasoning_effort}
     if json_object and not request_image_output:
         payload["response_format"] = {"type": "json_object"}
     if request_image_output:

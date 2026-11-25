@@ -35,16 +35,15 @@ def upgrade() -> None:
         ),
     )
     op.create_check_constraint(
-        "ck_ai_task_assignments_reasoning_effort",
+        "reasoning_effort",
         "ai_task_assignments",
         "reasoning_effort IS NULL OR reasoning_effort IN ('" + "', '".join(REASONING_EFFORTS) + "')",
     )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "ck_ai_task_assignments_reasoning_effort",
-        "ai_task_assignments",
-        type_="check",
+    op.execute(
+        "ALTER TABLE ai_task_assignments "
+        "DROP CONSTRAINT IF EXISTS ck_ai_task_assignments_reasoning_effort"
     )
     op.drop_column("ai_task_assignments", "reasoning_effort")

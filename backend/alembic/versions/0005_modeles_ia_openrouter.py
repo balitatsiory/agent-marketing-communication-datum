@@ -76,7 +76,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "key_kind IN ('" + "', '".join(KEY_KINDS) + "')",
-            name="ck_openrouter_api_keys_key_kind",
+            name="key_kind",
         ),
         comment=(
             "Cles API OpenRouter (management et standard) chiffrees par Fernet, "
@@ -142,7 +142,7 @@ def upgrade() -> None:
             "default_provider_sort IS NULL OR default_provider_sort IN ('"
             + "', '".join(PROVIDER_SORTS)
             + "')",
-            name="ck_ai_workspaces_default_provider_sort",
+            name="default_provider_sort",
         ),
         comment=(
             "Workspaces OpenRouter geres via la Management API. "
@@ -220,7 +220,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "task_code IN ('" + "', '".join(TASK_CODES) + "')",
-            name="ck_ai_task_assignments_task_code",
+            name="task_code",
         ),
         comment=(
             "Affectation du modele OpenRouter actif pour chaque tache metier "
@@ -261,6 +261,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        "DELETE FROM user_permissions "
+        "WHERE id_permissions IN (SELECT id_permissions FROM permissions WHERE code = 'manage_ai_models')"
+    )
     op.execute("DELETE FROM permissions WHERE code = 'manage_ai_models'")
     for table in ("ai_task_assignments", "ai_models", "ai_workspaces"):
         op.execute(f"DROP TRIGGER IF EXISTS trg_{table}_updated_at ON {table}")

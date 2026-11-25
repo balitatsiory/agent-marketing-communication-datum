@@ -1001,3 +1001,48 @@
 .skel-table-row:last-child {
   border-bottom: 0;
 }
+
+/* Tri colonnes & Pagination Catalogue OpenRouter */
+.sort-th {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.sort-th:hover {
+  color: var(--ink);
+}
+.sort-arrow {
+  font-size: 11px;
+  opacity: 0.75;
+}
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.pg-info {
+  color: var(--muted);
+}
+.pg-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pg-size-select {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+}

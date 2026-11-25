@@ -22,13 +22,17 @@ OLD_KEY_KINDS = ("management", "standard")
 
 
 def upgrade() -> None:
-    op.drop_constraint(
-        "ck_openrouter_api_keys_key_kind",
-        "openrouter_api_keys",
-        type_="check",
+    # Supprime l'ancienne contrainte (y compris si 0005 avait été appliquée avant correction du préfixe)
+    op.execute(
+        "ALTER TABLE openrouter_api_keys "
+        "DROP CONSTRAINT IF EXISTS ck_openrouter_api_keys_key_kind"
+    )
+    op.execute(
+        "ALTER TABLE openrouter_api_keys "
+        "DROP CONSTRAINT IF EXISTS ck_openrouter_api_keys_ck_openrouter_api_keys_key_kind"
     )
     op.create_check_constraint(
-        "ck_openrouter_api_keys_key_kind",
+        "key_kind",
         "openrouter_api_keys",
         "key_kind IN ('" + "', '".join(KEY_KINDS) + "')",
     )
@@ -36,13 +40,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DELETE FROM openrouter_api_keys WHERE key_kind = 'sandbox'")
-    op.drop_constraint(
-        "ck_openrouter_api_keys_key_kind",
-        "openrouter_api_keys",
-        type_="check",
+    op.execute(
+        "ALTER TABLE openrouter_api_keys "
+        "DROP CONSTRAINT IF EXISTS ck_openrouter_api_keys_key_kind"
     )
     op.create_check_constraint(
-        "ck_openrouter_api_keys_key_kind",
+        "key_kind",
         "openrouter_api_keys",
         "key_kind IN ('" + "', '".join(OLD_KEY_KINDS) + "')",
     )

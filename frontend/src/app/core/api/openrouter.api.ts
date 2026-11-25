@@ -231,12 +231,15 @@ export interface SandboxCompareRequestDto {
   readonly system_prompt: string;
   readonly user_prompt: string;
   readonly tone?: string | null;
+  readonly max_tokens?: number | null;
   readonly json_output_enabled: boolean;
   readonly json_output_schema?: string | null;
   readonly knowledge_context?: string | null;
   readonly image_mode?: 'create' | 'edit';
   readonly image_aspect_ratio?: string | null;
   readonly reference_image_url?: string | null;
+  readonly reference_image_urls?: readonly string[];
+  readonly reference_media_notes?: readonly string[];
   readonly variants: readonly SandboxVariantInputDto[];
 }
 
@@ -249,6 +252,7 @@ export interface SandboxVariantResultDto {
   readonly error: string | null;
   readonly text: string;
   readonly images: readonly string[];
+  readonly stored_image_keys?: readonly string[];
   readonly reasoning_trace: string | null;
   readonly prompt_tokens: number;
   readonly completion_tokens: number;
@@ -260,6 +264,7 @@ export interface SandboxVariantResultDto {
   readonly projected_monthly_5k_usd: number;
   readonly latency_ms: number;
   readonly raw_usage_json: Record<string, unknown> | null;
+  readonly raw_response_json?: Record<string, unknown> | null;
 }
 
 export interface SandboxCompareResponseDto {
