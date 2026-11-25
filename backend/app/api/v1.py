@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from app.modules.ai_models.router import router as ai_models_router
 from app.modules.auth.router import router as auth_router
+from app.modules.email_accounts.router import router as email_accounts_router
 from app.modules.media.router import router as media_router
 from app.modules.social_accounts.router import router as social_accounts_router
 from app.modules.users.router import router as users_router
@@ -19,6 +20,7 @@ api_v1_router.include_router(users_router)
 api_v1_router.include_router(media_router)
 api_v1_router.include_router(social_accounts_router)
 api_v1_router.include_router(ai_models_router)
+api_v1_router.include_router(email_accounts_router)
 
 # Les routeurs des modules suivants viendront ici, dans l'ordre de dépendance :
 # notifications, comptes réseaux sociaux, génération de contenu,

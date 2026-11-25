@@ -69,6 +69,10 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 25/09 | L'API **refuse de démarrer** si une clé est restée à sa valeur d'exemple | une clé Fernet invalide ne se verrait qu'au premier chiffrement, des semaines plus tard |
 | 25/09 | La racine `/` **redirige vers `/docs`** | un 404 sur `http://localhost:8000` laissait croire que l'API n'avait pas démarré |
 | 08/10 | Tables d'historique : nom préfixé **`history_`** (par exemple `history_publications`) | choix de l'utilisateur ; remplace `publication_history` et `publication_target_history` cités dans `architecture.md` |
+| 25/11 | **Service d'envoi des courriels : SMTP IONOS** (`smtp.ionos.fr`), en SSL/TLS implicite sur le port 465, STARTTLS sur 587 en secours | tranche la question laissée ouverte dans `tasks.md` §6 ; la boîte existe déjà chez l'hébergeur du domaine, aucun service tiers à souscrire |
+| 25/11 | Les identifiants d'envoi vivent **en base, chiffrés par Fernet** (`email_account_credentials`), et non dans `.env` | plusieurs comptes possibles, changement de mot de passe sans redéploiement, et la date de chaque remplacement est conservée |
+| 25/11 | Un **seul compte d'envoi actif**, tenu par un index unique partiel et non par le service | une requête concurrente ne peut pas créer deux expéditeurs |
+| 25/11 | **`aiosmtplib`** plutôt que `smtplib` | `smtplib` est bloquant : un serveur lent immobiliserait la boucle d'événements, donc toute l'API |
 
 ## 5. Faits vérifiés
 
@@ -94,6 +98,8 @@ consentement.** Le site envoie lui-même l'email de confirmation contenant le li
 **Premier test de collecte (21/09)** — la chaîne n8n fonctionne ; la page de test n'a que 1 et 3
 abonnés, donc Meta ne renvoie ni `page_views_total`, ni `page_impressions`, ni `reach`. À refaire
 sur un compte ayant de l'audience, après avoir vérifié `read_insights`.
+
+**Noms des bases** — la décision du 25/09 note `stage_iagora` et `stage_iagora_test`, mais `backend/.env` utilise **`iagora`** et **`iagora_test`** (PostgreSQL sur le port **5433**). C'est le fichier `.env` qui fait foi : vérifié le 25/11/2026.
 
 ## 6. Environnement de travail
 

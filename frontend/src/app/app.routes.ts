@@ -156,6 +156,17 @@ export const routes: Routes = [
       },
 
 
+      {
+        path: 'newsletter/comptes-envoi',
+        title: "Comptes d'envoi · IAGORA",
+        canActivate: [permissionGuard('manage_email_accounts')],
+        loadComponent: () =>
+          import('./features/newsletter/sender-accounts/sender-accounts').then(
+            (m) => m.SenderAccounts,
+          ),
+      },
+
+
       { path: 'newsletter', pathMatch: 'full', redirectTo: 'newsletter/envois' },
 
       {

@@ -1,0 +1,249 @@
+/* Comptes d'envoi SMTP — la liste des comptes et l'historique des vérifications. */
+
+@use '../../../../styles/design-system/type' as type;
+
+:host {
+  display: contents;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head h1 {
+  @include type.page-title;
+}
+.page-head .sub {
+  color: var(--muted);
+  font-size: var(--t-xs);
+  margin-top: 2px;
+}
+
+/* La liste tient la largeur, l'historique l'accompagne : on lit un compte et
+   ce qui lui est arrivé en même temps. */
+.accounts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .accounts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- un compte ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acc {
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+}
+.acc:hover {
+  border-color: var(--muted);
+}
+/* Le compte ouvert est marqué par un liseré, pas par un fond : la liste reste
+   lisible quand plusieurs comptes coexistent. */
+.acc.is-on {
+  border-color: var(--ink);
+  border-width: 1.5px;
+}
+
+.acc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.acc-id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.acc-id h2 {
+  @include type.section-title;
+}
+.acc-srv {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+/* Le bouton d'historique ferme la ligne d'en-tête, à droite du serveur. */
+.acc-hist {
+  margin-left: auto;
+}
+.acc-hist[aria-pressed='true'] {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.acc-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 11px 18px;
+  margin: 0;
+}
+.acc-facts dt {
+  @include type.caps-label;
+  margin-bottom: 3px;
+}
+.acc-facts dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.acc-facts .d {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.acc-facts .dash {
+  color: var(--muted);
+}
+
+.acc-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- historique des vérifications ---------- */
+
+.history .panel {
+  max-height: 560px;
+}
+.panel-head .num {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+.hist-empty {
+  padding: 14px 16px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.hist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hist-row {
+  display: flex;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.hist-row:last-child {
+  border-bottom: 0;
+}
+
+.hist-mark {
+  color: var(--ok);
+  flex: none;
+  margin-top: 1px;
+}
+.hist-row.is-ko .hist-mark {
+  color: var(--err);
+}
+
+.hist-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hist-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hist-kind {
+  font-size: 12.5px;
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+.hist-when,
+.hist-ms {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.hist-msg {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.hist-to,
+.hist-by {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ---------- formulaires ---------- */
+
+.modal {
+  max-width: 680px;
+}
+.modal.modal-sm {
+  max-width: 440px;
+}
+
+.form {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Serveur, chiffrement et port se lisent ensemble : séparés, on oublie que le
+   port dépend du mode. */
+.duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.modal-sm .modal-body {
+  padding: 16px 18px;
+}
+
+.foot-note {
+  margin-right: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+  max-width: 44ch;
+}
