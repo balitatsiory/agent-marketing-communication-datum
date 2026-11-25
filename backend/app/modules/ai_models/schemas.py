@@ -350,8 +350,32 @@ class SandboxVariantResult(BaseModel):
 class SandboxCompareResponse(BaseModel):
     """Réponse agrégée d'une exécution du Bac à sable IA."""
 
+    id_ai_sandbox_runs: int | None = None
     use_case: SandboxUseCase
     key_source: Literal["sandbox", "standard"]
     key_masked: str
     total_batch_cost_usd: float
     results: list[SandboxVariantResult]
+    created_at: datetime | None = None
+
+
+class SandboxRunHistoryRead(BaseModel):
+    """Une entrée enregistrée dans l'historique du Bac à sable IA."""
+
+    id_ai_sandbox_runs: int
+    use_case: SandboxUseCase
+    system_prompt: str
+    user_prompt: str
+    tone: str | None
+    json_output_enabled: bool
+    json_output_schema: str | None
+    knowledge_context: str | None
+    image_mode: str | None
+    image_aspect_ratio: str | None
+    key_source: Literal["sandbox", "standard"]
+    key_masked: str
+    total_batch_cost_usd: float
+    variants: list[SandboxVariantInput]
+    results: list[SandboxVariantResult]
+    created_by_name: str | None = None
+    created_at: datetime

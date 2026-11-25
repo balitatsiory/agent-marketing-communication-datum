@@ -16,12 +16,15 @@ import {
   AiTaskCode,
   OpenRouterApi,
   OpenRouterKeyDto,
+  SandboxRunHistoryDto,
   SandboxUseCase,
   SandboxVariantResultDto,
 } from '../../../core/api/openrouter.api';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Chart } from '../../../shared/chart/chart';
 import { Icon } from '../../../shared/icon/icon';
+
+export type SandboxMainTab = 'sandbox' | 'history';
 
 interface SandboxVariantSlot {
   readonly slotId: string;
@@ -36,6 +39,7 @@ interface SandboxVariantSlot {
 interface UseCaseConfig {
   readonly code: SandboxUseCase;
   readonly title: string;
+  readonly shortTitle: string;
   readonly subtitle: string;
   readonly targetTaskCode: AiTaskCode;
   readonly defaultSystemPrompt: string;
@@ -51,6 +55,7 @@ const USE_CASES: readonly UseCaseConfig[] = [
   {
     code: 'publication_text',
     title: 'Génération de texte pour publication',
+    shortTitle: 'Texte publication',
     subtitle: 'Posts LinkedIn, Facebook, Instagram orientés conversion et engagement.',
     targetTaskCode: 'text-generation',
     defaultSystemPrompt:
@@ -82,6 +87,7 @@ const USE_CASES: readonly UseCaseConfig[] = [
   {
     code: 'image_generation',
     title: "Génération d'image / Modification image",
+    shortTitle: 'Image / Modif.',
     subtitle: 'Création de visuels réseaux sociaux ou retouche/analyse sur image existante.',
     targetTaskCode: 'image-generation',
     defaultSystemPrompt:
@@ -113,6 +119,7 @@ const USE_CASES: readonly UseCaseConfig[] = [
   {
     code: 'message_rag',
     title: 'Génération de texte pour Message (Base de connaissance)',
+    shortTitle: 'Message (RAG)',
     subtitle: 'Réponses WhatsApp / Messenger / LinkedIn fondées strictement sur votre base documentaire.',
     targetTaskCode: 'text-generation',
     defaultSystemPrompt:
@@ -159,8 +166,10 @@ const ASPECT_RATIOS: readonly { readonly value: string; readonly label: string }
   { value: '9:16', label: '9:16 — Story / Reel (1080×1920)' },
 ];
 
+const PREFERRED_PROVIDERS = ['google', 'anthropic', 'openai', 'deepseek', 'mistral'];
 const SLOT_LETTERS = ['A', 'B', 'C', 'D'] as const;
 const MAX_VARIANTS = 4;
+const SUGGESTED_INACTIVE_LIMIT = 5;
 
 @Component({
   selector: 'app-ai-sandbox',
@@ -168,6 +177,10 @@ const MAX_VARIANTS = 4;
   imports: [FormsModule, Topbar, Icon, Chart],
   templateUrl: './ai-sandbox.html',
   styleUrl: './ai-sandbox.scss',
+  host: {
+    '(document:click)': 'closeModelDropdown()',
+    '(document:keydown.escape)': 'closeModelDropdown()',
+  },
 })
 export class AiSandbox implements OnInit {
   private readonly api = inject(OpenRouterApi);
@@ -176,8 +189,12 @@ export class AiSandbox implements OnInit {
   protected readonly reasoningEfforts = REASONING_EFFORTS;
   protected readonly aspectRatios = ASPECT_RATIOS;
 
+  /* ---------- Navigation 2 onglets (Bac à sable | Historique) ---------- */
+  protected readonly activeTab = signal<SandboxMainTab>('sandbox');
+
   /* ---------- États globaux ---------- */
   protected readonly loadingInit = signal<boolean>(true);
+  protected readonly loadingHistory = signal<boolean>(false);
   protected readonly isRunning = signal<boolean>(false);
   protected readonly savingKey = signal<boolean>(false);
   protected readonly notice = signal<string | null>(null);
@@ -186,8 +203,17 @@ export class AiSandbox implements OnInit {
   /* ---------- Données API ---------- */
   protected readonly models = signal<readonly AiModelDto[]>([]);
   protected readonly keys = signal<readonly OpenRouterKeyDto[]>([]);
+  protected readonly historyRuns = signal<readonly SandboxRunHistoryDto[]>([]);
   protected readonly sessionCostUsd = signal<number>(0);
-  protected readonly lastKeySource = signal<'sandbox' | 'standard' | null>(null);
+
+  /* ---------- Filtres Onglet Historique ---------- */
+  protected readonly historyUseCaseFilter = signal<SandboxUseCase | 'all'>('all');
+  protected readonly historySearch = signal<string>('');
+  protected readonly expandedHistoryRunId = signal<number | null>(null);
+
+  /* ---------- Select Dropdown avec barre de recherche ---------- */
+  protected readonly openDropdownSlotId = signal<string | null>(null);
+  protected readonly dropdownSearch = signal<string>('');
 
   /* ---------- Modale clé Sandbox chiffrée ---------- */
   protected readonly showSandboxKeyModal = signal<boolean>(false);
@@ -251,20 +277,111 @@ export class AiSandbox implements OnInit {
 
   protected readonly canAddVariant = computed(() => this.variants().length < MAX_VARIANTS);
 
-  /** Modèles proposés : activés d'abord, puis le reste du catalogue (filtrés si cas image). */
-  protected readonly selectableModels = computed(() => {
-    const all = this.models();
+  /**
+   * Modèles activés dans le Catalogue OpenRouter (tous).
+   */
+  protected readonly activeCatalogModels = computed(() => {
     const isImage = this.selectedUseCase() === 'image_generation';
-    const sorted = [...all].sort((a, b) => {
+    return this.models()
+      .filter((m) => m.is_enabled)
+      .sort((a, b) => {
+        if (isImage) {
+          const aImg = a.output_modalities.includes('image') ? 1 : 0;
+          const bImg = b.output_modalities.includes('image') ? 1 : 0;
+          if (aImg !== bImg) return bImg - aImg;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  });
+
+  /**
+   * Exactement 5 suggestions parmi les modèles NON activés du catalogue OpenRouter.
+   * Privilégie la diversité des fournisseurs (ou les modèles image-output pour le cas image).
+   */
+  protected readonly suggestedInactiveModels = computed(() => {
+    const isImage = this.selectedUseCase() === 'image_generation';
+    const inactive = this.models().filter((m) => !m.is_enabled);
+    if (inactive.length === 0) return [];
+
+    const ranked = [...inactive].sort((a, b) => {
       if (isImage) {
         const aImg = a.output_modalities.includes('image') ? 1 : 0;
         const bImg = b.output_modalities.includes('image') ? 1 : 0;
         if (aImg !== bImg) return bImg - aImg;
       }
-      if (a.is_enabled !== b.is_enabled) return a.is_enabled ? -1 : 1;
+      const aPref = PREFERRED_PROVIDERS.indexOf(a.provider_slug);
+      const bPref = PREFERRED_PROVIDERS.indexOf(b.provider_slug);
+      const aScore = aPref === -1 ? 99 : aPref;
+      const bScore = bPref === -1 ? 99 : bPref;
+      if (aScore !== bScore) return aScore - bScore;
       return a.name.localeCompare(b.name);
     });
-    return sorted;
+
+    // Sélectionner jusqu'à 5 modèles variés (1 par fournisseur majeur d'abord)
+    const picked: AiModelDto[] = [];
+    const seenProviders = new Set<string>();
+    for (const m of ranked) {
+      if (picked.length >= SUGGESTED_INACTIVE_LIMIT) break;
+      if (!seenProviders.has(m.provider_slug)) {
+        picked.push(m);
+        seenProviders.add(m.provider_slug);
+      }
+    }
+    if (picked.length < SUGGESTED_INACTIVE_LIMIT) {
+      const pickedIds = new Set(picked.map((p) => p.id_ai_models));
+      for (const m of ranked) {
+        if (picked.length >= SUGGESTED_INACTIVE_LIMIT) break;
+        if (!pickedIds.has(m.id_ai_models)) {
+          picked.push(m);
+          pickedIds.add(m.id_ai_models);
+        }
+      }
+    }
+    return picked;
+  });
+
+  /** Modèles filtrés par la barre de recherche du dropdown (strictement dans Actifs + 5 suggestions). */
+  protected readonly filteredActiveDropdownModels = computed(() => {
+    const term = this.dropdownSearch().trim().toLowerCase();
+    const list = this.activeCatalogModels();
+    if (!term) return list;
+    return list.filter(
+      (m) =>
+        m.name.toLowerCase().includes(term) ||
+        m.openrouter_model_id.toLowerCase().includes(term) ||
+        m.provider_slug.toLowerCase().includes(term),
+    );
+  });
+
+  protected readonly filteredSuggestedDropdownModels = computed(() => {
+    const term = this.dropdownSearch().trim().toLowerCase();
+    const list = this.suggestedInactiveModels();
+    if (!term) return list;
+    return list.filter(
+      (m) =>
+        m.name.toLowerCase().includes(term) ||
+        m.openrouter_model_id.toLowerCase().includes(term) ||
+        m.provider_slug.toLowerCase().includes(term),
+    );
+  });
+
+  protected readonly filteredHistoryRuns = computed(() => {
+    const uc = this.historyUseCaseFilter();
+    const term = this.historySearch().trim().toLowerCase();
+    let list = this.historyRuns();
+    if (uc !== 'all') {
+      list = list.filter((r) => r.use_case === uc);
+    }
+    if (term) {
+      list = list.filter(
+        (r) =>
+          r.user_prompt.toLowerCase().includes(term) ||
+          r.system_prompt.toLowerCase().includes(term) ||
+          (r.created_by_name?.toLowerCase().includes(term) ?? false) ||
+          r.variants.some((v) => v.model_id.toLowerCase().includes(term)),
+      );
+    }
+    return list;
   });
 
   protected readonly estimatedInputTokens = computed(() => {
@@ -393,17 +510,28 @@ export class AiSandbox implements OnInit {
     void this.loadInitialData();
   }
 
+  protected setTab(tab: SandboxMainTab): void {
+    this.activeTab.set(tab);
+    this.closeModelDropdown();
+    if (tab === 'history') {
+      void this.loadHistory();
+    }
+  }
+
   protected async loadInitialData(): Promise<void> {
     this.loadingInit.set(true);
     this.errorMessage.set(null);
     try {
-      const [models, keys] = await Promise.all([this.api.listModels(), this.api.listKeys()]);
+      const [models, keys, history] = await Promise.all([
+        this.api.listModels(),
+        this.api.listKeys(),
+        this.api.listSandboxHistory(),
+      ]);
       this.models.set(models);
       this.keys.set(keys);
+      this.historyRuns.set(history);
 
-      // Pré-sélectionner des modèles réellement présents dans le catalogue activé si disponible
-      const enabled = models.filter((m) => m.is_enabled);
-      const pool = enabled.length > 0 ? enabled : models;
+      const pool = [...this.activeCatalogModels(), ...this.suggestedInactiveModels()];
       if (pool.length > 0) {
         const firstId = pool[0].openrouter_model_id;
         const secondId = (pool[1] ?? pool[0]).openrouter_model_id;
@@ -421,6 +549,98 @@ export class AiSandbox implements OnInit {
     }
   }
 
+  protected async loadHistory(): Promise<void> {
+    this.loadingHistory.set(true);
+    this.errorMessage.set(null);
+    try {
+      this.historyRuns.set(await this.api.listSandboxHistory());
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    } finally {
+      this.loadingHistory.set(false);
+    }
+  }
+
+  protected async deleteHistoryRun(run: SandboxRunHistoryDto): Promise<void> {
+    this.errorMessage.set(null);
+    try {
+      await this.api.deleteSandboxHistory(run.id_ai_sandbox_runs);
+      this.historyRuns.update((list) =>
+        list.filter((r) => r.id_ai_sandbox_runs !== run.id_ai_sandbox_runs),
+      );
+      if (this.expandedHistoryRunId() === run.id_ai_sandbox_runs) {
+        this.expandedHistoryRunId.set(null);
+      }
+      this.flashNotice('Exécution supprimée de l’historique.');
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    }
+  }
+
+  protected reloadRunIntoSandbox(run: SandboxRunHistoryDto): void {
+    this.selectedUseCase.set(run.use_case);
+    this.systemPrompt.set(run.system_prompt);
+    this.userPrompt.set(run.user_prompt);
+    this.tone.set(run.tone ?? '');
+    this.jsonOutputEnabled.set(run.json_output_enabled);
+    if (run.json_output_schema) {
+      this.jsonOutputSchema.set(run.json_output_schema);
+    }
+    this.knowledgeContext.set(run.knowledge_context ?? '');
+    this.showContextDrawer.set(run.use_case === 'message_rag' || Boolean(run.knowledge_context));
+    if (run.image_mode) this.imageMode.set(run.image_mode);
+    if (run.image_aspect_ratio) this.imageAspectRatio.set(run.image_aspect_ratio);
+
+    const resultsBySlot = new Map(run.results.map((r) => [r.slot_id, r]));
+    const restoredSlots: SandboxVariantSlot[] = run.variants.map((v) => ({
+      slotId: v.slot_id,
+      label: `Modèle ${v.slot_id}`,
+      modelId: v.model_id,
+      reasoningEffort: (v.reasoning_effort ?? '') as AiReasoningEffort | '',
+      temperature: v.temperature,
+      showRawJson: false,
+      result: resultsBySlot.get(v.slot_id) ?? null,
+    }));
+    if (restoredSlots.length >= 2) {
+      this.variants.set(restoredSlots);
+    }
+
+    this.activeTab.set('sandbox');
+    this.flashNotice(`Run #${run.id_ai_sandbox_runs} rechargé dans le Bac à sable.`);
+  }
+
+  /* =========================================================================
+     Dropdown Modèle avec barre de recherche
+     ========================================================================= */
+
+  protected toggleModelDropdown(slotId: string, event: Event): void {
+    event.stopPropagation();
+    if (this.isRunning()) return;
+    if (this.openDropdownSlotId() === slotId) {
+      this.openDropdownSlotId.set(null);
+    } else {
+      this.dropdownSearch.set('');
+      this.openDropdownSlotId.set(slotId);
+    }
+  }
+
+  protected closeModelDropdown(): void {
+    if (this.openDropdownSlotId() !== null) {
+      this.openDropdownSlotId.set(null);
+      this.dropdownSearch.set('');
+    }
+  }
+
+  protected selectModelForSlot(slotId: string, modelId: string, event: Event): void {
+    event.stopPropagation();
+    this.updateVariant(slotId, { modelId });
+    this.closeModelDropdown();
+  }
+
+  protected findModelInfo(modelId: string): AiModelDto | undefined {
+    return this.models().find((m) => m.openrouter_model_id === modelId);
+  }
+
   /* =========================================================================
      Sélection Cas d'utilisation strict
      ========================================================================= */
@@ -435,10 +655,11 @@ export class AiSandbox implements OnInit {
     this.knowledgeContext.set(cfg.defaultContext);
     this.showContextDrawer.set(code === 'message_rag');
     this.errorMessage.set(null);
+    this.closeModelDropdown();
 
-    // Si bascule sur génération d'image, proposer un modèle image-output s'il existe dans le catalogue
+    const pool = [...this.activeCatalogModels(), ...this.suggestedInactiveModels()];
     if (code === 'image_generation') {
-      const imgModels = this.models().filter((m) => m.output_modalities.includes('image'));
+      const imgModels = pool.filter((m) => m.output_modalities.includes('image'));
       if (imgModels.length > 0) {
         this.variants.update((list) =>
           list.map((v, idx) => ({
@@ -480,7 +701,7 @@ export class AiSandbox implements OnInit {
 
     const usedIds = new Set(current.map((v) => v.slotId));
     const nextLetter = SLOT_LETTERS.find((l) => !usedIds.has(l)) ?? String(current.length + 1);
-    const pool = this.selectableModels();
+    const pool = [...this.activeCatalogModels(), ...this.suggestedInactiveModels()];
     const defaultModel =
       pool[current.length]?.openrouter_model_id ??
       current[0]?.modelId ??
@@ -520,13 +741,18 @@ export class AiSandbox implements OnInit {
       this.errorMessage.set('Veuillez renseigner un User Prompt avant de générer.');
       return;
     }
-    if (this.selectedUseCase() === 'image_generation' && this.imageMode() === 'edit' && !this.referenceImageUrl().trim()) {
+    if (
+      this.selectedUseCase() === 'image_generation' &&
+      this.imageMode() === 'edit' &&
+      !this.referenceImageUrl().trim()
+    ) {
       this.errorMessage.set("En mode Modification d'image, fournissez une image de référence (fichier ou URL).");
       return;
     }
 
     this.isRunning.set(true);
     this.errorMessage.set(null);
+    this.closeModelDropdown();
 
     try {
       const response = await this.api.compareSandbox({
@@ -556,10 +782,12 @@ export class AiSandbox implements OnInit {
         list.map((v) => ({ ...v, result: bySlot.get(v.slotId) ?? null })),
       );
       this.sessionCostUsd.update((c) => c + response.total_batch_cost_usd);
-      this.lastKeySource.set(response.key_source);
+
+      // Rafraîchir l'historique en arrière-plan pour que le compteur d'onglet soit à jour
+      void this.loadHistory();
 
       this.flashNotice(
-        `Comparaison terminée (${response.results.length} modèles) — Coût réel du run : ${this.formatCost6(response.total_batch_cost_usd)} via clé ${response.key_source === 'sandbox' ? 'Sandbox isolée' : 'Standard'}.`,
+        `Comparaison enregistrée dans l'historique — Coût réel du run : ${this.formatCost6(response.total_batch_cost_usd)} via clé ${response.key_source === 'sandbox' ? 'Sandbox isolée' : 'Standard'}.`,
       );
     } catch (err) {
       this.errorMessage.set(toApiError(err).message);
@@ -599,7 +827,7 @@ export class AiSandbox implements OnInit {
   }
 
   /* =========================================================================
-     Preset Production (applique directement sur /modeles-ia_v2 + snippet JSON)
+     Preset Production
      ========================================================================= */
 
   protected async applyAsProductionPreset(slot: SandboxVariantSlot): Promise<void> {
@@ -614,7 +842,6 @@ export class AiSandbox implements OnInit {
     this.retainedPresetJson.set(JSON.stringify(snippetObj, null, 2));
     this.retainedPresetLabel.set(`Modèle ${slot.slotId} (${slot.modelId}) · ${cfg.title}`);
 
-    // Si le modèle existe en base locale, l'affecter aussi directement à la spécialité métier IAGORA
     const found = this.models().find((m) => m.openrouter_model_id === slot.modelId);
     if (found) {
       try {
@@ -648,6 +875,10 @@ export class AiSandbox implements OnInit {
 
   /* ---------- Formatters ---------- */
 
+  protected useCaseLabel(code: SandboxUseCase): string {
+    return USE_CASES.find((u) => u.code === code)?.shortTitle ?? code;
+  }
+
   protected formatCost6(v: number): string {
     return '$' + Number(v).toFixed(6);
   }
@@ -658,6 +889,19 @@ export class AiSandbox implements OnInit {
 
   protected formatJson(obj: unknown): string {
     return JSON.stringify(obj, null, 2);
+  }
+
+  protected formatDate(iso: string): string {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime())
+      ? iso
+      : d.toLocaleString('fr-FR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
   }
 
   protected getReasoningPct(res: SandboxVariantResultDto): number {

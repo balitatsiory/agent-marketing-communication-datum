@@ -30,6 +30,7 @@ from app.modules.ai_models.constants import (
 )
 from app.modules.ai_models.models import (
     AiModel,
+    AiSandboxRun,
     AiTaskAssignment,
     AiWorkspace,
     OpenRouterApiKey,
@@ -56,6 +57,8 @@ from app.modules.ai_models.schemas import (
     OpenRouterWorkspaceCostRead,
     SandboxCompareRequest,
     SandboxCompareResponse,
+    SandboxRunHistoryRead,
+    SandboxVariantInput,
     SandboxVariantResult,
 )
 from app.modules.users.models import User
@@ -1207,7 +1210,7 @@ def _extraire_texte_reponse(message: dict[str, Any]) -> str:
 
 
 async def comparer_bac_a_sable(
-    session: AsyncSession, donnees: SandboxCompareRequest
+    session: AsyncSession, donnees: SandboxCompareRequest, par: User
 ) -> SandboxCompareResponse:
     """Exécute en parallèle les variantes choisies sur OpenRouter via la clé Sandbox (ou Standard)."""
     sandbox_key = await _get_active_key_row(session, KEY_KIND_SANDBOX)
@@ -1354,10 +1357,91 @@ async def comparer_bac_a_sable(
     results = list(await asyncio.gather(*(_executer_variante(v) for v in donnees.variants)))
     total_batch = round(sum(r.cost_usd for r in results), 7)
 
+    run_row = AiSandboxRun(
+        use_case=donnees.use_case,
+        system_prompt=donnees.system_prompt.strip(),
+        user_prompt=donnees.user_prompt.strip(),
+        tone=(donnees.tone or "").strip() or None,
+        json_output_enabled=donnees.json_output_enabled,
+        json_output_schema=(donnees.json_output_schema or "").strip() or None,
+        knowledge_context=(donnees.knowledge_context or "").strip() or None,
+        image_mode=donnees.image_mode if donnees.use_case == "image_generation" else None,
+        image_aspect_ratio=(
+            donnees.image_aspect_ratio if donnees.use_case == "image_generation" else None
+        ),
+        key_source=key_source,
+        key_masked=source_row.key_masked,
+        total_batch_cost_usd=Decimal(str(total_batch)),
+        variants_json=[v.model_dump(mode="json") for v in donnees.variants],
+        results_json=[r.model_dump(mode="json") for r in results],
+        id_users_created_by=par.id_users,
+    )
+    session.add(run_row)
+    await session.commit()
+    await session.refresh(run_row)
+
     return SandboxCompareResponse(
+        id_ai_sandbox_runs=run_row.id_ai_sandbox_runs,
         use_case=donnees.use_case,
         key_source=key_source,  # type: ignore[arg-type]
         key_masked=source_row.key_masked,
         total_batch_cost_usd=total_batch,
         results=results,
+        created_at=run_row.created_at,
     )
+
+
+async def lister_historique_bac_a_sable(
+    session: AsyncSession,
+    *,
+    use_case: str | None = None,
+    limit: int = 50,
+) -> list[SandboxRunHistoryRead]:
+    """Renvoie l'historique des exécutions du Bac à sable IA (les plus récentes en premier)."""
+    stmt = (
+        select(AiSandboxRun, User)
+        .outerjoin(User, User.id_users == AiSandboxRun.id_users_created_by)
+        .order_by(AiSandboxRun.created_at.desc(), AiSandboxRun.id_ai_sandbox_runs.desc())
+        .limit(min(max(limit, 1), 200))
+    )
+    if use_case:
+        stmt = stmt.where(AiSandboxRun.use_case == use_case)
+
+    lignes = (await session.execute(stmt)).all()
+    items: list[SandboxRunHistoryRead] = []
+    for run, auteur in lignes:
+        items.append(
+            SandboxRunHistoryRead(
+                id_ai_sandbox_runs=run.id_ai_sandbox_runs,
+                use_case=run.use_case,  # type: ignore[arg-type]
+                system_prompt=run.system_prompt,
+                user_prompt=run.user_prompt,
+                tone=run.tone,
+                json_output_enabled=run.json_output_enabled,
+                json_output_schema=run.json_output_schema,
+                knowledge_context=run.knowledge_context,
+                image_mode=run.image_mode,
+                image_aspect_ratio=run.image_aspect_ratio,
+                key_source=run.key_source,  # type: ignore[arg-type]
+                key_masked=run.key_masked,
+                total_batch_cost_usd=float(run.total_batch_cost_usd),
+                variants=[SandboxVariantInput.model_validate(v) for v in (run.variants_json or [])],
+                results=[SandboxVariantResult.model_validate(r) for r in (run.results_json or [])],
+                created_by_name=_nom_utilisateur(auteur),
+                created_at=run.created_at,
+            )
+        )
+    return items
+
+
+async def supprimer_historique_bac_a_sable(session: AsyncSession, id_run: int) -> None:
+    """Supprime une entrée de l'historique du Bac à sable IA."""
+    run = (
+        await session.execute(
+            select(AiSandboxRun).where(AiSandboxRun.id_ai_sandbox_runs == id_run)
+        )
+    ).scalar_one_or_none()
+    if run is None:
+        raise NotFoundError("Exécution Bac à sable introuvable.")
+    await session.delete(run)
+    await session.commit()

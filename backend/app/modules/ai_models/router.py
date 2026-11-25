@@ -24,6 +24,7 @@ from app.modules.ai_models.schemas import (
     OpenRouterOverviewRead,
     SandboxCompareRequest,
     SandboxCompareResponse,
+    SandboxRunHistoryRead,
 )
 from app.modules.users.deps import CurrentUser, require
 from app.modules.users.models import User
@@ -279,6 +280,33 @@ async def modifier_affectation(
 async def comparer_bac_a_sable(
     corps: SandboxCompareRequest,
     session: SessionDep,
-    _: GestionnaireIA,
+    par: GestionnaireIA,
 ) -> SandboxCompareResponse:
-    return await service.comparer_bac_a_sable(session, corps)
+    return await service.comparer_bac_a_sable(session, corps, par)
+
+
+@router.get(
+    "/sandbox/history",
+    response_model=list[SandboxRunHistoryRead],
+    summary="Lister l'historique des exécutions du Bac à sable IA",
+)
+async def lister_historique_bac_a_sable(
+    session: SessionDep,
+    _: CurrentUser,
+    use_case: str | None = Query(None, description="Filtrer par cas d'utilisation strict."),
+    limit: int = Query(50, ge=1, le=200),
+) -> list[SandboxRunHistoryRead]:
+    return await service.lister_historique_bac_a_sable(session, use_case=use_case, limit=limit)
+
+
+@router.delete(
+    "/sandbox/history/{id_run}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Supprimer une entrée de l'historique du Bac à sable IA",
+)
+async def supprimer_historique_bac_a_sable(
+    id_run: int,
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> None:
+    await service.supprimer_historique_bac_a_sable(session, id_run)

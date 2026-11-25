@@ -37,6 +37,7 @@ from app.modules.ai_models.constants import (
     KEY_KINDS,
     PROVIDER_SORTS,
     REASONING_EFFORTS,
+    SANDBOX_USE_CASES,
     TASK_CODES,
 )
 
@@ -226,3 +227,44 @@ class AiTaskAssignment(Base):
         ForeignKey("users.id_users", name="fk_ai_task_assignments_id_users_changed_by_users")
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AiSandboxRun(Base):
+    """Historique d'une exécution du Bac à sable IA."""
+
+    __tablename__ = "ai_sandbox_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "use_case IN ('" + "', '".join(SANDBOX_USE_CASES) + "')",
+            name="use_case",
+        ),
+        Index("ix_ai_sandbox_runs_created_at", text("created_at DESC")),
+        {
+            "comment": (
+                "Historique des runs de comparaison multi-modeles executes dans le "
+                "Bac a sable IA (/bac-a-sable-ia)."
+            )
+        },
+    )
+
+    id_ai_sandbox_runs: Mapped[int] = mapped_column(Integer, primary_key=True)
+    use_case: Mapped[str] = mapped_column(String(40))
+    system_prompt: Mapped[str] = mapped_column(Text)
+    user_prompt: Mapped[str] = mapped_column(Text)
+    tone: Mapped[str | None] = mapped_column(String(160))
+    json_output_enabled: Mapped[bool] = mapped_column(Boolean, server_default=func.false())
+    json_output_schema: Mapped[str | None] = mapped_column(Text)
+    knowledge_context: Mapped[str | None] = mapped_column(Text)
+    image_mode: Mapped[str | None] = mapped_column(String(20))
+    image_aspect_ratio: Mapped[str | None] = mapped_column(String(20))
+    key_source: Mapped[str] = mapped_column(String(20))
+    key_masked: Mapped[str] = mapped_column(String(40))
+    total_batch_cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 7), server_default=text("0")
+    )
+    variants_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    results_json: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    id_users_created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id_users", name="fk_ai_sandbox_runs_id_users_created_by_users")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
