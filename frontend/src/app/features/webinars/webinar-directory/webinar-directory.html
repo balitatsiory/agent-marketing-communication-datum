@@ -1,0 +1,392 @@
+<app-topbar [trail]="['Événements', 'Webinaires']">
+  @if (canManageAccounts()) {
+    <a class="btn" routerLink="/webinaires/comptes-zoom">
+      <app-icon name="gear" size="sm" />
+      Comptes Zoom
+    </a>
+  }
+  @if (canManage()) {
+    <button class="btn" type="button" (click)="isImportOpen.set(true)">
+      <app-icon name="download" size="sm" />
+      Importer
+    </button>
+    <a class="btn btn-primary" routerLink="/webinaires/nouveau">
+      <app-icon name="plus" size="sm" />
+      Nouveau webinaire
+    </a>
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Webinaires</h1>
+      <p class="sub">
+        @if (stats(); as chiffres) {
+          {{ chiffres.scheduled }} à venir · {{ chiffres.past }} passés ·
+          {{ chiffres.registrations | number: '1.0-0' : 'fr' }}
+          {{ chiffres.registrations > 1 ? 'inscrits enregistrés' : 'inscrit enregistré' }}
+        } @else {
+          Chargement…
+        }
+      </p>
+    </div>
+
+    <div class="head-tools">
+      <label class="sr-only" for="wd-account">Compte Zoom</label>
+      <select
+        class="select account"
+        id="wd-account"
+        (change)="chooseAccount($any($event.target).value)"
+      >
+        <option value="all" [selected]="account() === 'all'">Tous les comptes (cumulé)</option>
+        @for (compte of accounts(); track compte.id_zoom_accounts) {
+          <option
+            [value]="compte.id_zoom_accounts"
+            [selected]="account() === compte.id_zoom_accounts"
+          >
+            {{ compte.label }} — {{ compte.host_email }}
+          </option>
+        }
+        <option value="none" [selected]="account() === 'none'">Sans compte Zoom</option>
+      </select>
+
+      @if (canManage()) {
+        <button class="btn" type="button" [disabled]="syncing() || !accounts().length" (click)="syncZoom()">
+          @if (syncing()) {
+            <span class="spinner" aria-hidden="true"></span>
+          } @else {
+            <app-icon name="history" size="sm" />
+          }
+          Synchroniser Zoom
+        </button>
+        <button class="btn" type="button" [disabled]="!accounts().length" (click)="isNumberOpen.set(true)">
+          Ajouter par n°
+        </button>
+      }
+      <button class="btn" type="button" [disabled]="!stats()" (click)="isStatsOpen.set(true)">
+        <app-icon name="chart" size="sm" />
+        Statistiques
+      </button>
+    </div>
+  </div>
+
+  @for (message of messages(); track message.text) {
+    <p class="notice" [class.is-error]="!message.ok" role="status">
+      <app-icon [name]="message.ok ? 'check' : 'warn'" size="sm" />{{ message.text }}
+    </p>
+  }
+  @if (error(); as texte) {
+    <p class="notice is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+  }
+
+  <!-- ---------- chiffres, qui servent aussi de filtre ---------- -->
+  <div class="tiles" role="group" aria-label="Filtrer par état">
+    @for (tile of tiles(); track tile.label; let index = $index) {
+      <button
+        class="tile"
+        type="button"
+        [class.is-on]="status() === tile.status"
+        [attr.aria-pressed]="status() === tile.status"
+        [style.animation-delay.ms]="index * 50"
+        (click)="chooseStatus(tile.status)"
+      >
+        <span class="label">{{ tile.label }}</span>
+        <span class="v"><app-count-up [value]="tile.value" /></span>
+      </button>
+    }
+  </div>
+
+  @if (stats()?.next_webinar; as prochain) {
+    <button class="next" type="button" (click)="open(prochain.id_webinars)">
+      <app-icon name="clock" size="sm" />
+      <span class="label">Prochain</span>
+      <b>{{ prochain.title }}</b>
+      <span class="cap">{{ longSchedule(prochain) }}</span>
+      <app-icon name="arrowRight" size="sm" />
+    </button>
+  }
+
+  <!-- ---------- barre d'outils ---------- -->
+  <div class="toolbar">
+    <label class="searchbox">
+      <app-icon name="search" size="sm" />
+      <span class="sr-only">Rechercher un titre</span>
+      <input
+        type="search"
+        placeholder="Rechercher un titre"
+        maxlength="200"
+        [value]="search()"
+        (input)="typeSearch($any($event.target).value)"
+      />
+    </label>
+
+    <label class="sr-only" for="wd-type">Type d’événement</label>
+    <select class="select compact" id="wd-type" (change)="chooseType($any($event.target).value)">
+      <option value="" [selected]="type() === ''">Tous les types</option>
+      @for (option of reference()?.types ?? []; track option.code) {
+        <option [value]="option.code" [selected]="type() === option.code">{{ option.label }}</option>
+      }
+    </select>
+
+    <label class="sr-only" for="wd-category">Catégorie</label>
+    <select class="select compact" id="wd-category" (change)="chooseCategory($any($event.target).value)">
+      <option value="" [selected]="category() === ''">Toutes les catégories</option>
+      @for (option of reference()?.categories ?? []; track option.code) {
+        <option [value]="option.code" [selected]="category() === option.code">{{ option.label }}</option>
+      }
+    </select>
+
+    <label class="sr-only" for="wd-sort">Trier par</label>
+    <select class="select compact" id="wd-sort" (change)="chooseSort($any($event.target).value)">
+      <option value="date" [selected]="sort() === 'date'">Trier : date</option>
+      <option value="title" [selected]="sort() === 'title'">Trier : titre</option>
+      <option value="registrations" [selected]="sort() === 'registrations'">Trier : inscrits</option>
+      <option value="created" [selected]="sort() === 'created'">Trier : ajout</option>
+    </select>
+    <button
+      class="btn btn-icon"
+      type="button"
+      (click)="toggleDirection()"
+      [attr.aria-label]="direction() === 'asc' ? 'Ordre croissant' : 'Ordre décroissant'"
+      [title]="direction() === 'asc' ? 'Ordre croissant' : 'Ordre décroissant'"
+    >
+      <span class="arrow" [class.is-up]="direction() === 'asc'" aria-hidden="true">↓</span>
+    </button>
+
+    <div class="segmented" role="group" aria-label="Type de vue">
+      <button type="button" [class.is-on]="view() === 'list'" [attr.aria-pressed]="view() === 'list'" (click)="view.set('list')">
+        <app-icon name="columns" size="sm" />
+        Liste
+      </button>
+      <button type="button" [class.is-on]="view() === 'grid'" [attr.aria-pressed]="view() === 'grid'" (click)="view.set('grid')">
+        <app-icon name="grid" size="sm" />
+        Grille
+      </button>
+    </div>
+
+    @if (hasFilters()) {
+      <button class="btn btn-sm btn-ghost" type="button" (click)="resetFilters()">
+        <app-icon name="close" size="sm" />
+        Effacer les filtres
+      </button>
+    }
+  </div>
+
+  <!-- ---------- résultats ---------- -->
+  @if (loading() && !items().length) {
+    <div class="list" aria-busy="true" aria-label="Chargement">
+      @for (ligne of [1, 2, 3, 4]; track ligne) {
+        <div class="skeleton"></div>
+      }
+    </div>
+  } @else if (!items().length) {
+    <div class="empty">
+      <h2>Aucun webinaire</h2>
+      @if (hasFilters() || account() !== 'all') {
+        <p>Aucune fiche ne correspond à ces filtres.</p>
+      } @else {
+        <p>Importez les webinaires du site, synchronisez un compte Zoom ou créez le premier.</p>
+        @if (canManage()) {
+          <button class="btn" type="button" (click)="isImportOpen.set(true)">Importer les fichiers du site</button>
+        }
+      }
+    </div>
+  } @else if (view() === 'list') {
+    <div class="list" [class.is-loading]="loading()">
+      @for (webinar of items(); track webinar.id_webinars; let index = $index) {
+        <article
+          class="web"
+          [class.is-draft]="webinar.status_code === 'draft'"
+          [class.is-past]="webinar.status_code === 'past'"
+          [style.animation-delay.ms]="index * 35"
+          tabindex="0"
+          (click)="open(webinar.id_webinars)"
+          (keydown.enter)="open(webinar.id_webinars)"
+        >
+          <div class="wdate">
+            @if (dateBlock(webinar); as bloc) {
+              <span class="m">{{ bloc.month }}</span>
+              <span class="d">{{ bloc.day }}</span>
+              <span class="w">{{ bloc.sub }}</span>
+            } @else {
+              <span class="m">DATE</span>
+              <span class="d none">—</span>
+            }
+          </div>
+
+          <div class="wmain">
+            <h3>{{ webinar.title }}</h3>
+            <span class="by">
+              {{ webinar.zoom_account_label ?? webinar.type_label }}
+              @for (categorie of webinar.categories; track categorie.code) {
+                · {{ categorie.label }}
+              }
+            </span>
+            <div class="wflags">
+              <span class="status" [class]="statusModifier(webinar.status_code)">{{ webinar.status_label }}</span>
+              @if (!webinar.is_date_confirmed) {
+                <span class="status status-failed">Date à confirmer</span>
+              }
+              @if (webinar.replay_url) {
+                <span class="status status-review">Rediffusion</span>
+              }
+            </div>
+          </div>
+
+          <div class="wstats">
+            <div class="wstat">
+              <span class="label">Horaire</span>
+              <span class="v" [class.none]="timeLabel(webinar) === '—'">{{ timeLabel(webinar) }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Durée</span>
+              <span class="v" [class.none]="!webinar.duration_minutes">{{ durationLabel(webinar.duration_minutes) }}</span>
+            </div>
+            <div class="wstat">
+              <span class="label">Inscrits</span>
+              <span class="v" [class.none]="webinar.registration_count === null">{{ webinar.registration_count ?? '—' }}</span>
+            </div>
+          </div>
+
+          <button class="btn" type="button" (click)="open(webinar.id_webinars); $event.stopPropagation()">
+            Voir le détail
+          </button>
+        </article>
+      }
+    </div>
+  } @else {
+    <div class="grid" [class.is-loading]="loading()">
+      @for (webinar of items(); track webinar.id_webinars; let index = $index) {
+        <article
+          class="card-web"
+          [class.is-draft]="webinar.status_code === 'draft'"
+          [style.animation-delay.ms]="index * 35"
+          tabindex="0"
+          (click)="open(webinar.id_webinars)"
+          (keydown.enter)="open(webinar.id_webinars)"
+        >
+          <div class="cover">
+            @if (webinar.flyer_url) {
+              <img [src]="webinar.flyer_url" alt="" loading="lazy" referrerpolicy="no-referrer" />
+            } @else {
+              <span class="cover-missing">sans visuel</span>
+            }
+            <span class="status badge" [class]="statusModifier(webinar.status_code)">{{ webinar.status_label }}</span>
+          </div>
+          <div class="body">
+            <span class="when">{{ longSchedule(webinar) }}</span>
+            <h3>{{ webinar.title }}</h3>
+            <span class="by">{{ webinar.zoom_account_label ?? webinar.type_label }}</span>
+            <div class="foot">
+              <span>{{ webinar.registration_count === null ? 'Inscrits inconnus' : webinar.registration_count + ' inscrit(s)' }}</span>
+              <span>{{ durationLabel(webinar.duration_minutes) }}</span>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  <!-- ---------- pagination ---------- -->
+  @if (total() > 0) {
+    <nav class="pager" aria-label="Pagination">
+      <span class="cap">{{ range() }}</span>
+      <div class="pages">
+        <button class="btn btn-sm" type="button" [disabled]="page() <= 1" (click)="page.set(page() - 1)">Précédent</button>
+        @for (numero of pageNumbers(); track $index) {
+          @if (numero === null) {
+            <span class="cap" aria-hidden="true">…</span>
+          } @else {
+            <button
+              class="btn btn-sm"
+              type="button"
+              [class.btn-primary]="numero === page()"
+              [attr.aria-current]="numero === page() ? 'page' : null"
+              (click)="page.set(numero)"
+            >
+              {{ numero }}
+            </button>
+          }
+        }
+        <button class="btn btn-sm" type="button" [disabled]="page() >= pages()" (click)="page.set(page() + 1)">Suivant</button>
+      </div>
+      <label class="cap per-page">
+        Par page
+        <select class="select compact" (change)="chooseSize($any($event.target).value)">
+          @for (taille of pageSizes; track taille) {
+            <option [value]="taille" [selected]="size() === taille">{{ taille }}</option>
+          }
+        </select>
+      </label>
+    </nav>
+  }
+</div>
+
+@if (openedId(); as id) {
+  <app-webinar-detail [id]="id" (closed)="closeDetail()" (changed)="reload()" />
+}
+
+@if (isStatsOpen() && stats()) {
+  <app-webinar-stats [stats]="stats()!" (closed)="isStatsOpen.set(false)" (opened)="openFromStats($event)" />
+}
+
+@if (isImportOpen()) {
+  <app-webinar-import (closed)="isImportOpen.set(false)" (changed)="reload()" />
+}
+
+@if (isNumberOpen()) {
+  <div class="modal-back" (click)="isNumberOpen.set(false)">
+    <form
+      class="modal small"
+      appDialog
+      (dialogClosed)="isNumberOpen.set(false)"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ajouter une réunion Zoom par son numéro"
+      (click)="$event.stopPropagation()"
+      (submit)="$event.preventDefault(); importByNumber()"
+    >
+      <div class="modal-head">
+        <h2>Ajouter une réunion par son numéro</h2>
+        <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="isNumberOpen.set(false)">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body form-body">
+        <div class="field">
+          <label for="num-account">Compte Zoom</label>
+          <select class="select" id="num-account" (change)="meetingAccount.set(+$any($event.target).value)">
+            @for (compte of accounts(); track compte.id_zoom_accounts) {
+              <option [value]="compte.id_zoom_accounts" [selected]="meetingAccount() === compte.id_zoom_accounts">
+                {{ compte.label }}
+              </option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="num-id">Numéro de réunion</label>
+          <input
+            class="input num"
+            id="num-id"
+            data-autofocus
+            inputmode="numeric"
+            placeholder="850 5822 5147"
+            maxlength="20"
+            [value]="meetingNumber()"
+            (input)="meetingNumber.set($any($event.target).value)"
+          />
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="isNumberOpen.set(false)">Annuler</button>
+        <button class="btn btn-primary" type="submit" [disabled]="importing() || !meetingNumber().trim()">
+          @if (importing()) {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          Lire sur Zoom
+        </button>
+      </div>
+    </form>
+  </div>
+}

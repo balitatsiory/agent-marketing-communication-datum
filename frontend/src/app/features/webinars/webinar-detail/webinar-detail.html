@@ -1,0 +1,458 @@
+<div class="modal-back" (click)="closed.emit()">
+  <div
+    class="modal webinar-detail"
+    appDialog
+    (dialogClosed)="closed.emit()"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="webinar()?.title ?? 'Webinaire'"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="modal-head">
+      <div class="wd-head-t">
+        <div class="wd-kicker">
+          <span class="label">{{ webinar()?.type_label ?? 'Webinaire' }}</span>
+          @if (webinar(); as fiche) {
+            <span class="status" [class]="statusModifier(fiche.status_code)">{{ fiche.status_label }}</span>
+            @if (!fiche.is_date_confirmed) {
+              <span class="status status-failed">Date à confirmer</span>
+            }
+          }
+        </div>
+        <h2 tabindex="-1" data-autofocus>{{ webinar()?.title ?? 'Chargement…' }}</h2>
+        @if (webinar(); as fiche) {
+          <p class="wd-sub">
+            {{ longSchedule(fiche) }}
+            @if (fiche.zoom_account_label) {
+              · {{ fiche.zoom_account_label }}
+            }
+          </p>
+        }
+      </div>
+      <button class="btn btn-icon btn-ghost" type="button" (click)="closed.emit()" aria-label="Fermer">
+        <app-icon name="close" size="sm" />
+      </button>
+    </div>
+
+    @if (webinar()) {
+      <div class="wd-tabs" role="tablist" aria-label="Sections du webinaire">
+        <button class="wd-tab" type="button" role="tab" [attr.aria-selected]="tab() === 'detail'" [class.is-on]="tab() === 'detail'" (click)="setTab('detail')">
+          <app-icon name="chart" size="sm" />
+          Détail
+        </button>
+        @if (canManage()) {
+          <button class="wd-tab" type="button" role="tab" [attr.aria-selected]="tab() === 'registrations'" [class.is-on]="tab() === 'registrations'" (click)="setTab('registrations')">
+            <app-icon name="users" size="sm" />
+            Inscrits
+            @if (webinar()!.registration_count) {
+              <span class="n">{{ webinar()!.registration_count }}</span>
+            }
+          </button>
+        }
+        <button class="wd-tab" type="button" role="tab" [attr.aria-selected]="tab() === 'publications'" [class.is-on]="tab() === 'publications'" (click)="setTab('publications')">
+          <app-icon name="megaphone" size="sm" />
+          Publications
+          @if (webinar()!.publication_links.length) {
+            <span class="n">{{ webinar()!.publication_links.length }}</span>
+          }
+        </button>
+      </div>
+    }
+
+    <div class="modal-body">
+      @if (error(); as texte) {
+        <p class="message is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+      }
+      @if (notice(); as texte) {
+        <p class="message" role="status"><app-icon name="check" size="sm" />{{ texte }}</p>
+      }
+
+      @if (!webinar()) {
+        @if (!error()) {
+          <div class="loading"><span class="spinner" aria-hidden="true"></span> Lecture de la fiche…</div>
+        }
+      } @else {
+        @let fiche = webinar()!;
+
+        <!-- ================= détail ================= -->
+        @if (tab() === 'detail') {
+          <div class="tab-anim">
+            <div class="wd-stats">
+              <div class="wd-stat">
+                <span class="label">Date</span>
+                @if (dateBlock(fiche); as bloc) {
+                  <span class="v">{{ bloc.day }} {{ bloc.month.toLowerCase() }}</span>
+                  <span class="d">{{ bloc.sub }}</span>
+                } @else {
+                  <span class="v">—</span>
+                  <span class="d">à définir</span>
+                }
+              </div>
+              <div class="wd-stat">
+                <span class="label">Durée</span>
+                <span class="v">{{ durationLabel(fiche.duration_minutes) }}</span>
+                <span class="d">{{ fiche.timezone ?? 'fuseau non précisé' }}</span>
+              </div>
+              <div class="wd-stat">
+                <span class="label">Inscrits</span>
+                <span class="v">{{ fiche.registration_count ?? '—' }}</span>
+                <span class="d">{{ fiche.registration_count === null ? 'inconnus (site)' : fiche.consented_count + ' avec accord newsletter' }}</span>
+              </div>
+              <div class="wd-stat">
+                <span class="label">État</span>
+                <span class="v">{{ fiche.status_label }}</span>
+                <span class="d">{{ fiche.replay_url ? 'rediffusion disponible' : 'sans rediffusion' }}</span>
+              </div>
+            </div>
+
+            <div class="wd-body">
+              <div>
+                @if (fiche.flyer_url) {
+                  <img class="wd-visual" [src]="fiche.flyer_url" [alt]="'Visuel : ' + fiche.title" referrerpolicy="no-referrer" />
+                } @else {
+                  <div class="wd-visual wd-visual-missing">aucun visuel</div>
+                }
+
+                <div class="block">
+                  <div class="block-head">
+                    <span class="label">Description</span>
+                    @if (hasEnglish()) {
+                      <div class="segmented">
+                        <button type="button" [class.is-on]="language() === 'fr'" (click)="language.set('fr')">FR</button>
+                        <button type="button" [class.is-on]="language() === 'en'" (click)="language.set('en')">EN</button>
+                      </div>
+                    }
+                  </div>
+                  @if (description(); as texte) {
+                    <p class="wd-desc">{{ texte }}</p>
+                  } @else {
+                    <p class="cap">Aucune description.</p>
+                  }
+                  <div class="chips">
+                    @for (categorie of fiche.categories; track categorie.code) {
+                      <span class="chip is-static">{{ categorie.label }}</span>
+                    }
+                  </div>
+                </div>
+
+                @if (bars().length) {
+                  <div class="block">
+                    <span class="label">Inscriptions · 30 jours</span>
+                    <div class="spark">
+                      @for (bar of bars(); track bar.day) {
+                        <span class="spark-col" [title]="(bar.day | date: 'd MMM') + ' : ' + bar.count">
+                          <span [style.height.%]="bar.share * 100"></span>
+                        </span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div>
+                @if (fiche.join_url) {
+                  <div class="block">
+                    <span class="label">Lien de la séance</span>
+                    <div class="linkrow">
+                      <a class="url" [href]="fiche.join_url" target="_blank" rel="noopener noreferrer">{{ fiche.join_url }}</a>
+                      <button class="btn btn-sm" type="button" (click)="copy(fiche.join_url)">{{ copied() === fiche.join_url ? 'Copié' : 'Copier' }}</button>
+                    </div>
+                  </div>
+                }
+
+                <div class="block">
+                  <span class="label">Inscription</span>
+                  @if (registrationLink(); as adresse) {
+                    <div class="linkrow">
+                      <a class="url" [href]="adresse" target="_blank" rel="noopener noreferrer">{{ adresse }}</a>
+                      <button class="btn btn-sm" type="button" (click)="copy(adresse)">{{ copied() === adresse ? 'Copié' : 'Copier' }}</button>
+                    </div>
+                    <p class="cap">
+                      @switch (fiche.registration_mode) {
+                        @case ('iagora_form') {
+                          Formulaire IAGORA{{ fiche.status_code === 'draft' ? ' — ouvert une fois le webinaire validé' : fiche.status_code === 'past' ? ' — inscriptions closes' : '' }}.
+                        }
+                        @case ('zoom_page') { Page d’inscription Zoom. }
+                        @default { Page existante. }
+                      }
+                    </p>
+                  } @else {
+                    <p class="cap">Aucune page d’inscription.</p>
+                  }
+                  @for (page of fiche.registration_pages; track page.id_webinar_registration_pages) {
+                    @if (page.kind === 'external') {
+                      <div class="page-row">
+                        <a class="link" [href]="page.url" target="_blank" rel="noopener noreferrer">{{ page.slug }}</a>
+                        @if (page.id_webinars === null) {
+                          <span class="cap">proposée ({{ ((page.candidate_score ?? 0) * 100).toFixed(0) }} %)</span>
+                          @if (canManage()) {
+                            <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="linkPage(page.id_webinar_registration_pages)">Rattacher</button>
+                          }
+                        } @else {
+                          <span class="cap">{{ page.is_active ? 'active' : 'inactive' }}</span>
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+
+                @if (fiche.replay_url) {
+                  <div class="block">
+                    <span class="label">Rediffusion</span>
+                    <div class="linkrow">
+                      <a class="url" [href]="fiche.replay_url" target="_blank" rel="noopener noreferrer">{{ fiche.replay_url }}</a>
+                      <button class="btn btn-sm" type="button" (click)="copy(fiche.replay_url)">{{ copied() === fiche.replay_url ? 'Copié' : 'Copier' }}</button>
+                    </div>
+                  </div>
+                }
+
+                @if (fiche.external_zoom_meeting_id) {
+                  <hr class="divider" />
+                  <div class="block">
+                    <div class="block-head">
+                      <span class="label">Réunion Zoom</span>
+                      @if (fiche.id_zoom_accounts && canManage()) {
+                        <button class="btn btn-sm btn-ghost" type="button" [disabled]="refreshing()" (click)="refreshFromZoom()">
+                          @if (refreshing()) {
+                            <span class="spinner" aria-hidden="true"></span>
+                          }
+                          Actualiser
+                        </button>
+                      }
+                    </div>
+                    @if (zoomError(); as texte) {
+                      <p class="message is-error is-inline"><app-icon name="warn" size="sm" />{{ texte }}</p>
+                    }
+                    <dl class="facts">
+                      <dt>Numéro</dt><dd class="num">{{ fiche.external_zoom_meeting_id }}</dd>
+                      @if (fiche.zoom_meeting?.host_email) {
+                        <dt>Hôte</dt><dd>{{ fiche.zoom_meeting?.host_email }}</dd>
+                      }
+                      @if (zoomType()) {
+                        <dt>Type</dt><dd>{{ zoomType() }}</dd>
+                      }
+                      @if (fiche.zoom_meeting?.status) {
+                        <dt>Statut Zoom</dt><dd>{{ fiche.zoom_meeting?.status }}</dd>
+                      }
+                      @for (reglage of zoomSettings(); track reglage.label) {
+                        <dt>{{ reglage.label }}</dt><dd>{{ reglage.value }}</dd>
+                      }
+                      @if (fiche.zoom_synced_at) {
+                        <dt>Lue le</dt><dd>{{ fiche.zoom_synced_at | date: 'd MMM y, HH:mm' }}</dd>
+                      }
+                    </dl>
+                  </div>
+                }
+
+                @if (!fiche.is_date_confirmed || anomalies().length) {
+                  <hr class="divider" />
+                  <div class="block">
+                    <span class="label">Reprise du site</span>
+                    @if (!fiche.is_date_confirmed) {
+                      <p class="cap">Date déduite : {{ dateHint() }}</p>
+                      @if (canManage()) {
+                        <button class="btn btn-sm self-start" type="button" [disabled]="busy()" (click)="confirmDate()">
+                          <app-icon name="check" size="sm" />
+                          Confirmer la date
+                        </button>
+                      }
+                    }
+                    <div class="chips">
+                      @for (anomalie of anomalies(); track anomalie) {
+                        <span class="chip is-static">{{ anomalie }}</span>
+                      }
+                    </div>
+                    @if (fiche.flyer_error) {
+                      <p class="cap">Flyer : {{ fiche.flyer_error }}</p>
+                    }
+                  </div>
+                }
+
+                @if (fiche.source_url) {
+                  <a class="link self-start" [href]="fiche.source_url" target="_blank" rel="noopener noreferrer">Voir la fiche sur le site</a>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- ================= inscrits ================= -->
+        @if (tab() === 'registrations') {
+          <div class="tab-anim pane">
+            <div class="pane-actions">
+              @if (fiche.external_zoom_meeting_id) {
+                <button class="btn" type="button" [disabled]="busy()" (click)="syncRegistrants()">
+                  <app-icon name="history" size="sm" />
+                  Reprendre les inscrits de Zoom
+                </button>
+              }
+              <a class="btn" [routerLink]="['/newsletter/envois']" [queryParams]="{ webinaire: fiche.id_webinars }">
+                <app-icon name="send" size="sm" />
+                Préparer une newsletter ({{ fiche.consented_count }})
+              </a>
+            </div>
+
+            <form class="add-form" (submit)="$event.preventDefault(); addRegistration()">
+              <input class="input" type="email" required placeholder="Adresse e-mail" aria-label="Adresse e-mail" maxlength="255" [value]="newRegistration().email" (input)="typeRegistration('email', $any($event.target).value)" />
+              <input class="input" required placeholder="Prénom" aria-label="Prénom" maxlength="120" [value]="newRegistration().first_name" (input)="typeRegistration('first_name', $any($event.target).value)" />
+              <input class="input" required placeholder="Nom de famille" aria-label="Nom de famille" maxlength="120" [value]="newRegistration().last_name" (input)="typeRegistration('last_name', $any($event.target).value)" />
+              <label class="check">
+                <input type="checkbox" [checked]="newRegistration().has_newsletter_consent" (change)="setNewConsent($any($event.target).checked)" />
+                Accepte les newsletters
+              </label>
+              <button class="btn btn-primary" type="submit" [disabled]="busy() || !newRegistration().email || !newRegistration().first_name.trim() || !newRegistration().last_name.trim()">
+                Inscrire
+              </button>
+            </form>
+
+            @if (!registrations().length) {
+              <p class="cap">Aucun inscrit enregistré dans IAGORA.</p>
+            } @else {
+              <div class="tbl-wrap">
+                <table class="tbl">
+                  <thead>
+                    <tr><th>Personne</th><th>Origine</th><th>Newsletter</th><th>Zoom</th><th><span class="sr-only">Actions</span></th></tr>
+                  </thead>
+                  <tbody>
+                    @for (inscription of registrations(); track inscription.id_webinar_registrations) {
+                      <tr>
+                        <td>
+                          @if (inscription.anonymized_at) {
+                            <span class="cap">Données effacées</span>
+                          } @else {
+                            <b>{{ inscription.first_name }} {{ inscription.last_name }}</b>
+                            <span class="cap block-line">{{ inscription.email }}</span>
+                          }
+                        </td>
+                        <td class="cap">
+                          {{ inscription.source === 'iagora_form' ? 'Formulaire' : inscription.source === 'zoom_sync' ? 'Zoom' : 'Équipe' }}
+                          <span class="block-line">{{ inscription.registered_at | date: 'd MMM y' }}</span>
+                        </td>
+                        <td>
+                          @if (!inscription.anonymized_at) {
+                            <label class="check">
+                              <input type="checkbox" [checked]="inscription.has_newsletter_consent" [disabled]="busy()" (change)="toggleConsent(inscription)" />
+                              {{ inscription.has_newsletter_consent ? 'oui' : 'non' }}
+                            </label>
+                          }
+                        </td>
+                        <td class="cap">
+                          @if (inscription.zoom_error) {
+                            <span class="err">{{ inscription.zoom_error }}</span>
+                            <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="retryZoom(inscription)">Retenter</button>
+                          } @else {
+                            {{ inscription.zoom_status ?? '—' }}
+                          }
+                        </td>
+                        <td class="actions-cell">
+                          @if (!inscription.anonymized_at) {
+                            @if (erasing() === inscription.id_webinar_registrations) {
+                              <button class="btn btn-sm btn-danger" type="button" [disabled]="busy()" (click)="erase(inscription)">Effacer définitivement</button>
+                              <button class="btn btn-sm" type="button" (click)="erasing.set(null)">Garder</button>
+                            } @else {
+                              <button class="btn btn-sm btn-ghost" type="button" (click)="erasing.set(inscription.id_webinar_registrations)">Effacer</button>
+                            }
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              @if (registrationPages() > 1) {
+                <div class="pane-actions">
+                  <button class="btn btn-sm" type="button" [disabled]="registrationPage() <= 1" (click)="loadRegistrations(registrationPage() - 1)">Précédent</button>
+                  <span class="cap">Page {{ registrationPage() }} / {{ registrationPages() }} · {{ registrationTotal() }} inscrits</span>
+                  <button class="btn btn-sm" type="button" [disabled]="registrationPage() >= registrationPages()" (click)="loadRegistrations(registrationPage() + 1)">Suivant</button>
+                </div>
+              }
+            }
+          </div>
+        }
+
+        <!-- ================= publications ================= -->
+        @if (tab() === 'publications') {
+          <div class="tab-anim pane">
+            @if (!fiche.publication_links.length) {
+              <p class="cap">Aucune publication liée à ce webinaire.</p>
+            }
+            @for (lien of fiche.publication_links; track lien.id_webinar_publication_links) {
+              <div class="publication">
+                <span class="status status-review">{{ lien.type_label }}</span>
+                <span class="who">
+                  <a class="link" [href]="lien.url" target="_blank" rel="noopener noreferrer">{{ lien.label || lien.url }}</a>
+                  <span class="cap">{{ lien.platform_label ?? 'réseau non précisé' }} · ajouté le {{ lien.created_at | date: 'd MMM y' }}</span>
+                </span>
+                @if (canManage()) {
+                  <button class="btn btn-sm btn-ghost" type="button" [disabled]="busy()" (click)="removeLink(lien.id_webinar_publication_links)">Retirer</button>
+                }
+              </div>
+            }
+
+            @if (canManage()) {
+              <hr class="divider" />
+              <form class="add-form" (submit)="$event.preventDefault(); addLink()">
+                <select class="select" aria-label="Rôle de la publication" (change)="typeLink('type_code', $any($event.target).value)">
+                  @for (type of publicationTypes(); track type.code) {
+                    <option [value]="type.code" [selected]="newLink().type_code === type.code">{{ type.label }}</option>
+                  }
+                </select>
+                <select class="select" aria-label="Réseau" (change)="typeLink('platform_code', $any($event.target).value)">
+                  <option value="" [selected]="!newLink().platform_code">Réseau (facultatif)</option>
+                  @for (reseau of reference()?.platforms ?? []; track reseau.code) {
+                    <option [value]="reseau.code" [selected]="newLink().platform_code === reseau.code">{{ reseau.label }}</option>
+                  }
+                </select>
+                <input class="input wide" type="url" required placeholder="https://… adresse de la publication" aria-label="Adresse de la publication" maxlength="1024" [value]="newLink().url" (input)="typeLink('url', $any($event.target).value)" />
+                <input class="input" placeholder="Intitulé (facultatif)" aria-label="Intitulé" maxlength="200" [value]="newLink().label" (input)="typeLink('label', $any($event.target).value)" />
+                <button class="btn btn-primary" type="submit" [disabled]="busy() || !newLink().url.trim() || !newLink().type_code">Lier</button>
+              </form>
+              @if (fiche.status_code !== 'past') {
+                <p class="cap">Compte rendu et rediffusion se lient une fois le webinaire passé.</p>
+              }
+            }
+          </div>
+        }
+      }
+    </div>
+
+    @if (webinar() && canManage()) {
+      @let fiche = webinar()!;
+      <div class="modal-foot">
+        @if (confirming() === 'archive') {
+          <span class="cap grow">Archiver cette fiche ? La réunion Zoom n’est pas supprimée.</span>
+          <button class="btn" type="button" (click)="confirming.set(null)">Annuler</button>
+          <button class="btn btn-danger" type="button" [disabled]="busy()" (click)="archive()">Archiver</button>
+        } @else if (confirming() === 'schedule') {
+          <span class="cap grow">
+            {{ fiche.link_mode === 'zoom_auto' ? 'La réunion va être créée sur le compte Zoom « ' + (fiche.zoom_account_label ?? '?') + ' ».' : 'Le webinaire passera « à venir » avec le lien fourni.' }}
+          </span>
+          <button class="btn" type="button" (click)="confirming.set(null)">Annuler</button>
+          <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="schedule()">Confirmer</button>
+        } @else {
+          <button class="btn btn-ghost grow-left" type="button" (click)="confirming.set('archive')">Archiver</button>
+          <a class="btn" [routerLink]="['/webinaires', fiche.id_webinars, 'modifier']">
+            <app-icon name="pencil" size="sm" />
+            Modifier
+          </a>
+          @if (fiche.status_code === 'draft') {
+            <button
+              class="btn btn-primary"
+              type="button"
+              [disabled]="busy() || (fiche.link_mode === 'zoom_auto' && !canCreateMeetings())"
+              [title]="fiche.link_mode === 'zoom_auto' && !canCreateMeetings() ? 'Droit « Créer des réunions Zoom » requis' : ''"
+              (click)="confirming.set('schedule')"
+            >
+              @if (busy()) {
+                <span class="spinner" aria-hidden="true"></span>
+              } @else {
+                <app-icon name="check" size="sm" />
+              }
+              Valider
+            </button>
+          }
+        }
+      </div>
+    }
+  </div>
+</div>

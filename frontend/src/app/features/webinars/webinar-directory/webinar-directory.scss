@@ -1,0 +1,341 @@
+/* Liste et grille des webinaires — maquette 12a, enrichie d'une vue grille. */
+
+@use '../../../../styles/design-system/type' as type;
+@use '../webinar-common' as common;
+
+@include common.screen;
+@include common.motion;
+
+.head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.select.account {
+  width: auto;
+  max-width: 320px;
+  height: 34px;
+  font-size: 13px;
+}
+.select.compact {
+  width: auto;
+  height: 34px;
+  font-size: 13px;
+}
+
+/* ---------- tuiles ---------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 13px 15px;
+  cursor: pointer;
+  animation: rise 0.3s ease both;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.tile:hover {
+  border-color: var(--border-2);
+  transform: translateY(-2px);
+}
+.tile.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.tile .v {
+  font-size: var(--t-xl);
+  font-weight: var(--w-extra);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
+}
+
+.next {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  text-align: left;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-lg);
+  padding: 10px 15px;
+  color: var(--accent-deep);
+  cursor: pointer;
+  animation: rise 0.3s ease both;
+}
+.next b {
+  font-size: 13.5px;
+}
+.next app-icon:last-child {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+.next:hover app-icon:last-child {
+  transform: translateX(4px);
+}
+
+.arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.arrow.is-up {
+  transform: rotate(180deg);
+}
+
+/* ---------- liste ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.15s ease;
+}
+.list.is-loading,
+.grid.is-loading {
+  opacity: 0.55;
+}
+
+.web {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 15px 18px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  animation: rise 0.3s ease both;
+  transition:
+    border-color 0.12s ease,
+    transform 0.15s ease;
+}
+.web:hover {
+  border-color: var(--accent-line);
+  transform: translateX(2px);
+}
+.web.is-draft {
+  border-style: dashed;
+}
+.web.is-past {
+  background: transparent;
+}
+
+.wdate {
+  width: 62px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  padding-right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.wdate .m,
+.wdate .w {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.wdate .d {
+  font-family: var(--f-display);
+  font-size: 30px;
+  line-height: 1;
+}
+.wdate .d.none {
+  color: var(--border-2);
+}
+
+.wmain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wmain h3 {
+  @include type.card-title;
+  line-height: 1.3;
+}
+.by {
+  font-size: 11px;
+  color: var(--muted);
+}
+.wflags {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.wstats {
+  flex: none;
+  display: flex;
+  gap: 26px;
+}
+.wstat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 64px;
+}
+.wstat .v {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.wstat .v.none {
+  color: var(--border-2);
+}
+
+/* ---------- grille ---------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+  transition: opacity 0.15s ease;
+}
+.card-web {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  animation: rise 0.35s ease both;
+  transition:
+    border-color 0.15s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.card-web:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-pop);
+}
+.card-web.is-draft {
+  border-style: dashed;
+}
+.cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 9px, var(--ground) 9px 18px);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+.card-web:hover .cover img {
+  transform: scale(1.05);
+}
+.cover-missing {
+  font-size: 11px;
+  color: var(--muted);
+}
+.cover .badge {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+}
+.card-web .body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 14px 13px;
+}
+.card-web .when {
+  font-size: 11px;
+  color: var(--accent);
+}
+.card-web h3 {
+  font-size: 14px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-web .foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton {
+  height: 92px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+/* ---------- pagination ---------- */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pages {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.per-page {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal.small {
+  max-width: 460px;
+}
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+@media (max-width: 1040px) {
+  .web {
+    flex-wrap: wrap;
+  }
+  .wstats {
+    gap: 18px;
+  }
+}
+
+@media (max-width: 700px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

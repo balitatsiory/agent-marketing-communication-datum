@@ -26,6 +26,8 @@ from app.modules.newsletter import models as newsletter_models  # noqa: F401
 from app.modules.platforms import models as platforms_models  # noqa: F401
 from app.modules.social_accounts import models as social_accounts_models  # noqa: F401
 from app.modules.users import models as users_models  # noqa: F401
+from app.modules.webinars import models as webinars_models  # noqa: F401
+from app.modules.zoom_accounts import models as zoom_accounts_models  # noqa: F401
 
 config = context.config
 

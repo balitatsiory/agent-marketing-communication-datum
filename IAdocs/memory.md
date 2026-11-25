@@ -78,6 +78,20 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 25/11 | Un envoi part **message par message**, jamais en copie cachée | le prénom de chacun, et les adresses des inscrits ne se montrent pas les unes aux autres |
 | 25/11 | Les **cumuls d'un envoi sont déduits** du détail par destinataire | un total qui ne correspond pas au détail est invérifiable |
 | 25/11 | La maquette de la boîte d'envois garde son URL en **`/newsletter/envois_prototype`** | demandée pour une démonstration ; la page branchée prend l'URL d'origine |
+| 26/11 | Zoom par application **Server-to-Server OAuth** ; un compte = Account ID, Client ID, Client Secret (chiffré, `zoom_account_credentials`) et l'**adresse de l'hôte** | le droit de lister les utilisateurs n'est pas accordé ; ce type d'application n'a pas de « refresh token » : on redemande un jeton d'une heure |
+| 26/11 | Trois droits : `manage_zoom_accounts`, `manage_webinars`, `create_zoom_meetings` | créer une réunion agit sur le compte Zoom de l'école et peut envoyer des courriels |
+| 26/11 | Une réunion créée n'est **pas modifiable** depuis IAGORA (titre, date, durée, lien) | ni `meeting:update` ni `meeting:delete` ne sont accordés ; archiver une fiche ne touche pas Zoom |
+| 26/11 | Publications liées par **adresse** (`webinar_publication_links`), sans clé vers `publications` | le module 08 n'est pas sur `main` (branche `feat/module-08-publications`) ; à remplacer quand il sera intégré |
+| 26/11 | L'inscription peut se faire dans IAGORA (**formulaire public** `/inscription/:slug` : e-mail, prénom, nom), sur une page existante ou sur la page Zoom | revient sur l'hypothèse « inscriptions sur le site seulement » ; IAGORA doit être accessible publiquement pour que le formulaire serve |
+| 26/11 | Newsletters : **seuls les inscrits ayant consenti** sont repris ; la case n'est jamais cochée d'avance | CDC S-05 ; s'inscrire sur la page Zoom ne vaut pas accord |
+| 26/11 | Import du site : dates déduites enregistrées **« à confirmer »**, flyers rapatriés vers R2 sous `webinaires/{slug}/flyer-origine-{sha12}.{ext}` avec un slug normalisé | aucune date sûre dans les fichiers ; un « %C3%A9 » dans une clé rendrait l'image introuvable |
+| 26/11 | Les maquettes 12a et 12b restent sous `/webinaires_prototype` | même règle que la boîte d'envois |
+| 26/11 | La migration `0011` **réunit les deux lignées** parties de la `0008` (`0010` et `0010_ai_prompts`) | `main` avait deux têtes : `alembic upgrade head` échouait ; un test refuse désormais d'en avoir deux |
+| 26/11 | Une adresse effacée est reconnue par une **empreinte à clé** (`erased_email_fingerprint`), jamais conservée | la reprise des inscrits depuis Zoom la recréait |
+| 26/11 | Une fiche réservée pendant un appel à Zoom l'est en **`FOR NO KEY UPDATE`** | `FOR UPDATE` bloquait toute nouvelle inscription pendant l'appel |
+| 26/11 | Avant de créer une réunion, IAGORA **reprend une réunion identique** (titre et heure) rattachée à aucune fiche | une réponse de Zoom perdue puis un nouvel essai créaient un doublon |
+| 26/11 | Le formulaire public répond **toujours le même message**, sans promettre de courriel | Zoom peut refuser l'inscription après coup |
+| 26/11 | Un webinaire **déjà validé ne passe plus** d'un lien fourni à « Zoom » | la réunion ne se crée qu'à la validation d'un brouillon |
 
 ## 5. Faits vérifiés
 
@@ -105,6 +119,16 @@ abonnés, donc Meta ne renvoie ni `page_views_total`, ni `page_impressions`, ni 
 sur un compte ayant de l'audience, après avoir vérifié `read_insights`.
 
 **Noms des bases** — la décision du 25/09 note `stage_iagora` et `stage_iagora_test`, mais `backend/.env` utilise **`iagora`** et **`iagora_test`** (PostgreSQL sur le port **5433**). C'est le fichier `.env` qui fait foi : vérifié le 25/11/2026.
+
+**Zoom (26/11/2026)** — le code est testé contre un **Zoom simulé** (`backend/tests/faux_zoom.py`) : aucun
+appel au vrai Zoom n'a encore été fait. À confirmer avec le compte réel : la liste des réunions
+(`scheduled`, `previous_meetings`) et l'ajout d'inscrit, que Zoom réserve aux hôtes sous licence payante.
+
+**Migrations sur une base vide (26/11/2026)** — `alembic upgrade head` échoue à la révision **0004**
+(`cannot insert multiple commands into a prepared statement`) : une base neuve ne se monte pas.
+
+**Formulaire public** — aucune limite de débit : à ajouter **avant** de l'exposer sur Internet, chaque
+inscription pouvant déclencher un appel à Zoom et un courriel.
 
 ## 6. Environnement de travail
 

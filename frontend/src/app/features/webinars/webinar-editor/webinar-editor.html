@@ -1,0 +1,322 @@
+<app-topbar [trail]="trail()">
+  <a class="btn btn-ghost" routerLink="/webinaires">Annuler</a>
+  @if (canManage()) {
+    <button class="btn" type="button" [disabled]="!canSave() || loading()" (click)="save()">
+      <app-icon name="files" size="sm" />
+      {{ isDraft() ? 'Enregistrer le brouillon' : 'Enregistrer' }}
+    </button>
+    @if (isDraft()) {
+      <button
+        class="btn btn-primary"
+        type="button"
+        [disabled]="!!missing().length || needsZoomRight() || busy() || loading()"
+        (click)="isSummaryOpen.set(true)"
+      >
+        <app-icon name="check" size="sm" />
+        Valider
+      </button>
+    }
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>{{ isEditing() ? 'Modifier le webinaire' : 'Nouveau webinaire' }}</h1>
+      <p class="sub">
+        Un brouillon ne demande que le titre. Pour valider : titre, catégorie, date, heure et lien de
+        visioconférence.
+      </p>
+    </div>
+  </div>
+
+  @if (error(); as texte) {
+    <p class="notice is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+  }
+  @if (!canManage()) {
+    <p class="notice is-error"><app-icon name="warn" size="sm" />Le droit « Gérer les webinaires » est nécessaire.</p>
+  }
+  @if (lockedByZoom()) {
+    <p class="notice is-info">
+      <app-icon name="video" size="sm" />
+      Cette réunion existe sur Zoom : titre, date, durée et lien se modifient sur zoom.us, puis
+      « Actualiser » sur la fiche.
+    </p>
+  }
+
+  @if (loading()) {
+    <p class="cap"><span class="spinner" aria-hidden="true"></span> Chargement…</p>
+  } @else {
+    <div class="form">
+      <!-- ---------- 1 · informations ---------- -->
+      <fieldset class="sec" [disabled]="lockedByZoom()">
+        <legend class="sec-n"><b>1</b> Informations</legend>
+        <div class="field">
+          <label for="we-title">Titre · obligatoire</label>
+          <input class="input" id="we-title" maxlength="200" placeholder="Le RAG en pratique : quand ça marche, quand ça casse" [value]="title()" (input)="title.set($any($event.target).value)" />
+        </div>
+        <div class="field">
+          <label for="we-description">Description · facultative</label>
+          <textarea class="textarea" id="we-description" rows="4" maxlength="10000" placeholder="Ce que les inscrits vont y trouver" [value]="description()" (input)="description.set($any($event.target).value)"></textarea>
+        </div>
+      </fieldset>
+
+      <section class="sec">
+        <span class="lab">Catégories · au moins une pour valider</span>
+        <div class="chips">
+          @for (categorie of reference()?.categories ?? []; track categorie.code) {
+            <button class="chip" type="button" [class.is-on]="categories().has(categorie.code)" [attr.aria-pressed]="categories().has(categorie.code)" (click)="toggleCategory(categorie.code)">
+              {{ categorie.label }}
+            </button>
+          }
+        </div>
+      </section>
+
+      <!-- ---------- 2 · date et durée ---------- -->
+      <fieldset class="sec" [disabled]="lockedByZoom()">
+        <legend class="sec-n"><b>2</b> Date et durée</legend>
+        <div class="row">
+          <div class="field">
+            <label for="we-date">Date</label>
+            <input class="input" id="we-date" type="date" [value]="date()" (input)="date.set($any($event.target).value)" />
+          </div>
+          <div class="field">
+            <label for="we-time">Heure (GMT)</label>
+            <input class="input" id="we-time" type="time" [value]="time()" (input)="time.set($any($event.target).value)" />
+          </div>
+          <div class="field">
+            <label for="we-timezone">Fuseau affiché sur Zoom</label>
+            <select class="select" id="we-timezone" (change)="timezone.set($any($event.target).value)">
+              @for (zone of timezones; track zone) {
+                <option [value]="zone" [selected]="timezone() === zone">{{ zone }}</option>
+              }
+              @if (!$any(timezones).includes(timezone())) {
+                <option [value]="timezone()" selected>{{ timezone() }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        @if (localLabel(); as local) {
+          <p class="cap">Chez vous : {{ local }}</p>
+        }
+        <div class="row">
+          <div class="field fit">
+            <label for="we-duration">Durée en minutes</label>
+            <input class="input short" id="we-duration" type="number" min="1" max="1440" [value]="duration() ?? ''" (input)="setDuration($any($event.target).value)" />
+          </div>
+          <div class="chips presets">
+            @for (preset of durations; track preset) {
+              <button class="chip" type="button" [class.is-on]="duration() === preset" (click)="duration.set(preset)">{{ preset }} min</button>
+            }
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- ---------- 3 · visioconférence ---------- -->
+      <fieldset class="sec" [disabled]="lockedByZoom()">
+        <legend class="sec-n"><b>3</b> Visioconférence</legend>
+        <div class="choices">
+          <button class="choice" type="button" [disabled]="zoomUnavailable()" [class.is-on]="linkMode() === 'zoom_auto'" [attr.aria-pressed]="linkMode() === 'zoom_auto'" (click)="setLinkMode('zoom_auto')">
+            <b>Créer la réunion sur Zoom</b>
+            <span>Créée à la validation, sur le compte choisi.</span>
+          </button>
+          <button class="choice" type="button" [class.is-on]="linkMode() === 'manual'" [attr.aria-pressed]="linkMode() === 'manual'" (click)="setLinkMode('manual')">
+            <b>Fournir un lien</b>
+            <span>Réunion créée ailleurs (Zoom, Meet, Teams…).</span>
+          </button>
+        </div>
+
+        @if (linkMode() === 'manual') {
+          <div class="field reveal">
+            <label for="we-join">Lien de visioconférence</label>
+            <input class="input" id="we-join" type="url" maxlength="1024" placeholder="https://…" [value]="joinUrl()" (input)="joinUrl.set($any($event.target).value)" />
+          </div>
+        } @else {
+          <div class="reveal sub-block">
+            <div class="field">
+              <label for="we-account">Compte Zoom</label>
+              <select class="select" id="we-account" (change)="accountId.set(+$any($event.target).value || null)">
+                @if (!accounts().length) {
+                  <option value="">Aucun compte raccordé</option>
+                }
+                @for (compte of accounts(); track compte.id_zoom_accounts) {
+                  <option [value]="compte.id_zoom_accounts" [selected]="accountId() === compte.id_zoom_accounts">
+                    {{ compte.label }} — {{ compte.host_email }}
+                  </option>
+                }
+              </select>
+              @if (!accounts().length) {
+                <a class="link self-start" routerLink="/webinaires/comptes-zoom">Raccorder un compte Zoom</a>
+              }
+              @if (needsZoomRight()) {
+                <p class="cap err">Il vous manque le droit « Créer des réunions Zoom » : vous pouvez enregistrer le brouillon.</p>
+              }
+            </div>
+
+            @if (!lockedByZoom()) {
+              <div class="row">
+                <div class="field">
+                  <label for="we-passcode">Code secret (facultatif)</label>
+                  <input class="input" id="we-passcode" maxlength="10" autocomplete="off" [value]="settings().passcode ?? ''" (input)="setPasscode($any($event.target).value)" />
+                  @if (passcodeError()) {
+                    <p class="cap err">10 caractères au plus : lettres, chiffres, &#64; - _ *</p>
+                  }
+                </div>
+                <div class="field">
+                  <label for="we-recording">Enregistrement automatique</label>
+                  <select class="select" id="we-recording" (change)="setRecording($any($event.target).value)">
+                    <option value="none" [selected]="settings().auto_recording === 'none'">Aucun</option>
+                    <option value="local" [selected]="settings().auto_recording === 'local'">Sur l’ordinateur</option>
+                    <option value="cloud" [selected]="settings().auto_recording === 'cloud'">Dans le cloud Zoom</option>
+                  </select>
+                </div>
+              </div>
+              <div class="checks">
+                <label class="check"><input type="checkbox" [checked]="settings().waiting_room" (change)="setSetting('waiting_room', $any($event.target).checked)" />Salle d’attente</label>
+                <label class="check"><input type="checkbox" [checked]="settings().join_before_host" (change)="setSetting('join_before_host', $any($event.target).checked)" />Entrée avant l’hôte</label>
+                <label class="check"><input type="checkbox" [checked]="settings().mute_upon_entry" (change)="setSetting('mute_upon_entry', $any($event.target).checked)" />Micros coupés à l’entrée</label>
+                <label class="check"><input type="checkbox" [checked]="settings().host_video" (change)="setSetting('host_video', $any($event.target).checked)" />Caméra de l’hôte</label>
+                <label class="check"><input type="checkbox" [checked]="settings().participant_video" (change)="setSetting('participant_video', $any($event.target).checked)" />Caméra des participants</label>
+                <label class="check"><input type="checkbox" [checked]="settings().email_notification" (change)="setSetting('email_notification', $any($event.target).checked)" />Zoom envoie la confirmation aux inscrits</label>
+              </div>
+            }
+          </div>
+        }
+      </fieldset>
+
+      <!-- ---------- 4 · inscription ---------- -->
+      <section class="sec">
+        <span class="sec-n"><b>4</b> Page d’inscription</span>
+        <div class="choices four">
+          <button class="choice" type="button" [class.is-on]="registrationMode() === 'iagora_form'" [attr.aria-pressed]="registrationMode() === 'iagora_form'" (click)="registrationMode.set('iagora_form')">
+            <b>Créer un formulaire</b>
+            <span>Page IAGORA : e-mail, prénom, nom de famille, accord newsletter.</span>
+          </button>
+          <button class="choice" type="button" [class.is-on]="registrationMode() === 'external'" [attr.aria-pressed]="registrationMode() === 'external'" (click)="registrationMode.set('external')">
+            <b>Ajouter une page</b>
+            <span>Une page qui existe déjà, sur datumacademy.com ou ailleurs.</span>
+          </button>
+          <button class="choice" type="button" [disabled]="linkMode() === 'manual'" [class.is-on]="registrationMode() === 'zoom_page'" [attr.aria-pressed]="registrationMode() === 'zoom_page'" (click)="registrationMode.set('zoom_page')">
+            <b>Page Zoom</b>
+            <span>Hébergée par Zoom ; les inscrits se reprennent dans la fiche.</span>
+          </button>
+          <button class="choice" type="button" [class.is-on]="registrationMode() === 'none'" [attr.aria-pressed]="registrationMode() === 'none'" (click)="registrationMode.set('none')">
+            <b>Aucune</b>
+            <span>Le lien est diffusé directement.</span>
+          </button>
+        </div>
+
+        @if (registrationMode() === 'iagora_form') {
+          <div class="reveal preview" aria-label="Aperçu du formulaire">
+            <span class="label">Aperçu du formulaire public</span>
+            <div class="row">
+              <span class="fake">Adresse e-mail</span>
+              <span class="fake">Prénom</span>
+              <span class="fake">Nom de famille</span>
+            </div>
+            <p class="cap">
+              L’adresse de la page apparaît sur la fiche. Seuls les inscrits qui cochent l’accord
+              reçoivent les newsletters.
+            </p>
+          </div>
+        }
+        @if (registrationMode() === 'external') {
+          <div class="reveal sub-block">
+            @if (freePages().length) {
+              <div class="field">
+                <label for="we-known">Pages connues</label>
+                <select class="select" id="we-known" (change)="registrationUrl.set($any($event.target).value)">
+                  <option value="">Choisir…</option>
+                  @for (page of freePages(); track page.id_webinar_registration_pages) {
+                    <option [value]="page.url" [selected]="registrationUrl() === page.url">
+                      {{ page.slug }}{{ page.is_active ? '' : ' (inactive)' }}
+                    </option>
+                  }
+                </select>
+              </div>
+            }
+            <div class="field">
+              <label for="we-registration">Adresse de la page</label>
+              <input class="input" id="we-registration" type="url" maxlength="1024" placeholder="https://datumacademy.com/fr/webinar/…" [value]="registrationUrl()" (input)="registrationUrl.set($any($event.target).value)" />
+            </div>
+          </div>
+        }
+      </section>
+
+      <!-- ---------- 5 · publications ---------- -->
+      @if (!isEditing()) {
+        <section class="sec">
+          <span class="sec-n"><b>5</b> Publications liées · facultatif</span>
+          <div class="row">
+            <select class="select auto" aria-label="Rôle de la publication" (change)="typeLink('type_code', $any($event.target).value)">
+              <option value="promotion" [selected]="linkDraft().type_code === 'promotion'">Promotion du webinaire</option>
+              <option value="other" [selected]="linkDraft().type_code === 'other'">Autre</option>
+            </select>
+            <select class="select auto" aria-label="Réseau" (change)="typeLink('platform_code', $any($event.target).value)">
+              <option value="">Réseau (facultatif)</option>
+              @for (reseau of reference()?.platforms ?? []; track reseau.code) {
+                <option [value]="reseau.code" [selected]="linkDraft().platform_code === reseau.code">{{ reseau.label }}</option>
+              }
+            </select>
+            <input class="input grow" type="url" maxlength="1024" placeholder="https://… adresse de la publication" aria-label="Adresse de la publication" [value]="linkDraft().url" (input)="typeLink('url', $any($event.target).value)" (keydown.enter)="addLink()" />
+            <button class="btn" type="button" [disabled]="!linkDraft().url.trim()" (click)="addLink()">Ajouter</button>
+          </div>
+          @for (lien of links(); track lien.url) {
+            <div class="linked reveal">
+              <span class="status status-review">{{ labelOf('publication_types', lien.type_code) }}</span>
+              <span class="url">{{ lien.url }}</span>
+              <span class="cap">{{ labelOf('platforms', lien.platform_code) }}</span>
+              <button class="btn btn-sm btn-ghost" type="button" (click)="removeLink(lien.url)">Retirer</button>
+            </div>
+          }
+        </section>
+      } @else {
+        <section class="sec">
+          <span class="sec-n"><b>5</b> Rediffusion</span>
+          <div class="field">
+            <label for="we-replay">Adresse de la rediffusion</label>
+            <input class="input" id="we-replay" type="url" maxlength="1024" placeholder="https://…" [value]="replayUrl()" (input)="replayUrl.set($any($event.target).value)" />
+          </div>
+          <p class="cap">Les publications liées se gèrent sur la fiche, onglet « Publications ».</p>
+        </section>
+      }
+
+      @if (isDraft() && missing().length) {
+        <p class="cap">Pour valider, il manque : {{ missing().join(', ') }}.</p>
+      }
+    </div>
+  }
+</div>
+
+@if (isSummaryOpen()) {
+  <div class="modal-back" (click)="isSummaryOpen.set(false)">
+    <div class="modal small" appDialog (dialogClosed)="isSummaryOpen.set(false)" role="dialog" aria-modal="true" aria-label="Récapitulatif" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Récapitulatif</h2>
+        <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="isSummaryOpen.set(false)">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body summary">
+        <dl>
+          <dt>Titre</dt><dd>{{ title() }}</dd>
+          <dt>Quand</dt><dd>{{ date() }} à {{ time() }} GMT{{ duration() ? ' · ' + duration() + ' min' : '' }}</dd>
+          <dt>Visioconférence</dt><dd>{{ linkMode() === 'zoom_auto' ? 'Réunion Zoom sur « ' + accountLabel() + ' »' : joinUrl() }}</dd>
+          <dt>Inscription</dt><dd>{{ registrationLabel() }}</dd>
+        </dl>
+        @if (linkMode() === 'zoom_auto') {
+          <p class="notice is-info"><app-icon name="warn" size="sm" />La réunion sera réellement créée sur Zoom.</p>
+        }
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="isSummaryOpen.set(false)">Revenir</button>
+        <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="validate()">
+          @if (busy()) {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          {{ linkMode() === 'zoom_auto' ? 'Créer la réunion' : 'Valider le webinaire' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

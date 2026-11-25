@@ -443,6 +443,30 @@
             />
           </div>
 
+          @if (canReadAudience()) {
+            <div class="field">
+              <label for="env_webinaire">Reprendre les inscrits d'un webinaire</label>
+              <select
+                id="env_webinaire"
+                class="select"
+                (change)="chargerInscrits($any($event.target).value)"
+              >
+                <option value="">Choisir un webinaire…</option>
+                @for (fiche of webinars(); track fiche.id_webinars) {
+                  <option
+                    [value]="fiche.id_webinars"
+                    [selected]="webinaire() === '' + fiche.id_webinars"
+                  >
+                    {{ fiche.title }}
+                  </option>
+                }
+              </select>
+              @if (audienceNote(); as note) {
+                <p class="hint" role="status">{{ note }}</p>
+              }
+            </div>
+          }
+
           <div class="field">
             <label for="env_dest">Destinataires</label>
             <textarea

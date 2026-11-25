@@ -1,0 +1,239 @@
+<app-topbar [trail]="['Événements', 'Webinaires', 'Comptes Zoom']">
+  <a class="btn" routerLink="/webinaires">Voir les webinaires</a>
+  @if (canManage()) {
+    <button class="btn btn-primary" type="button" (click)="openCreation()">
+      <app-icon name="plus" size="sm" />
+      Ajouter un compte
+    </button>
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Comptes Zoom</h1>
+      <p class="sub">
+        Une application « Server-to-Server OAuth » par compte, créée sur marketplace.zoom.us.
+      </p>
+    </div>
+  </div>
+
+  @if (error(); as texte) {
+    <p class="notice is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+  }
+
+  @if (loading()) {
+    <p class="cap"><span class="spinner" aria-hidden="true"></span> Chargement…</p>
+  } @else if (!accounts().length) {
+    <div class="empty">
+      <h2>Aucun compte Zoom</h2>
+      <p>
+        Il faut l’Account ID, le Client ID et le Client Secret de l’application, ainsi que l’adresse
+        Zoom de la personne qui héberge les réunions.
+      </p>
+      @if (canManage()) {
+        <button class="btn btn-primary" type="button" (click)="openCreation()">Ajouter un compte</button>
+      }
+    </div>
+  } @else {
+    <div class="layout">
+      <div class="accounts">
+        @for (compte of accounts(); track compte.id_zoom_accounts; let index = $index) {
+          <button class="account" type="button" [class.is-on]="selectedId() === compte.id_zoom_accounts" [style.animation-delay.ms]="index * 40" (click)="select(compte.id_zoom_accounts)">
+            <span class="dot" [class.ok]="compte.last_verify_ok === true" [class.ko]="compte.last_verify_ok === false" aria-hidden="true"></span>
+            <span class="who">
+              <b>{{ compte.label }}</b>
+              <span>{{ compte.host_email }}</span>
+              <span>{{ compte.last_verify_ok === true ? 'Connexion vérifiée' : compte.last_verify_ok === false ? 'En échec' : 'Jamais testé' }}</span>
+            </span>
+          </button>
+        }
+      </div>
+
+      @if (selected(); as compte) {
+        <div class="detail">
+          @if (report(); as bilan) {
+            <p class="notice" [class.is-error]="!bilan.ok" role="status">
+              <app-icon [name]="bilan.ok ? 'check' : 'warn'" size="sm" />{{ bilan.message }}
+            </p>
+          }
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>{{ compte.label }}</h2>
+              @if (canManage()) {
+                <button class="btn btn-sm" type="button" (click)="openEdition(compte)">
+                  <app-icon name="pencil" size="sm" />
+                  Modifier
+                </button>
+              }
+            </div>
+            <div class="card-pad">
+              <dl class="facts">
+                <dt>Hôte des réunions</dt><dd>{{ compte.host_email }}</dd>
+                <dt>Account ID</dt><dd class="mono">{{ compte.external_zoom_account_id }}</dd>
+                <dt>Client ID</dt><dd class="mono">{{ compte.client_id }}</dd>
+                <dt>Client Secret</dt>
+                <dd>
+                  {{ compte.has_client_secret ? compte.client_secret_masked : 'aucun' }}
+                  @if (compte.client_secret_obtained_at) {
+                    <span class="cap">saisi le {{ compte.client_secret_obtained_at | date: 'd MMM y' }}</span>
+                  }
+                </dd>
+                <dt>Jeton d’accès</dt>
+                <dd>
+                  @if (compte.token_expires_at) {
+                    <span class="status" [class]="compte.has_valid_token ? 'status-published' : 'status-draft'">
+                      {{ compte.has_valid_token ? 'valide' : 'expiré' }}
+                    </span>
+                    <span class="cap">jusqu’à {{ compte.token_expires_at | date: 'd MMM, HH:mm' }}</span>
+                  } @else {
+                    <span class="cap">aucun jeton</span>
+                  }
+                </dd>
+              </dl>
+
+              @if (canManage()) {
+                <div class="actions">
+                  <button class="btn btn-primary" type="button" [disabled]="!!busy()" (click)="test(compte.id_zoom_accounts)">
+                    @if (busy() === 'verify') {
+                      <span class="spinner" aria-hidden="true"></span>
+                    } @else {
+                      <app-icon name="check" size="sm" />
+                    }
+                    Tester la connexion
+                  </button>
+                  <button class="btn" type="button" [disabled]="!!busy()" (click)="refresh(compte.id_zoom_accounts)">
+                    @if (busy() === 'refresh') {
+                      <span class="spinner" aria-hidden="true"></span>
+                    } @else {
+                      <app-icon name="history" size="sm" />
+                    }
+                    Renouveler le jeton
+                  </button>
+                  <button class="btn" type="button" [disabled]="!!busy()" (click)="isSecretOpen.set(!isSecretOpen())">Remplacer le secret</button>
+                  @if (isArchiving()) {
+                    <button class="btn btn-danger" type="button" [disabled]="!!busy()" (click)="archive(compte.id_zoom_accounts)">Confirmer l’archivage</button>
+                    <button class="btn" type="button" (click)="isArchiving.set(false)">Annuler</button>
+                  } @else {
+                    <button class="btn btn-ghost" type="button" (click)="isArchiving.set(true)">Archiver</button>
+                  }
+                </div>
+                <p class="cap">
+                  Un jeton Zoom dure une heure et se renouvelle tout seul à l’usage : ce type
+                  d’application n’a pas de « refresh token », un nouveau jeton est simplement demandé.
+                </p>
+                @if (isSecretOpen()) {
+                  <form class="secret" (submit)="$event.preventDefault(); saveSecret(compte.id_zoom_accounts)">
+                    <input class="input" type="password" autocomplete="new-password" placeholder="Nouveau Client Secret" aria-label="Nouveau Client Secret" maxlength="255" [value]="newSecret()" (input)="newSecret.set($any($event.target).value)" />
+                    <button class="btn btn-primary" type="submit" [disabled]="!!busy() || newSecret().trim().length < 8">Enregistrer et tester</button>
+                  </form>
+                }
+              }
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Droits Zoom</h2>
+              <span class="cap">lus sur le dernier jeton</span>
+            </div>
+            <ul class="scopes">
+              @for (droit of compte.scopes; track droit.scope) {
+                <li [class.is-missing]="!droit.is_granted">
+                  <app-icon [name]="droit.is_granted ? 'check' : 'close'" size="sm" />
+                  <span class="who">
+                    <b>{{ droit.label }}</b>
+                    <code>{{ droit.scope }}</code>
+                  </span>
+                  <span class="cap">{{ droit.is_granted ? 'accordé' : compte.token_obtained_at ? 'absent' : 'inconnu' }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head"><h2>Historique des vérifications</h2></div>
+            @if (!checks().length) {
+              <p class="cap card-pad">Aucune vérification.</p>
+            } @else {
+              <div class="tbl-wrap">
+                <table class="tbl">
+                  <thead><tr><th>Quand</th><th>Geste</th><th>Résultat</th></tr></thead>
+                  <tbody>
+                    @for (ligne of checks(); track ligne.id_zoom_account_checks) {
+                      <tr>
+                        <td class="cap">
+                          {{ ligne.checked_at | date: 'd MMM, HH:mm' }}
+                          <span class="line">{{ ligne.checked_by_name }}</span>
+                        </td>
+                        <td class="cap">{{ ligne.kind === 'connection' ? 'Test de connexion' : 'Nouveau jeton' }}</td>
+                        <td>
+                          <span class="status" [class]="ligne.is_ok ? 'status-published' : 'status-failed'">{{ ligne.is_ok ? 'réussi' : 'échec' }}</span>
+                          <span class="line cap">{{ ligne.message }}</span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+@if (draft(); as saisie) {
+  <div class="modal-back">
+    <form class="modal account-form" appDialog (dialogClosed)="closeForm()" role="dialog" aria-modal="true" aria-label="Compte Zoom" (submit)="$event.preventDefault(); save()">
+      <div class="modal-head">
+        <h2>{{ editingId() === null ? 'Ajouter un compte Zoom' : 'Modifier le compte' }}</h2>
+        <button class="btn btn-icon btn-ghost" type="button" aria-label="Fermer" (click)="closeForm()">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body form-body">
+        @if (error(); as texte) {
+          <p class="notice is-error" role="alert"><app-icon name="warn" size="sm" />{{ texte }}</p>
+        }
+        <div class="field">
+          <label for="za-label">Nom du compte</label>
+          <input class="input" id="za-label" data-autofocus maxlength="120" placeholder="Datum Academy" [value]="saisie.label" (input)="type('label', $any($event.target).value)" />
+        </div>
+        <div class="field">
+          <label for="za-email">Adresse e-mail Zoom de l’hôte</label>
+          <input class="input" id="za-email" type="email" maxlength="255" placeholder="prenom.nom&#64;datum.academy" [value]="saisie.host_email" (input)="type('host_email', $any($event.target).value)" />
+        </div>
+        <div class="field">
+          <label for="za-account">Account ID</label>
+          <input class="input mono" id="za-account" maxlength="128" autocomplete="off" [value]="saisie.external_zoom_account_id" (input)="type('external_zoom_account_id', $any($event.target).value)" />
+        </div>
+        <div class="field">
+          <label for="za-client">Client ID</label>
+          <input class="input mono" id="za-client" maxlength="255" autocomplete="off" [value]="saisie.client_id" (input)="type('client_id', $any($event.target).value)" />
+        </div>
+        @if (editingId() === null) {
+          <div class="field">
+            <label for="za-secret">Client Secret</label>
+            <input class="input mono" id="za-secret" type="password" maxlength="255" autocomplete="new-password" [value]="saisie.client_secret" (input)="type('client_secret', $any($event.target).value)" />
+          </div>
+          <p class="cap">
+            Les identifiants servent à l’authentification « Basic » sur zoom.us/oauth/token. Le secret
+            est chiffré en base et ne s’affiche plus jamais.
+          </p>
+        }
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" (click)="closeForm()">Annuler</button>
+        <button class="btn btn-primary" type="submit" [disabled]="!canSave()">
+          @if (busy() === 'save') {
+            <span class="spinner" aria-hidden="true"></span>
+          }
+          {{ editingId() === null ? 'Enregistrer et tester' : 'Enregistrer' }}
+        </button>
+      </div>
+    </form>
+  </div>
+}

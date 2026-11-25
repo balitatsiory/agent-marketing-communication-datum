@@ -61,8 +61,10 @@ export const NAVIGATION: readonly NavigationEntry[] = [
         label: 'Webinaires',
         icon: 'video',
         items: [
-          { key: 'sends', label: "Voir les webinaires", icon: 'files', route: '/webinaires' },
-          { key: 'templates', label: 'Créer un webinaire', icon: 'pencil', route: '/webinaires/nouveau'},
+          { key: 'webinars', label: 'Voir les webinaires', icon: 'files', route: '/webinaires' },
+          { key: 'webinar-new', label: 'Créer un webinaire', icon: 'pencil', route: '/webinaires/nouveau', requiresPermission: 'manage_webinars' },
+          { key: 'zoom-accounts', label: 'Comptes Zoom', icon: 'gear', route: '/webinaires/comptes-zoom', requiresPermission: 'manage_zoom_accounts' },
+          { key: 'webinars-proto', label: 'Webinaires (démo)', icon: 'files', route: '/webinaires_prototype' },
         ],
       },
       {

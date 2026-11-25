@@ -74,7 +74,7 @@ const MONTHS = [
   styleUrl: './webinar-form.scss',
 })
 export class WebinarForm implements OnInit {
-  /** Identifiant du brouillon à reprendre, lié à la route `webinaires/:id/modifier`. */
+  /** Identifiant du brouillon à reprendre, lié à la route `webinaires_prototype/:id/modifier`. */
   readonly id = input<string>();
 
   private readonly store = inject(WebinarStore);
@@ -215,7 +215,7 @@ export class WebinarForm implements OnInit {
     if (raw === undefined) return;
     const existing = this.store.findById(Number(raw));
     if (!existing || existing.status !== 'draft') {
-      void this.router.navigateByUrl('/webinaires');
+      void this.router.navigateByUrl('/webinaires_prototype');
       return;
     }
     this.editingId.set(existing.id);
@@ -289,7 +289,7 @@ export class WebinarForm implements OnInit {
     }
 
     this.isSummaryOpen.set(false);
-    void this.router.navigateByUrl('/webinaires');
+    void this.router.navigateByUrl('/webinaires_prototype');
   }
 
   /** Assemble la fiche telle que la liste l'attend. */
