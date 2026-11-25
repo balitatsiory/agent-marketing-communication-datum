@@ -846,9 +846,25 @@
                 }
               </select>
             </div>
+            <div class="field">
+              <label [attr.for]="'effort-' + a.task_code">Effort de raisonnement</label>
+              <select
+                [id]="'effort-' + a.task_code"
+                class="select"
+                [ngModel]="a.reasoning_effort ?? ''"
+                (ngModelChange)="onReasoningEffortChange(a, $event)"
+                [disabled]="busyAction() !== null"
+              >
+                @for (opt of reasoningEffortOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
             <div class="task-foot">
               <span class="num text-muted">{{ a.openrouter_model_id || 'Non défini' }}</span>
-              @if (a.id_ai_models) {
+              @if (a.reasoning_effort) {
+                <span class="reasoning-pill">{{ formatReasoningEffort(a.reasoning_effort) }}</span>
+              } @else if (a.id_ai_models) {
                 <span class="status status-published">Actif</span>
               }
             </div>

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 KeyKind = Literal["management", "standard"]
 ProviderSort = Literal["price", "throughput", "latency", "exacto"]
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
 TaskCode = Literal[
     "text-generation",
     "image-description",
@@ -170,10 +171,11 @@ class AiModelsSyncRead(BaseModel):
 
 
 class AiTaskAssignmentUpdate(BaseModel):
-    """Affectation d'un modèle (et optionnellement d'un workspace) à une tâche métier."""
+    """Affectation d'un modèle, d'un effort de raisonnement (et d'un workspace) à une tâche métier."""
 
     id_ai_models: int | None = None
     id_ai_workspaces: int | None = None
+    reasoning_effort: ReasoningEffort | None = None
 
 
 class AiTaskAssignmentRead(BaseModel):
@@ -186,6 +188,7 @@ class AiTaskAssignmentRead(BaseModel):
     openrouter_model_id: str | None = None
     id_ai_workspaces: int | None
     workspace_name: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
     updated_at: datetime
 
 

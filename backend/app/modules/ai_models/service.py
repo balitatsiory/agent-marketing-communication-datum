@@ -1028,6 +1028,7 @@ async def lister_affectations(session: AsyncSession) -> list[AiTaskAssignmentRea
                 openrouter_model_id=m.openrouter_model_id if m else None,
                 id_ai_workspaces=a.id_ai_workspaces if ws else None,
                 workspace_name=ws.name if ws else None,
+                reasoning_effort=a.reasoning_effort,  # type: ignore[arg-type]
                 updated_at=a.updated_at,
             )
         )
@@ -1080,6 +1081,7 @@ async def modifier_affectation(
 
     affectation.id_ai_models = donnees.id_ai_models
     affectation.id_ai_workspaces = donnees.id_ai_workspaces
+    affectation.reasoning_effort = donnees.reasoning_effort
     affectation.id_users_changed_by = par.id_users
     affectation.updated_at = datetime.now(UTC)
 
@@ -1094,5 +1096,6 @@ async def modifier_affectation(
         openrouter_model_id=modele.openrouter_model_id if modele else None,
         id_ai_workspaces=affectation.id_ai_workspaces,
         workspace_name=ws.name if ws else None,
+        reasoning_effort=affectation.reasoning_effort,  # type: ignore[arg-type]
         updated_at=affectation.updated_at,
     )
