@@ -17,6 +17,7 @@ from app.modules.ai_models.schemas import (
     AiWorkspaceRead,
     AiWorkspaceSyncRead,
     AiWorkspaceUpdate,
+    OpenRouterDashboardRead,
     OpenRouterKeyRead,
     OpenRouterKeySave,
     OpenRouterKeyVerifyRead,
@@ -39,6 +40,17 @@ async def obtenir_synthese(
     session: SessionDep, _: CurrentUser
 ) -> OpenRouterOverviewRead:
     return await service.obtenir_synthese(session)
+
+
+@router.get(
+    "/dashboard",
+    response_model=OpenRouterDashboardRead,
+    summary="Tableau de bord FinOps OpenRouter (crédits, activité, tokens, coûts par modèle et clés distantes)",
+)
+async def obtenir_tableau_de_bord(
+    session: SessionDep, _: CurrentUser
+) -> OpenRouterDashboardRead:
+    return await service.obtenir_tableau_de_bord(session)
 
 
 # ---------------------------------------------------------------------------

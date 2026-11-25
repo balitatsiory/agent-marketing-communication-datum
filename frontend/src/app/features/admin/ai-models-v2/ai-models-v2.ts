@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import type { EChartsOption } from 'echarts';
 
 import { toApiError } from '../../../core/api/api-error';
 import {
@@ -14,22 +15,26 @@ import {
   AiTaskAssignmentDto,
   AiTaskCode,
   AiWorkspaceDto,
+  OpenRouterActivityItemDto,
   OpenRouterApi,
+  OpenRouterDashboardDto,
   OpenRouterKeyDto,
   OpenRouterOverviewDto,
   OpenRouterProviderSort,
 } from '../../../core/api/openrouter.api';
 import { Topbar } from '../../../layout/topbar/topbar';
+import { Chart } from '../../../shared/chart/chart';
 import { Icon } from '../../../shared/icon/icon';
 
-export type V2MainTab = 'keys' | 'workspaces' | 'models';
+export type V2MainTab = 'dashboard' | 'workspaces' | 'models' | 'keys';
 
 const MAX_DISPLAYED_MODELS = 100;
+const CHART_PALETTE = ['#4f46e5', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 @Component({
   selector: 'app-ai-models-v2',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Topbar, Icon],
+  imports: [FormsModule, Topbar, Icon, Chart],
   templateUrl: './ai-models-v2.html',
   styleUrl: './ai-models-v2.scss',
 })
@@ -37,7 +42,7 @@ export class AiModelsV2 implements OnInit {
   private readonly api = inject(OpenRouterApi);
 
   /* ---------- Navigation & états globaux ---------- */
-  protected readonly activeTab = signal<V2MainTab>('keys');
+  protected readonly activeTab = signal<V2MainTab>('dashboard');
   protected readonly loading = signal<boolean>(true);
   protected readonly busyAction = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
@@ -45,10 +50,16 @@ export class AiModelsV2 implements OnInit {
 
   /* ---------- Données API ---------- */
   protected readonly overview = signal<OpenRouterOverviewDto | null>(null);
+  protected readonly dashboard = signal<OpenRouterDashboardDto | null>(null);
   protected readonly keys = signal<readonly OpenRouterKeyDto[]>([]);
   protected readonly workspaces = signal<readonly AiWorkspaceDto[]>([]);
   protected readonly models = signal<readonly AiModelDto[]>([]);
   protected readonly assignments = signal<readonly AiTaskAssignmentDto[]>([]);
+
+  /* ---------- Contrôles Tableau de bord FinOps ---------- */
+  protected readonly trendMode = signal<'cost' | 'tokens'>('cost');
+  protected readonly activitySearch = signal<string>('');
+  protected readonly selectedActivityLog = signal<OpenRouterActivityItemDto | null>(null);
 
   /* ---------- Formulaires Clés chiffrées ---------- */
   protected readonly mgmtKeyInput = signal<string>('');
@@ -134,6 +145,227 @@ export class AiModelsV2 implements OnInit {
     () => this.filteredModels().length > MAX_DISPLAYED_MODELS,
   );
 
+  /* ---------- Métriques FinOps calculées ---------- */
+  protected readonly creditsRemainingPct = computed(() => {
+    const c = this.dashboard()?.credits;
+    if (!c?.available || !c.total_credits || c.total_credits <= 0 || c.remaining_credits === null) {
+      return null;
+    }
+    return Math.max(0, Math.min(100, (c.remaining_credits / c.total_credits) * 100));
+  });
+
+  protected readonly totalTokens = computed(() => {
+    const d = this.dashboard();
+    if (!d) return 0;
+    return d.total_prompt_tokens + d.total_completion_tokens;
+  });
+
+  protected readonly reasoningSharePct = computed(() => {
+    const d = this.dashboard();
+    if (!d || d.total_completion_tokens <= 0) return 0;
+    return (d.total_reasoning_tokens / d.total_completion_tokens) * 100;
+  });
+
+  protected readonly totalMonthlyWorkspacesBudget = computed(() =>
+    this.workspaces().reduce((sum, ws) => sum + (ws.monthly_budget_usd ?? 0), 0),
+  );
+
+  protected readonly filteredActivity = computed(() => {
+    const term = this.activitySearch().trim().toLowerCase();
+    const list = this.dashboard()?.activity ?? [];
+    if (!term) return list;
+    return list.filter(
+      (a) =>
+        a.model.toLowerCase().includes(term) ||
+        a.date.toLowerCase().includes(term) ||
+        (a.provider_name?.toLowerCase().includes(term) ?? false),
+    );
+  });
+
+  protected readonly selectedActivityJson = computed(() => {
+    const log = this.selectedActivityLog();
+    if (!log) return '';
+    return JSON.stringify(
+      {
+        date: log.date,
+        model: log.model,
+        provider_name: log.provider_name,
+        requests: log.requests,
+        usage: {
+          prompt_tokens: log.prompt_tokens,
+          completion_tokens: log.completion_tokens,
+          total_tokens: log.prompt_tokens + log.completion_tokens,
+          completion_tokens_details: {
+            reasoning_tokens: log.reasoning_tokens,
+          },
+          cost_usd: log.usage_usd,
+        },
+      },
+      null,
+      2,
+    );
+  });
+
+  /* ---------- Options ECharts (4 graphiques FinOps) ---------- */
+
+  protected readonly dailyTrendOption = computed<EChartsOption>(() => {
+    const series = this.dashboard()?.daily_series ?? [];
+    const isCost = this.trendMode() === 'cost';
+    const labels = series.map((p) => p.date);
+    const values = series.map((p) => (isCost ? Number(p.cost_usd.toFixed(5)) : p.tokens));
+    const color = isCost ? '#4f46e5' : '#10b981';
+
+    return {
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: (val) =>
+          isCost
+            ? `$${Number(val ?? 0).toFixed(5)}`
+            : `${Math.round(Number(val ?? 0)).toLocaleString('fr-FR')} tok.`,
+      },
+      grid: { left: 54, right: 18, top: 18, bottom: 28 },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        boundaryGap: false,
+        axisLine: { show: false },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
+        axisLabel: {
+          formatter: (v: number) => (isCost ? `$${v.toFixed(2)}` : this.formatCompact(v)),
+        },
+      },
+      series: [
+        {
+          name: isCost ? 'Coût ($)' : 'Tokens',
+          type: 'line',
+          smooth: true,
+          symbolSize: 6,
+          data: values,
+          itemStyle: { color },
+          lineStyle: { width: 2.5, color },
+          areaStyle: {
+            color: isCost ? 'rgba(79, 70, 229, 0.12)' : 'rgba(16, 185, 129, 0.14)',
+          },
+        },
+      ],
+    };
+  });
+
+  protected readonly modelShareDoughnutOption = computed<EChartsOption>(() => {
+    const models = (this.dashboard()?.by_model ?? []).slice(0, 6);
+    const data = models.map((m, i) => ({
+      name: m.model,
+      value: Number(m.cost_usd.toFixed(6)),
+      itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
+    }));
+
+    return {
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: unknown) => {
+          const p = params as { name?: string; value?: number; percent?: number };
+          return `${p.name ?? ''}<br/><b>$${Number(p.value ?? 0).toFixed(5)}</b> (${p.percent ?? 0}%)`;
+        },
+      },
+      series: [
+        {
+          name: 'Coût par modèle',
+          type: 'pie',
+          radius: ['55%', '82%'],
+          avoidLabelOverlap: true,
+          label: { show: false },
+          itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
+          data,
+        },
+      ],
+    };
+  });
+
+  protected readonly topModelsBarOption = computed<EChartsOption>(() => {
+    const models = (this.dashboard()?.by_model ?? []).slice(0, 6);
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (val) => `$${Number(val ?? 0).toFixed(5)}`,
+      },
+      grid: { left: 54, right: 16, top: 16, bottom: 48 },
+      xAxis: {
+        type: 'category',
+        data: models.map((m) => m.model.split('/').pop() ?? m.model),
+        axisLabel: { rotate: 16, fontSize: 11 },
+      },
+      yAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
+        axisLabel: { formatter: (v: number) => `$${v.toFixed(3)}` },
+      },
+      series: [
+        {
+          name: 'Dépense ($)',
+          type: 'bar',
+          barMaxWidth: 38,
+          data: models.map((m, i) => ({
+            value: Number(m.cost_usd.toFixed(6)),
+            itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length], borderRadius: [6, 6, 0, 0] },
+          })),
+        },
+      ],
+    };
+  });
+
+  protected readonly tokenBreakdownOption = computed<EChartsOption>(() => {
+    const d = this.dashboard();
+    const prompt = d?.total_prompt_tokens ?? 0;
+    const reasoning = d?.total_reasoning_tokens ?? 0;
+    const visibleComp = Math.max(0, (d?.total_completion_tokens ?? 0) - reasoning);
+
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (val) => `${Math.round(Number(val ?? 0)).toLocaleString('fr-FR')} tok.`,
+      },
+      grid: { left: 125, right: 20, top: 16, bottom: 26 },
+      xAxis: {
+        type: 'value',
+        splitLine: { lineStyle: { type: 'dashed', opacity: 0.4 } },
+        axisLabel: { formatter: (v: number) => this.formatCompact(v) },
+      },
+      yAxis: {
+        type: 'category',
+        data: ['Prompt (Entrée)', 'Completion visible', 'Reasoning tokens'],
+      },
+      series: [
+        {
+          name: 'Tokens',
+          type: 'bar',
+          barMaxWidth: 26,
+          data: [
+            { value: prompt, itemStyle: { color: '#6366f1', borderRadius: [0, 6, 6, 0] } },
+            { value: visibleComp, itemStyle: { color: '#10b981', borderRadius: [0, 6, 6, 0] } },
+            { value: reasoning, itemStyle: { color: '#f59e0b', borderRadius: [0, 6, 6, 0] } },
+          ],
+        },
+      ],
+    };
+  });
+
+  protected readonly topModelsLegend = computed(() => {
+    const models = (this.dashboard()?.by_model ?? []).slice(0, 6);
+    const total = models.reduce((s, m) => s + m.cost_usd, 0) || 1;
+    return models.map((m, i) => ({
+      model: m.model,
+      costUsd: m.cost_usd,
+      pct: ((m.cost_usd / total) * 100).toFixed(1),
+      color: CHART_PALETTE[i % CHART_PALETTE.length],
+    }));
+  });
+
   ngOnInit(): void {
     void this.loadAll();
   }
@@ -147,22 +379,24 @@ export class AiModelsV2 implements OnInit {
     this.loading.set(true);
     this.errorMessage.set(null);
     try {
-      const [overview, keys, workspaces, models, assignments] = await Promise.all([
+      const [overview, dashboard, keys, workspaces, models, assignments] = await Promise.all([
         this.api.overview(),
+        this.api.dashboard(),
         this.api.listKeys(),
         this.api.listWorkspaces(),
         this.api.listModels(),
         this.api.listAssignments(),
       ]);
       this.overview.set(overview);
+      this.dashboard.set(dashboard);
       this.keys.set(keys);
       this.workspaces.set(workspaces);
       this.models.set(models);
       this.assignments.set(assignments);
 
-      // Si les deux clés sont déjà configurées, ouvrir par défaut sur Workspaces ou Modèles
-      if (this.activeTab() === 'keys' && overview.management_key && overview.standard_key) {
-        this.activeTab.set('workspaces');
+      // Si aucune clé Management n'est encore configurée, guider vers l'onglet Clés
+      if (!overview.management_key && !overview.standard_key) {
+        this.activeTab.set('keys');
       }
     } catch (err) {
       this.errorMessage.set(toApiError(err).message);
@@ -202,7 +436,7 @@ export class AiModelsV2 implements OnInit {
         this.showStdKey.set(false);
       }
 
-      await this.refreshKeysAndOverview();
+      await this.refreshKeysAndDashboard();
       if (res.verified) {
         this.flashNotice(`Clé chiffrée enregistrée et vérifiée : ${res.message}`);
       } else {
@@ -220,7 +454,7 @@ export class AiModelsV2 implements OnInit {
     this.errorMessage.set(null);
     try {
       const res = await this.api.verifyKey(key.id_openrouter_api_keys);
-      await this.refreshKeysAndOverview();
+      await this.refreshKeysAndDashboard();
       if (res.verified) {
         this.flashNotice(res.message);
       } else {
@@ -238,7 +472,7 @@ export class AiModelsV2 implements OnInit {
     this.errorMessage.set(null);
     try {
       await this.api.revokeKey(key.id_openrouter_api_keys);
-      await this.refreshKeysAndOverview();
+      await this.refreshKeysAndDashboard();
       this.flashNotice(`Clé ${key.key_masked} révoquée.`);
     } catch (err) {
       this.errorMessage.set(toApiError(err).message);
@@ -247,9 +481,14 @@ export class AiModelsV2 implements OnInit {
     }
   }
 
-  private async refreshKeysAndOverview(): Promise<void> {
-    const [overview, keys] = await Promise.all([this.api.overview(), this.api.listKeys()]);
+  private async refreshKeysAndDashboard(): Promise<void> {
+    const [overview, dashboard, keys] = await Promise.all([
+      this.api.overview(),
+      this.api.dashboard(),
+      this.api.listKeys(),
+    ]);
     this.overview.set(overview);
+    this.dashboard.set(dashboard);
     this.keys.set(keys);
   }
 
@@ -462,6 +701,18 @@ export class AiModelsV2 implements OnInit {
   protected formatUsd(value: number | null | undefined): string {
     if (value === null || value === undefined) return '—';
     return value.toFixed(2).replace('.', ',') + ' $';
+  }
+
+  protected formatUsdPrecise(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '—';
+    const digits = value > 0 && value < 1 ? 5 : 2;
+    return value.toFixed(digits).replace('.', ',') + ' $';
+  }
+
+  protected formatCompact(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2).replace('.', ',')} M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace('.', ',')} k`;
+    return Math.round(n).toLocaleString('fr-FR');
   }
 
   protected formatPricePerMillion(rawPerToken: string | null): string {

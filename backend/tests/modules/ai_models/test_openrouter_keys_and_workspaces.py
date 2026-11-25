@@ -270,3 +270,89 @@ async def test_workspaces_et_modeles_openrouter(
         assert r_assign.status_code == 200, r_assign.text
         assert r_assign.json()["openrouter_model_id"] == "anthropic/claude-3.5-sonnet"
         assert r_assign.json()["workspace_name"] == "IAGORA Production"
+
+
+async def test_tableau_de_bord_finops_openrouter(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Agrégation du tableau de bord FinOps (/credits, /activity, /keys)."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "management",
+            "api_key": "sk-or-v1-mgmt-key-dashboard-test",
+            "verify_immediately": False,
+        },
+    )
+
+    with (
+        patch(
+            "app.modules.ai_models.openrouter_client.get_credits",
+            new=AsyncMock(
+                return_value={
+                    "total_credits": 50.0,
+                    "total_usage": 12.5,
+                    "remaining_credits": 37.5,
+                }
+            ),
+        ),
+        patch(
+            "app.modules.ai_models.openrouter_client.get_activity",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "date": "2026-11-24",
+                        "model": "google/gemini-2.5-flash",
+                        "provider_name": "google-vertex",
+                        "usage": 0.13372,
+                        "requests": 11,
+                        "prompt_tokens": 17957,
+                        "completion_tokens": 14238,
+                        "reasoning_tokens": 12798,
+                    },
+                    {
+                        "date": "2026-11-25",
+                        "model": "anthropic/claude-3.5-sonnet",
+                        "provider_name": "anthropic",
+                        "usage": 0.25,
+                        "requests": 5,
+                        "prompt_tokens": 4000,
+                        "completion_tokens": 1000,
+                        "reasoning_tokens": 200,
+                    },
+                ]
+            ),
+        ),
+        patch(
+            "app.modules.ai_models.openrouter_client.list_remote_keys",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "hash": "hash_key_1",
+                        "name": "iagora-prod",
+                        "limit": 20.0,
+                        "limit_remaining": 15.0,
+                        "usage": 5.0,
+                        "disabled": False,
+                    }
+                ]
+            ),
+        ),
+    ):
+        r = await client.get("/api/v1/openrouter/dashboard", headers=entete(jetons))
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["credits"]["remaining_credits"] == 37.5
+        assert data["total_requests"] == 16
+        assert data["total_prompt_tokens"] == 21957
+        assert data["total_reasoning_tokens"] == 12998
+        assert data["active_remote_keys_count"] == 1
+        assert len(data["daily_series"]) == 2
+        assert len(data["by_model"]) == 2
+        assert data["by_model"][0]["model"] == "anthropic/claude-3.5-sonnet"

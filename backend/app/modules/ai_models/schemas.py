@@ -199,3 +199,76 @@ class OpenRouterOverviewRead(BaseModel):
     selected_workspace_name: str | None
     models_total_count: int
     models_enabled_count: int
+
+
+# ---------------------------------------------------------------------------
+# Tableau de bord FinOps & Observabilité OpenRouter
+# ---------------------------------------------------------------------------
+
+
+class OpenRouterActivityItemRead(BaseModel):
+    """Une entrée d'activité retournée par `GET /api/v1/activity`."""
+
+    date: str
+    model: str
+    provider_name: str | None = None
+    usage_usd: float = 0.0
+    requests: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+
+
+class OpenRouterDailyPointRead(BaseModel):
+    """Point agrégé par date pour le graphique d'évolution quotidienne."""
+
+    date: str
+    cost_usd: float
+    tokens: int
+    requests: int
+
+
+class OpenRouterModelCostRead(BaseModel):
+    """Agrégation par modèle pour les graphiques de répartition."""
+
+    model: str
+    cost_usd: float
+    requests: int
+    prompt_tokens: int
+    completion_tokens: int
+    reasoning_tokens: int
+
+
+class OpenRouterRemoteKeyRead(BaseModel):
+    """Clé API distante retournée par `GET /api/v1/keys` (jamais de secret)."""
+
+    hash: str
+    label: str
+    limit: float | None = None
+    limit_remaining: float | None = None
+    usage: float = 0.0
+    usage_daily: float | None = None
+    usage_weekly: float | None = None
+    usage_monthly: float | None = None
+    disabled: bool = False
+    expires_at: str | None = None
+    created_at: str | None = None
+
+
+class OpenRouterDashboardRead(BaseModel):
+    """Données agrégées du tableau de bord FinOps OpenRouter."""
+
+    credits: OpenRouterCreditsRead
+    total_cost_usd: float
+    total_requests: int
+    total_prompt_tokens: int
+    total_completion_tokens: int
+    total_reasoning_tokens: int
+    avg_cost_per_request_usd: float
+    active_remote_keys_count: int
+    total_remote_keys_count: int
+    daily_series: list[OpenRouterDailyPointRead]
+    by_model: list[OpenRouterModelCostRead]
+    activity: list[OpenRouterActivityItemRead]
+    remote_keys: list[OpenRouterRemoteKeyRead]
+    warnings: list[str]

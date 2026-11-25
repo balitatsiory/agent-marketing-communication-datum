@@ -12,6 +12,7 @@ Points clés de sécurité :
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+import asyncio
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,11 +41,16 @@ from app.modules.ai_models.schemas import (
     AiWorkspaceRead,
     AiWorkspaceSyncRead,
     AiWorkspaceUpdate,
+    OpenRouterActivityItemRead,
     OpenRouterCreditsRead,
+    OpenRouterDailyPointRead,
+    OpenRouterDashboardRead,
     OpenRouterKeyRead,
     OpenRouterKeySave,
     OpenRouterKeyVerifyRead,
+    OpenRouterModelCostRead,
     OpenRouterOverviewRead,
+    OpenRouterRemoteKeyRead,
 )
 from app.modules.users.models import User
 
@@ -353,6 +359,222 @@ async def obtenir_synthese(session: AsyncSession) -> OpenRouterOverviewRead:
         selected_workspace_name=selected_ws_name,
         models_total_count=models_total,
         models_enabled_count=models_enabled,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tableau de bord FinOps & Observabilité OpenRouter
+# ---------------------------------------------------------------------------
+
+
+def _to_float(val: Any) -> float:
+    try:
+        return float(val) if val is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _to_int(val: Any) -> int:
+    try:
+        return int(val) if val is not None else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+async def obtenir_tableau_de_bord(session: AsyncSession) -> OpenRouterDashboardRead:
+    """Agrège en direct les données FinOps OpenRouter (/credits, /activity, /keys)."""
+    mgmt = await _get_active_key_row(session, KEY_KIND_MANAGEMENT)
+    warnings: list[str] = []
+
+    if mgmt is None:
+        return OpenRouterDashboardRead(
+            credits=OpenRouterCreditsRead(
+                available=False,
+                error="Aucune Management API Key active n'est configurée.",
+            ),
+            total_cost_usd=0.0,
+            total_requests=0,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            total_reasoning_tokens=0,
+            avg_cost_per_request_usd=0.0,
+            active_remote_keys_count=0,
+            total_remote_keys_count=0,
+            daily_series=[],
+            by_model=[],
+            activity=[],
+            remote_keys=[],
+            warnings=[
+                "Configurez une Management API Key dans l'onglet Clés OpenRouter pour alimenter le tableau de bord."
+            ],
+        )
+
+    mgmt_key = decrypt_token(mgmt.api_key_encrypted)
+
+    async def _fetch_credits() -> OpenRouterCreditsRead:
+        try:
+            solde = await openrouter_client.get_credits(mgmt_key)
+            return OpenRouterCreditsRead(
+                available=True,
+                total_credits=solde["total_credits"],
+                total_usage=solde["total_usage"],
+                remaining_credits=solde["remaining_credits"],
+            )
+        except ApiError as err:
+            warnings.append(f"Crédits indisponibles : {err.message}")
+            return OpenRouterCreditsRead(available=False, error=err.message)
+
+    async def _fetch_activity() -> list[dict[str, Any]]:
+        try:
+            return await openrouter_client.get_activity(mgmt_key)
+        except ApiError as err:
+            warnings.append(f"Activité (/api/v1/activity) indisponible : {err.message}")
+            return []
+
+    async def _fetch_remote_keys() -> list[dict[str, Any]]:
+        try:
+            return await openrouter_client.list_remote_keys(mgmt_key)
+        except ApiError as err:
+            warnings.append(f"Clés distantes (/api/v1/keys) indisponibles : {err.message}")
+            return []
+
+    credits, raw_activity, raw_keys = await asyncio.gather(
+        _fetch_credits(), _fetch_activity(), _fetch_remote_keys()
+    )
+
+    activity_items: list[OpenRouterActivityItemRead] = []
+    by_date: dict[str, dict[str, float | int]] = {}
+    by_model: dict[str, dict[str, float | int]] = {}
+
+    total_cost = 0.0
+    total_requests = 0
+    total_prompt = 0
+    total_completion = 0
+    total_reasoning = 0
+
+    for item in raw_activity:
+        date_str = str(item.get("date") or "")[:10]
+        model_id = str(item.get("model") or item.get("model_permaslug") or "inconnu")
+        provider = item.get("provider_name")
+        cost = _to_float(item.get("usage"))
+        reqs = _to_int(item.get("requests"))
+        prompt_tok = _to_int(item.get("prompt_tokens"))
+        comp_tok = _to_int(item.get("completion_tokens"))
+        reason_tok = _to_int(item.get("reasoning_tokens"))
+
+        activity_items.append(
+            OpenRouterActivityItemRead(
+                date=date_str,
+                model=model_id,
+                provider_name=str(provider) if provider is not None else None,
+                usage_usd=round(cost, 7),
+                requests=reqs,
+                prompt_tokens=prompt_tok,
+                completion_tokens=comp_tok,
+                reasoning_tokens=reason_tok,
+            )
+        )
+
+        total_cost += cost
+        total_requests += reqs
+        total_prompt += prompt_tok
+        total_completion += comp_tok
+        total_reasoning += reason_tok
+
+        if date_str:
+            d = by_date.setdefault(date_str, {"cost": 0.0, "tokens": 0, "requests": 0})
+            d["cost"] = float(d["cost"]) + cost
+            d["tokens"] = int(d["tokens"]) + prompt_tok + comp_tok
+            d["requests"] = int(d["requests"]) + reqs
+
+        m = by_model.setdefault(
+            model_id,
+            {"cost": 0.0, "requests": 0, "prompt": 0, "completion": 0, "reasoning": 0},
+        )
+        m["cost"] = float(m["cost"]) + cost
+        m["requests"] = int(m["requests"]) + reqs
+        m["prompt"] = int(m["prompt"]) + prompt_tok
+        m["completion"] = int(m["completion"]) + comp_tok
+        m["reasoning"] = int(m["reasoning"]) + reason_tok
+
+    activity_items.sort(key=lambda x: (x.date, x.usage_usd), reverse=True)
+
+    daily_series = [
+        OpenRouterDailyPointRead(
+            date=date_key,
+            cost_usd=round(float(vals["cost"]), 6),
+            tokens=int(vals["tokens"]),
+            requests=int(vals["requests"]),
+        )
+        for date_key, vals in sorted(by_date.items())
+    ]
+
+    model_costs = [
+        OpenRouterModelCostRead(
+            model=model_key,
+            cost_usd=round(float(vals["cost"]), 6),
+            requests=int(vals["requests"]),
+            prompt_tokens=int(vals["prompt"]),
+            completion_tokens=int(vals["completion"]),
+            reasoning_tokens=int(vals["reasoning"]),
+        )
+        for model_key, vals in sorted(
+            by_model.items(), key=lambda kv: float(kv[1]["cost"]), reverse=True
+        )
+    ]
+
+    remote_keys: list[OpenRouterRemoteKeyRead] = []
+    for rk in raw_keys:
+        remote_keys.append(
+            OpenRouterRemoteKeyRead(
+                hash=str(rk.get("hash") or ""),
+                label=str(rk.get("name") or rk.get("label") or "Clé sans nom"),
+                limit=_to_float(rk["limit"]) if rk.get("limit") is not None else None,
+                limit_remaining=(
+                    _to_float(rk["limit_remaining"])
+                    if rk.get("limit_remaining") is not None
+                    else None
+                ),
+                usage=round(_to_float(rk.get("usage")), 6),
+                usage_daily=(
+                    round(_to_float(rk["usage_daily"]), 6)
+                    if rk.get("usage_daily") is not None
+                    else None
+                ),
+                usage_weekly=(
+                    round(_to_float(rk["usage_weekly"]), 6)
+                    if rk.get("usage_weekly") is not None
+                    else None
+                ),
+                usage_monthly=(
+                    round(_to_float(rk["usage_monthly"]), 6)
+                    if rk.get("usage_monthly") is not None
+                    else None
+                ),
+                disabled=bool(rk.get("disabled", False)),
+                expires_at=str(rk["expires_at"]) if rk.get("expires_at") else None,
+                created_at=str(rk["created_at"]) if rk.get("created_at") else None,
+            )
+        )
+
+    active_remote = sum(1 for k in remote_keys if not k.disabled)
+    avg_cost = round(total_cost / total_requests, 6) if total_requests > 0 else 0.0
+
+    return OpenRouterDashboardRead(
+        credits=credits,
+        total_cost_usd=round(total_cost, 6),
+        total_requests=total_requests,
+        total_prompt_tokens=total_prompt,
+        total_completion_tokens=total_completion,
+        total_reasoning_tokens=total_reasoning,
+        avg_cost_per_request_usd=avg_cost,
+        active_remote_keys_count=active_remote,
+        total_remote_keys_count=len(remote_keys),
+        daily_series=daily_series,
+        by_model=model_costs,
+        activity=activity_items,
+        remote_keys=remote_keys,
+        warnings=warnings,
     )
 
 

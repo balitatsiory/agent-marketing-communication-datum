@@ -65,6 +65,64 @@ export interface OpenRouterOverviewDto {
   readonly models_enabled_count: number;
 }
 
+export interface OpenRouterActivityItemDto {
+  readonly date: string;
+  readonly model: string;
+  readonly provider_name: string | null;
+  readonly usage_usd: number;
+  readonly requests: number;
+  readonly prompt_tokens: number;
+  readonly completion_tokens: number;
+  readonly reasoning_tokens: number;
+}
+
+export interface OpenRouterDailyPointDto {
+  readonly date: string;
+  readonly cost_usd: number;
+  readonly tokens: number;
+  readonly requests: number;
+}
+
+export interface OpenRouterModelCostDto {
+  readonly model: string;
+  readonly cost_usd: number;
+  readonly requests: number;
+  readonly prompt_tokens: number;
+  readonly completion_tokens: number;
+  readonly reasoning_tokens: number;
+}
+
+export interface OpenRouterRemoteKeyDto {
+  readonly hash: string;
+  readonly label: string;
+  readonly limit: number | null;
+  readonly limit_remaining: number | null;
+  readonly usage: number;
+  readonly usage_daily: number | null;
+  readonly usage_weekly: number | null;
+  readonly usage_monthly: number | null;
+  readonly disabled: boolean;
+  readonly expires_at: string | null;
+  readonly created_at: string | null;
+}
+
+export interface OpenRouterDashboardDto {
+  readonly credits: OpenRouterCreditsDto;
+  readonly total_cost_usd: number;
+  readonly total_requests: number;
+  readonly total_prompt_tokens: number;
+  readonly total_completion_tokens: number;
+  readonly total_reasoning_tokens: number;
+  readonly avg_cost_per_request_usd: number;
+  readonly active_remote_keys_count: number;
+  readonly total_remote_keys_count: number;
+  readonly daily_series: readonly OpenRouterDailyPointDto[];
+  readonly by_model: readonly OpenRouterModelCostDto[];
+  readonly activity: readonly OpenRouterActivityItemDto[];
+  readonly remote_keys: readonly OpenRouterRemoteKeyDto[];
+  readonly warnings: readonly string[];
+}
+
 export interface AiWorkspaceDto {
   readonly id_ai_workspaces: number;
   readonly openrouter_workspace_id: string;
@@ -151,6 +209,10 @@ export class OpenRouterApi {
 
   overview(): Promise<OpenRouterOverviewDto> {
     return firstValueFrom(this.http.get<OpenRouterOverviewDto>(`${this.base}/overview`));
+  }
+
+  dashboard(): Promise<OpenRouterDashboardDto> {
+    return firstValueFrom(this.http.get<OpenRouterDashboardDto>(`${this.base}/dashboard`));
   }
 
   /* ---------- Clés chiffrées ---------- */
