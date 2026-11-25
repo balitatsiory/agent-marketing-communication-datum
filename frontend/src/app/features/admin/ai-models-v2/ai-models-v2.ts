@@ -28,8 +28,8 @@ import { Chart } from '../../../shared/chart/chart';
 import { Icon } from '../../../shared/icon/icon';
 
 export type V2MainTab = 'dashboard' | 'workspaces' | 'models' | 'keys';
+export type ModelsSortColumn = 'name' | 'provider' | 'context' | 'price' | 'status';
 
-const MAX_DISPLAYED_MODELS = 100;
 const CHART_PALETTE = ['#4f46e5', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 const REASONING_EFFORT_OPTIONS: readonly { readonly value: AiReasoningEffort | ''; readonly label: string }[] = [
@@ -94,11 +94,15 @@ export class AiModelsV2 implements OnInit {
   protected readonly wsProviderSort = signal<OpenRouterProviderSort | ''>('');
   protected readonly wsMonthlyBudget = signal<string>('');
 
-  /* ---------- Filtres Modèles ---------- */
+  /* ---------- Filtres, Tri & Pagination Modèles ---------- */
   protected readonly modelSearch = signal<string>('');
   protected readonly modelProviderFilter = signal<string>('all');
   protected readonly modelEnabledOnly = signal<boolean>(false);
   protected readonly modelModalityFilter = signal<'all' | 'vision' | 'image-out'>('all');
+  protected readonly modelsSortCol = signal<ModelsSortColumn>('status');
+  protected readonly modelsSortDir = signal<'asc' | 'desc'>('desc');
+  protected readonly modelsPage = signal<number>(1);
+  protected readonly modelsPageSize = signal<number>(25);
 
   /* ---------- Sélecteurs dérivés ---------- */
   protected readonly activeManagementKey = computed(
@@ -126,8 +130,10 @@ export class AiModelsV2 implements OnInit {
     const provider = this.modelProviderFilter();
     const enabledOnly = this.modelEnabledOnly();
     const modality = this.modelModalityFilter();
+    const sortCol = this.modelsSortCol();
+    const sortDir = this.modelsSortDir();
 
-    let list = this.models();
+    let list = [...this.models()];
     if (enabledOnly) {
       list = list.filter((m) => m.is_enabled);
     }
@@ -148,16 +154,57 @@ export class AiModelsV2 implements OnInit {
           (m.description?.toLowerCase().includes(term) ?? false),
       );
     }
+
+    const mult = sortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      switch (sortCol) {
+        case 'provider':
+          return (
+            a.provider_slug.localeCompare(b.provider_slug) * mult ||
+            a.name.localeCompare(b.name)
+          );
+        case 'context':
+          return ((a.context_length ?? 0) - (b.context_length ?? 0)) * mult;
+        case 'price': {
+          const pa = Number(a.pricing_prompt ?? 0);
+          const pb = Number(b.pricing_prompt ?? 0);
+          return ((Number.isNaN(pa) ? 0 : pa) - (Number.isNaN(pb) ? 0 : pb)) * mult;
+        }
+        case 'status':
+          return (Number(a.is_enabled) - Number(b.is_enabled)) * mult || a.name.localeCompare(b.name);
+        case 'name':
+        default:
+          return a.name.localeCompare(b.name) * mult;
+      }
+    });
     return list;
   });
 
-  protected readonly displayedModels = computed(() =>
-    this.filteredModels().slice(0, MAX_DISPLAYED_MODELS),
+  protected readonly modelsTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.filteredModels().length / this.modelsPageSize())),
   );
 
-  protected readonly hasMoreModels = computed(
-    () => this.filteredModels().length > MAX_DISPLAYED_MODELS,
-  );
+  protected readonly displayedModels = computed(() => {
+    const page = Math.min(this.modelsPage(), this.modelsTotalPages());
+    const size = this.modelsPageSize();
+    const start = (page - 1) * size;
+    return this.filteredModels().slice(start, start + size);
+  });
+
+  protected toggleModelsSort(col: ModelsSortColumn): void {
+    if (this.modelsSortCol() === col) {
+      this.modelsSortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.modelsSortCol.set(col);
+      this.modelsSortDir.set(col === 'status' || col === 'context' ? 'desc' : 'asc');
+    }
+    this.modelsPage.set(1);
+  }
+
+  protected modelsSortIcon(col: ModelsSortColumn): string {
+    if (this.modelsSortCol() !== col) return '↕';
+    return this.modelsSortDir() === 'asc' ? '↑' : '↓';
+  }
 
   /* ---------- Métriques FinOps calculées ---------- */
   protected readonly creditsRemainingPct = computed(() => {

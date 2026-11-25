@@ -478,3 +478,80 @@ async def test_bac_a_sable_ia_comparaison_parallele(
         assert r_del.status_code == 204
         r_hist_after = await client.get("/api/v1/openrouter/sandbox/history", headers=entete(jetons))
         assert r_hist_after.json() == []
+
+
+async def test_bac_a_sable_ia_image_stockee_dans_r2_bac_a_sable_et_max_tokens(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Les images générées dans le Bac à sable sont déposées sous `bac-a-sable/` et max_tokens est transmis."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "sandbox",
+            "api_key": "sk-or-v1-sandbox-img-key-8888",
+            "verify_immediately": False,
+        },
+    )
+
+    # PNG 1x1 valide en base64
+    png_1x1_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )
+    appels: list[dict[str, object]] = []
+
+    async def _fake_img_completion(*args, **kwargs):
+        appels.append(kwargs)
+        return {
+            "id": "gen-sbx-img-1",
+            "model": kwargs["model"],
+            "choices": [
+                {
+                    "message": {
+                        "content": "Visuel généré",
+                        "images": [{"url": f"data:image/png;base64,{png_1x1_b64}"}],
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 80, "cost": 0.02},
+        }
+
+    with patch(
+        "app.modules.ai_models.openrouter_client.run_chat_completion",
+        new=AsyncMock(side_effect=_fake_img_completion),
+    ):
+        r = await client.post(
+            "/api/v1/openrouter/sandbox/compare",
+            headers=entete(jetons),
+            json={
+                "use_case": "image_generation",
+                "system_prompt": "Directeur artistique Datum Academy",
+                "user_prompt": "Crée un visuel carré",
+                "max_tokens": 1024,
+                "image_mode": "create",
+                "image_aspect_ratio": "1:1",
+                "reference_image_urls": ["https://medias.test/logo.png"],
+                "reference_media_notes": ["Logo Datum (logo)"],
+                "variants": [
+                    {
+                        "slot_id": "A",
+                        "model_id": "google/gemini-2.5-flash-image-preview",
+                        "reasoning_effort": "low",
+                        "temperature": 0.4,
+                    }
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        res_a = data["results"][0]
+        assert appels[0]["max_tokens"] == 1024
+        assert len(res_a["stored_image_keys"]) == 1
+        assert res_a["stored_image_keys"][0].startswith("bac-a-sable/")
+        assert res_a["images"][0].startswith("https://medias.test/bac-a-sable/")
+        assert res_a["raw_response_json"] is not None

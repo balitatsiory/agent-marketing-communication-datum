@@ -896,10 +896,10 @@
             type="search"
             placeholder="Rechercher un modèle, identifiant (ex: claude, gpt-4o, gemini)…"
             [value]="modelSearch()"
-            (input)="modelSearch.set($any($event.target).value)"
+            (input)="modelSearch.set($any($event.target).value); modelsPage.set(1)"
           />
           @if (modelSearch()) {
-            <button type="button" class="btn-clear" (click)="modelSearch.set('')" aria-label="Effacer">
+            <button type="button" class="btn-clear" (click)="modelSearch.set(''); modelsPage.set(1)" aria-label="Effacer">
               <app-icon name="close" size="sm" />
             </button>
           }
@@ -909,7 +909,7 @@
           class="select filter-select"
           aria-label="Filtrer par fournisseur"
           [ngModel]="modelProviderFilter()"
-          (ngModelChange)="modelProviderFilter.set($event)"
+          (ngModelChange)="modelProviderFilter.set($event); modelsPage.set(1)"
         >
           <option value="all">Tous les fournisseurs ({{ providers().length }})</option>
           @for (p of providers(); track p) {
@@ -922,7 +922,7 @@
             type="button"
             class="chip"
             [class.is-on]="modelEnabledOnly()"
-            (click)="modelEnabledOnly.set(!modelEnabledOnly())"
+            (click)="modelEnabledOnly.set(!modelEnabledOnly()); modelsPage.set(1)"
           >
             Activés uniquement ({{ enabledModels().length }})
           </button>
@@ -930,7 +930,7 @@
             type="button"
             class="chip"
             [class.is-on]="modelModalityFilter() === 'vision'"
-            (click)="modelModalityFilter.set(modelModalityFilter() === 'vision' ? 'all' : 'vision')"
+            (click)="modelModalityFilter.set(modelModalityFilter() === 'vision' ? 'all' : 'vision'); modelsPage.set(1)"
           >
             Vision (image en entrée)
           </button>
@@ -938,7 +938,7 @@
             type="button"
             class="chip"
             [class.is-on]="modelModalityFilter() === 'image-out'"
-            (click)="modelModalityFilter.set(modelModalityFilter() === 'image-out' ? 'all' : 'image-out')"
+            (click)="modelModalityFilter.set(modelModalityFilter() === 'image-out' ? 'all' : 'image-out'); modelsPage.set(1)"
           >
             Génération d'image
           </button>
@@ -950,12 +950,32 @@
           <table class="tbl">
             <thead>
               <tr>
-                <th>Modèle</th>
-                <th>Fournisseur</th>
-                <th>Contexte</th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleModelsSort('name')">
+                    Modèle <span class="sort-arrow">{{ modelsSortIcon('name') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleModelsSort('provider')">
+                    Fournisseur <span class="sort-arrow">{{ modelsSortIcon('provider') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleModelsSort('context')">
+                    Contexte <span class="sort-arrow">{{ modelsSortIcon('context') }}</span>
+                  </button>
+                </th>
                 <th>Modalités</th>
-                <th>Tarif Entrée / Sortie</th>
-                <th>Statut</th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleModelsSort('price')">
+                    Tarif Entrée / Sortie <span class="sort-arrow">{{ modelsSortIcon('price') }}</span>
+                  </button>
+                </th>
+                <th>
+                  <button type="button" class="sort-th" (click)="toggleModelsSort('status')">
+                    Statut <span class="sort-arrow">{{ modelsSortIcon('status') }}</span>
+                  </button>
+                </th>
                 <th class="num">Action</th>
               </tr>
             </thead>
@@ -1031,11 +1051,41 @@
             </tbody>
           </table>
         </div>
-        @if (hasMoreModels()) {
-          <div class="table-foot-note">
-            Affichage limité aux 100 premiers résultats sur {{ filteredModels().length }}. Affinez votre recherche pour trouver un modèle précis.
+        <!-- Pagination Catalogue OpenRouter -->
+        <div class="pagination-bar">
+          <div class="pg-info num">
+            {{ filteredModels().length }} modèle(s) · Page {{ modelsPage() }} / {{ modelsTotalPages() }}
           </div>
-        }
+          <div class="pg-controls">
+            <select
+              class="select pg-size-select"
+              aria-label="Modèles par page"
+              [ngModel]="modelsPageSize()"
+              (ngModelChange)="modelsPageSize.set(+$event); modelsPage.set(1)"
+            >
+              <option [value]="10">10 / page</option>
+              <option [value]="25">25 / page</option>
+              <option [value]="50">50 / page</option>
+              <option [value]="100">100 / page</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [disabled]="modelsPage() <= 1"
+              (click)="modelsPage.set(modelsPage() - 1)"
+            >
+              Précédent
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              [disabled]="modelsPage() >= modelsTotalPages()"
+              (click)="modelsPage.set(modelsPage() + 1)"
+            >
+              Suivant
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   }
