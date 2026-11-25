@@ -179,8 +179,41 @@
 }
 
 /* ============================================================
-   FinOps KPI Cards & Charts
+   FinOps Scope Bar, KPI Cards & Charts
    ============================================================ */
+.scope-bar {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.scope-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scope-left b {
+  font-size: 13px;
+}
+.scope-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scope-select-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.scope-select {
+  width: auto;
+  min-width: 260px;
+  font-weight: 600;
+}
+
 .finops-kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -885,4 +918,86 @@
 .status-warn {
   background: rgba(220, 38, 38, 0.12);
   color: #dc2626;
+}
+
+/* ============================================================
+   Skeletons & Placeholders pendant les chargements API
+   ============================================================ */
+@keyframes skel-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skel {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--ground-2) 25%,
+    var(--border) 50%,
+    var(--ground-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
+}
+
+.skel-xs {
+  height: 11px;
+}
+.skel-sm {
+  height: 14px;
+}
+.skel-md {
+  height: 20px;
+}
+.skel-lg {
+  height: 28px;
+}
+.skel-bar {
+  height: 8px;
+  border-radius: 999px;
+}
+.skel-input {
+  height: 36px;
+  border-radius: 8px;
+}
+.skel-btn {
+  height: 28px;
+  width: 82px;
+  border-radius: 8px;
+}
+.skel-box {
+  height: 76px;
+  border-radius: 8px;
+}
+.skel-chart {
+  height: 220px;
+  border-radius: 10px;
+}
+.skel-table {
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.skel-table-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.skel-table-row:last-child {
+  border-bottom: 0;
 }

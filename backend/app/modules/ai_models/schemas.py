@@ -6,8 +6,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-KeyKind = Literal["management", "standard"]
+KeyKind = Literal["management", "standard", "sandbox"]
 ProviderSort = Literal["price", "throughput", "latency", "exacto"]
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+SandboxUseCase = Literal["publication_text", "image_generation", "message_rag"]
 TaskCode = Literal[
     "text-generation",
     "image-description",
@@ -170,10 +172,11 @@ class AiModelsSyncRead(BaseModel):
 
 
 class AiTaskAssignmentUpdate(BaseModel):
-    """Affectation d'un modèle (et optionnellement d'un workspace) à une tâche métier."""
+    """Affectation d'un modèle, d'un effort de raisonnement (et d'un workspace) à une tâche métier."""
 
     id_ai_models: int | None = None
     id_ai_workspaces: int | None = None
+    reasoning_effort: ReasoningEffort | None = None
 
 
 class AiTaskAssignmentRead(BaseModel):
@@ -186,6 +189,7 @@ class AiTaskAssignmentRead(BaseModel):
     openrouter_model_id: str | None = None
     id_ai_workspaces: int | None
     workspace_name: str | None = None
+    reasoning_effort: ReasoningEffort | None = None
     updated_at: datetime
 
 
@@ -212,11 +216,23 @@ class OpenRouterActivityItemRead(BaseModel):
     date: str
     model: str
     provider_name: str | None = None
+    workspace_id: str | None = None
+    workspace_name: str | None = None
     usage_usd: float = 0.0
     requests: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
     reasoning_tokens: int = 0
+
+
+class OpenRouterWorkspaceCostRead(BaseModel):
+    """Agrégation des dépenses et volumes par workspace OpenRouter."""
+
+    workspace_id: str
+    workspace_name: str
+    cost_usd: float
+    requests: int
+    tokens: int
 
 
 class OpenRouterDailyPointRead(BaseModel):
@@ -258,6 +274,8 @@ class OpenRouterRemoteKeyRead(BaseModel):
 class OpenRouterDashboardRead(BaseModel):
     """Données agrégées du tableau de bord FinOps OpenRouter."""
 
+    scope_workspace_id: str | None = None
+    scope_label: str = "Tous les workspaces (cumulé)"
     credits: OpenRouterCreditsRead
     total_cost_usd: float
     total_requests: int
@@ -269,6 +287,95 @@ class OpenRouterDashboardRead(BaseModel):
     total_remote_keys_count: int
     daily_series: list[OpenRouterDailyPointRead]
     by_model: list[OpenRouterModelCostRead]
+    by_workspace: list[OpenRouterWorkspaceCostRead]
     activity: list[OpenRouterActivityItemRead]
     remote_keys: list[OpenRouterRemoteKeyRead]
     warnings: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Bac à sable IA (comparateur multi-modèles côte à côte)
+# ---------------------------------------------------------------------------
+
+
+class SandboxVariantInput(BaseModel):
+    """Configuration d'une colonne de test dans le Bac à sable IA."""
+
+    slot_id: str = Field(..., min_length=1, max_length=20)
+    model_id: str = Field(..., min_length=2, max_length=180)
+    reasoning_effort: ReasoningEffort | None = None
+    temperature: float = Field(default=0.4, ge=0.0, le=2.0)
+
+
+class SandboxCompareRequest(BaseModel):
+    """Requête d'exécution parallèle sur 2 à 4 modèles dans le Bac à sable IA."""
+
+    use_case: SandboxUseCase
+    system_prompt: str = Field(..., min_length=1, max_length=12000)
+    user_prompt: str = Field(..., min_length=1, max_length=12000)
+    tone: str | None = Field(default=None, max_length=160)
+    json_output_enabled: bool = False
+    json_output_schema: str | None = Field(default=None, max_length=6000)
+    knowledge_context: str | None = Field(default=None, max_length=20000)
+    image_mode: Literal["create", "edit"] = "create"
+    image_aspect_ratio: str | None = Field(default=None, max_length=20)
+    reference_image_url: str | None = Field(default=None, max_length=10_000_000)
+    variants: list[SandboxVariantInput] = Field(..., min_length=1, max_length=4)
+
+
+class SandboxVariantResult(BaseModel):
+    """Résultat détaillé d'une variante exécutée sur OpenRouter."""
+
+    slot_id: str
+    model_id: str
+    reasoning_effort: ReasoningEffort | None = None
+    temperature: float
+    ok: bool
+    error: str | None = None
+    text: str = ""
+    images: list[str] = Field(default_factory=list)
+    reasoning_trace: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    visible_tokens: int = 0
+    reasoning_tokens: int = 0
+    cached_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    projected_monthly_5k_usd: float = 0.0
+    latency_ms: int = 0
+    raw_usage_json: dict[str, object] | None = None
+
+
+class SandboxCompareResponse(BaseModel):
+    """Réponse agrégée d'une exécution du Bac à sable IA."""
+
+    id_ai_sandbox_runs: int | None = None
+    use_case: SandboxUseCase
+    key_source: Literal["sandbox", "standard"]
+    key_masked: str
+    total_batch_cost_usd: float
+    results: list[SandboxVariantResult]
+    created_at: datetime | None = None
+
+
+class SandboxRunHistoryRead(BaseModel):
+    """Une entrée enregistrée dans l'historique du Bac à sable IA."""
+
+    id_ai_sandbox_runs: int
+    use_case: SandboxUseCase
+    system_prompt: str
+    user_prompt: str
+    tone: str | None
+    json_output_enabled: bool
+    json_output_schema: str | None
+    knowledge_context: str | None
+    image_mode: str | None
+    image_aspect_ratio: str | None
+    key_source: Literal["sandbox", "standard"]
+    key_masked: str
+    total_batch_cost_usd: float
+    variants: list[SandboxVariantInput]
+    results: list[SandboxVariantResult]
+    created_by_name: str | None = None
+    created_at: datetime

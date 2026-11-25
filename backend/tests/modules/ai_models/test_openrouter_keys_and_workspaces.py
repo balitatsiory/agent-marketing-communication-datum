@@ -265,11 +265,16 @@ async def test_workspaces_et_modeles_openrouter(
         r_assign = await client.put(
             "/api/v1/openrouter/assignments/text-generation",
             headers=entete(jetons),
-            json={"id_ai_models": model_id, "id_ai_workspaces": ws_id},
+            json={
+                "id_ai_models": model_id,
+                "id_ai_workspaces": ws_id,
+                "reasoning_effort": "high",
+            },
         )
         assert r_assign.status_code == 200, r_assign.text
         assert r_assign.json()["openrouter_model_id"] == "anthropic/claude-3.5-sonnet"
         assert r_assign.json()["workspace_name"] == "IAGORA Production"
+        assert r_assign.json()["reasoning_effort"] == "high"
 
 
 async def test_tableau_de_bord_finops_openrouter(
@@ -348,6 +353,8 @@ async def test_tableau_de_bord_finops_openrouter(
         r = await client.get("/api/v1/openrouter/dashboard", headers=entete(jetons))
         assert r.status_code == 200, r.text
         data = r.json()
+        assert data["scope_workspace_id"] is None
+        assert "cumulé" in data["scope_label"]
         assert data["credits"]["remaining_credits"] == 37.5
         assert data["total_requests"] == 16
         assert data["total_prompt_tokens"] == 21957
@@ -356,3 +363,118 @@ async def test_tableau_de_bord_finops_openrouter(
         assert len(data["daily_series"]) == 2
         assert len(data["by_model"]) == 2
         assert data["by_model"][0]["model"] == "anthropic/claude-3.5-sonnet"
+
+        # Vérification avec filtre workspace_id explicite
+        r_ws = await client.get(
+            "/api/v1/openrouter/dashboard?workspace_id=ws_test_123",
+            headers=entete(jetons),
+        )
+        assert r_ws.status_code == 200, r_ws.text
+        assert r_ws.json()["scope_workspace_id"] == "ws_test_123"
+
+
+async def test_bac_a_sable_ia_comparaison_parallele(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Le Bac à sable exécute les variantes en parallèle avec la clé Sandbox chiffrée."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    # Enregistrer une clé Sandbox isolée (chiffrée Fernet)
+    r_key = await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "sandbox",
+            "api_key": "sk-or-v1-sandbox-isolated-key-7777",
+            "label": "Sandbox DATUM",
+            "verify_immediately": False,
+        },
+    )
+    assert r_key.status_code == 201, r_key.text
+
+    async def _fake_completion(*args, **kwargs):
+        effort = kwargs.get("reasoning_effort")
+        reason_tok = 1500 if effort == "high" else 40
+        cost = 0.0145 if effort == "high" else 0.0018
+        return {
+            "id": f"gen-sbx-{effort}",
+            "model": kwargs["model"],
+            "provider": "google-vertex",
+            "choices": [
+                {
+                    "message": {
+                        "content": f"Post généré (effort={effort})",
+                        "reasoning": "Analyse de la cible et structuration AIDA.",
+                    }
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 310,
+                "completion_tokens": 180 + reason_tok,
+                "total_tokens": 490 + reason_tok,
+                "prompt_tokens_details": {"cached_tokens": 50},
+                "completion_tokens_details": {"reasoning_tokens": reason_tok},
+                "cost": cost,
+            },
+        }
+
+    with patch(
+        "app.modules.ai_models.openrouter_client.run_chat_completion",
+        new=AsyncMock(side_effect=_fake_completion),
+    ):
+        r = await client.post(
+            "/api/v1/openrouter/sandbox/compare",
+            headers=entete(jetons),
+            json={
+                "use_case": "publication_text",
+                "system_prompt": "Tu es le responsable éditorial de Datum Academy.",
+                "user_prompt": "Rédige un post LinkedIn de lancement.",
+                "tone": "Professionnel et concret",
+                "json_output_enabled": False,
+                "variants": [
+                    {
+                        "slot_id": "A",
+                        "model_id": "google/gemini-2.5-flash",
+                        "reasoning_effort": "low",
+                        "temperature": 0.4,
+                    },
+                    {
+                        "slot_id": "B",
+                        "model_id": "google/gemini-2.5-flash",
+                        "reasoning_effort": "high",
+                        "temperature": 0.4,
+                    },
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["key_source"] == "sandbox"
+        assert data["id_ai_sandbox_runs"] is not None
+        assert len(data["results"]) == 2
+        res_a, res_b = data["results"]
+        assert res_a["ok"] is True
+        assert res_a["cost_usd"] == 0.0018
+        assert res_b["reasoning_tokens"] == 1500
+        assert data["total_batch_cost_usd"] == round(0.0018 + 0.0145, 7)
+
+        # Vérification de l'historique du Bac à sable
+        r_hist = await client.get("/api/v1/openrouter/sandbox/history", headers=entete(jetons))
+        assert r_hist.status_code == 200, r_hist.text
+        historique = r_hist.json()
+        assert len(historique) == 1
+        assert historique[0]["id_ai_sandbox_runs"] == data["id_ai_sandbox_runs"]
+        assert historique[0]["use_case"] == "publication_text"
+        assert len(historique[0]["results"]) == 2
+
+        # Suppression de l'entrée d'historique
+        r_del = await client.delete(
+            f"/api/v1/openrouter/sandbox/history/{data['id_ai_sandbox_runs']}",
+            headers=entete(jetons),
+        )
+        assert r_del.status_code == 204
+        r_hist_after = await client.get("/api/v1/openrouter/sandbox/history", headers=entete(jetons))
+        assert r_hist_after.json() == []

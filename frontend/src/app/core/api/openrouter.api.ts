@@ -4,8 +4,10 @@ import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 
-export type OpenRouterKeyKind = 'management' | 'standard';
+export type OpenRouterKeyKind = 'management' | 'standard' | 'sandbox';
 export type OpenRouterProviderSort = 'price' | 'throughput' | 'latency' | 'exacto';
+export type AiReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export type SandboxUseCase = 'publication_text' | 'image_generation' | 'message_rag';
 export type AiTaskCode =
   | 'text-generation'
   | 'image-description'
@@ -69,11 +71,21 @@ export interface OpenRouterActivityItemDto {
   readonly date: string;
   readonly model: string;
   readonly provider_name: string | null;
+  readonly workspace_id: string | null;
+  readonly workspace_name: string | null;
   readonly usage_usd: number;
   readonly requests: number;
   readonly prompt_tokens: number;
   readonly completion_tokens: number;
   readonly reasoning_tokens: number;
+}
+
+export interface OpenRouterWorkspaceCostDto {
+  readonly workspace_id: string;
+  readonly workspace_name: string;
+  readonly cost_usd: number;
+  readonly requests: number;
+  readonly tokens: number;
 }
 
 export interface OpenRouterDailyPointDto {
@@ -107,6 +119,8 @@ export interface OpenRouterRemoteKeyDto {
 }
 
 export interface OpenRouterDashboardDto {
+  readonly scope_workspace_id: string | null;
+  readonly scope_label: string;
   readonly credits: OpenRouterCreditsDto;
   readonly total_cost_usd: number;
   readonly total_requests: number;
@@ -118,6 +132,7 @@ export interface OpenRouterDashboardDto {
   readonly total_remote_keys_count: number;
   readonly daily_series: readonly OpenRouterDailyPointDto[];
   readonly by_model: readonly OpenRouterModelCostDto[];
+  readonly by_workspace: readonly OpenRouterWorkspaceCostDto[];
   readonly activity: readonly OpenRouterActivityItemDto[];
   readonly remote_keys: readonly OpenRouterRemoteKeyDto[];
   readonly warnings: readonly string[];
@@ -194,12 +209,87 @@ export interface AiTaskAssignmentDto {
   readonly openrouter_model_id: string | null;
   readonly id_ai_workspaces: number | null;
   readonly workspace_name: string | null;
+  readonly reasoning_effort: AiReasoningEffort | null;
   readonly updated_at: string;
 }
 
 export interface AiTaskAssignmentUpdateRequest {
   readonly id_ai_models: number | null;
   readonly id_ai_workspaces?: number | null;
+  readonly reasoning_effort?: AiReasoningEffort | null;
+}
+
+export interface SandboxVariantInputDto {
+  readonly slot_id: string;
+  readonly model_id: string;
+  readonly reasoning_effort: AiReasoningEffort | null;
+  readonly temperature: number;
+}
+
+export interface SandboxCompareRequestDto {
+  readonly use_case: SandboxUseCase;
+  readonly system_prompt: string;
+  readonly user_prompt: string;
+  readonly tone?: string | null;
+  readonly json_output_enabled: boolean;
+  readonly json_output_schema?: string | null;
+  readonly knowledge_context?: string | null;
+  readonly image_mode?: 'create' | 'edit';
+  readonly image_aspect_ratio?: string | null;
+  readonly reference_image_url?: string | null;
+  readonly variants: readonly SandboxVariantInputDto[];
+}
+
+export interface SandboxVariantResultDto {
+  readonly slot_id: string;
+  readonly model_id: string;
+  readonly reasoning_effort: AiReasoningEffort | null;
+  readonly temperature: number;
+  readonly ok: boolean;
+  readonly error: string | null;
+  readonly text: string;
+  readonly images: readonly string[];
+  readonly reasoning_trace: string | null;
+  readonly prompt_tokens: number;
+  readonly completion_tokens: number;
+  readonly visible_tokens: number;
+  readonly reasoning_tokens: number;
+  readonly cached_tokens: number;
+  readonly total_tokens: number;
+  readonly cost_usd: number;
+  readonly projected_monthly_5k_usd: number;
+  readonly latency_ms: number;
+  readonly raw_usage_json: Record<string, unknown> | null;
+}
+
+export interface SandboxCompareResponseDto {
+  readonly id_ai_sandbox_runs: number | null;
+  readonly use_case: SandboxUseCase;
+  readonly key_source: 'sandbox' | 'standard';
+  readonly key_masked: string;
+  readonly total_batch_cost_usd: number;
+  readonly results: readonly SandboxVariantResultDto[];
+  readonly created_at: string | null;
+}
+
+export interface SandboxRunHistoryDto {
+  readonly id_ai_sandbox_runs: number;
+  readonly use_case: SandboxUseCase;
+  readonly system_prompt: string;
+  readonly user_prompt: string;
+  readonly tone: string | null;
+  readonly json_output_enabled: boolean;
+  readonly json_output_schema: string | null;
+  readonly knowledge_context: string | null;
+  readonly image_mode: 'create' | 'edit' | null;
+  readonly image_aspect_ratio: string | null;
+  readonly key_source: 'sandbox' | 'standard';
+  readonly key_masked: string;
+  readonly total_batch_cost_usd: number;
+  readonly variants: readonly SandboxVariantInputDto[];
+  readonly results: readonly SandboxVariantResultDto[];
+  readonly created_by_name: string | null;
+  readonly created_at: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -211,8 +301,14 @@ export class OpenRouterApi {
     return firstValueFrom(this.http.get<OpenRouterOverviewDto>(`${this.base}/overview`));
   }
 
-  dashboard(): Promise<OpenRouterDashboardDto> {
-    return firstValueFrom(this.http.get<OpenRouterDashboardDto>(`${this.base}/dashboard`));
+  dashboard(workspaceId?: string | null): Promise<OpenRouterDashboardDto> {
+    let params = new HttpParams();
+    if (workspaceId) {
+      params = params.set('workspace_id', workspaceId);
+    }
+    return firstValueFrom(
+      this.http.get<OpenRouterDashboardDto>(`${this.base}/dashboard`, { params }),
+    );
   }
 
   /* ---------- Clés chiffrées ---------- */
@@ -295,6 +391,30 @@ export class OpenRouterApi {
   ): Promise<AiTaskAssignmentDto> {
     return firstValueFrom(
       this.http.put<AiTaskAssignmentDto>(`${this.base}/assignments/${taskCode}`, payload),
+    );
+  }
+
+  /* ---------- Bac à sable IA ---------- */
+
+  compareSandbox(payload: SandboxCompareRequestDto): Promise<SandboxCompareResponseDto> {
+    return firstValueFrom(
+      this.http.post<SandboxCompareResponseDto>(`${this.base}/sandbox/compare`, payload),
+    );
+  }
+
+  listSandboxHistory(useCase?: SandboxUseCase | null, limit = 50): Promise<readonly SandboxRunHistoryDto[]> {
+    let params = new HttpParams().set('limit', String(limit));
+    if (useCase) {
+      params = params.set('use_case', useCase);
+    }
+    return firstValueFrom(
+      this.http.get<SandboxRunHistoryDto[]>(`${this.base}/sandbox/history`, { params }),
+    );
+  }
+
+  deleteSandboxHistory(idRun: number): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/sandbox/history/${idRun}`),
     );
   }
 }

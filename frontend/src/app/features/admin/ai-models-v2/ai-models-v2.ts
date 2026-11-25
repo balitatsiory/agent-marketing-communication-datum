@@ -12,6 +12,7 @@ import type { EChartsOption } from 'echarts';
 import { toApiError } from '../../../core/api/api-error';
 import {
   AiModelDto,
+  AiReasoningEffort,
   AiTaskAssignmentDto,
   AiTaskCode,
   AiWorkspaceDto,
@@ -31,6 +32,16 @@ export type V2MainTab = 'dashboard' | 'workspaces' | 'models' | 'keys';
 const MAX_DISPLAYED_MODELS = 100;
 const CHART_PALETTE = ['#4f46e5', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
+const REASONING_EFFORT_OPTIONS: readonly { readonly value: AiReasoningEffort | ''; readonly label: string }[] = [
+  { value: '', label: 'Par défaut du modèle' },
+  { value: 'none', label: 'Aucun (none)' },
+  { value: 'minimal', label: 'Minimal' },
+  { value: 'low', label: 'Faible (low)' },
+  { value: 'medium', label: 'Moyen (medium)' },
+  { value: 'high', label: 'Élevé (high)' },
+  { value: 'xhigh', label: 'Maximum (xhigh)' },
+];
+
 @Component({
   selector: 'app-ai-models-v2',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +53,7 @@ export class AiModelsV2 implements OnInit {
   private readonly api = inject(OpenRouterApi);
 
   /* ---------- Navigation & états globaux ---------- */
+  protected readonly reasoningEffortOptions = REASONING_EFFORT_OPTIONS;
   protected readonly activeTab = signal<V2MainTab>('dashboard');
   protected readonly loading = signal<boolean>(true);
   protected readonly busyAction = signal<string | null>(null);
@@ -57,6 +69,8 @@ export class AiModelsV2 implements OnInit {
   protected readonly assignments = signal<readonly AiTaskAssignmentDto[]>([]);
 
   /* ---------- Contrôles Tableau de bord FinOps ---------- */
+  protected readonly selectedDashboardWorkspaceId = signal<string>(''); // '' = tous (cumulé)
+  protected readonly dashboardLoading = signal<boolean>(false);
   protected readonly trendMode = signal<'cost' | 'tokens'>('cost');
   protected readonly activitySearch = signal<string>('');
   protected readonly selectedActivityLog = signal<OpenRouterActivityItemDto | null>(null);
@@ -166,9 +180,18 @@ export class AiModelsV2 implements OnInit {
     return (d.total_reasoning_tokens / d.total_completion_tokens) * 100;
   });
 
-  protected readonly totalMonthlyWorkspacesBudget = computed(() =>
-    this.workspaces().reduce((sum, ws) => sum + (ws.monthly_budget_usd ?? 0), 0),
-  );
+  protected readonly totalMonthlyWorkspacesBudget = computed(() => {
+    const scopeId = this.selectedDashboardWorkspaceId();
+    const list = scopeId
+      ? this.workspaces().filter((ws) => ws.openrouter_workspace_id === scopeId)
+      : this.workspaces();
+    return list.reduce((sum, ws) => sum + (ws.monthly_budget_usd ?? 0), 0);
+  });
+
+  protected readonly showWorkspaceDoughnut = computed(() => {
+    const d = this.dashboard();
+    return !this.selectedDashboardWorkspaceId() && (d?.by_workspace.length ?? 0) > 0;
+  });
 
   protected readonly filteredActivity = computed(() => {
     const term = this.activitySearch().trim().toLowerCase();
@@ -178,7 +201,8 @@ export class AiModelsV2 implements OnInit {
       (a) =>
         a.model.toLowerCase().includes(term) ||
         a.date.toLowerCase().includes(term) ||
-        (a.provider_name?.toLowerCase().includes(term) ?? false),
+        (a.provider_name?.toLowerCase().includes(term) ?? false) ||
+        (a.workspace_name?.toLowerCase().includes(term) ?? false),
     );
   });
 
@@ -188,6 +212,8 @@ export class AiModelsV2 implements OnInit {
     return JSON.stringify(
       {
         date: log.date,
+        workspace_id: log.workspace_id,
+        workspace_name: log.workspace_name,
         model: log.model,
         provider_name: log.provider_name,
         requests: log.requests,
@@ -256,12 +282,19 @@ export class AiModelsV2 implements OnInit {
   });
 
   protected readonly modelShareDoughnutOption = computed<EChartsOption>(() => {
-    const models = (this.dashboard()?.by_model ?? []).slice(0, 6);
-    const data = models.map((m, i) => ({
-      name: m.model,
-      value: Number(m.cost_usd.toFixed(6)),
-      itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
-    }));
+    const d = this.dashboard();
+    const useWorkspaces = this.showWorkspaceDoughnut();
+    const data = useWorkspaces
+      ? (d?.by_workspace ?? []).slice(0, 6).map((w, i) => ({
+          name: w.workspace_name,
+          value: Number(w.cost_usd.toFixed(6)),
+          itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
+        }))
+      : (d?.by_model ?? []).slice(0, 6).map((m, i) => ({
+          name: m.model,
+          value: Number(m.cost_usd.toFixed(6)),
+          itemStyle: { color: CHART_PALETTE[i % CHART_PALETTE.length] },
+        }));
 
     return {
       tooltip: {
@@ -273,7 +306,7 @@ export class AiModelsV2 implements OnInit {
       },
       series: [
         {
-          name: 'Coût par modèle',
+          name: useWorkspaces ? 'Coût par workspace' : 'Coût par modèle',
           type: 'pie',
           radius: ['55%', '82%'],
           avoidLabelOverlap: true,
@@ -356,10 +389,21 @@ export class AiModelsV2 implements OnInit {
   });
 
   protected readonly topModelsLegend = computed(() => {
-    const models = (this.dashboard()?.by_model ?? []).slice(0, 6);
+    const d = this.dashboard();
+    if (this.showWorkspaceDoughnut()) {
+      const wsList = (d?.by_workspace ?? []).slice(0, 6);
+      const total = wsList.reduce((s, w) => s + w.cost_usd, 0) || 1;
+      return wsList.map((w, i) => ({
+        label: w.workspace_name,
+        costUsd: w.cost_usd,
+        pct: ((w.cost_usd / total) * 100).toFixed(1),
+        color: CHART_PALETTE[i % CHART_PALETTE.length],
+      }));
+    }
+    const models = (d?.by_model ?? []).slice(0, 6);
     const total = models.reduce((s, m) => s + m.cost_usd, 0) || 1;
     return models.map((m, i) => ({
-      model: m.model,
+      label: m.model,
       costUsd: m.cost_usd,
       pct: ((m.cost_usd / total) * 100).toFixed(1),
       color: CHART_PALETTE[i % CHART_PALETTE.length],
@@ -375,13 +419,28 @@ export class AiModelsV2 implements OnInit {
     this.errorMessage.set(null);
   }
 
+  protected async onDashboardWorkspaceChange(workspaceId: string): Promise<void> {
+    this.selectedDashboardWorkspaceId.set(workspaceId);
+    this.dashboardLoading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const dashboard = await this.api.dashboard(workspaceId || null);
+      this.dashboard.set(dashboard);
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    } finally {
+      this.dashboardLoading.set(false);
+    }
+  }
+
   protected async loadAll(): Promise<void> {
     this.loading.set(true);
     this.errorMessage.set(null);
+    const scopeWs = this.selectedDashboardWorkspaceId() || null;
     try {
       const [overview, dashboard, keys, workspaces, models, assignments] = await Promise.all([
         this.api.overview(),
-        this.api.dashboard(),
+        this.api.dashboard(scopeWs),
         this.api.listKeys(),
         this.api.listWorkspaces(),
         this.api.listModels(),
@@ -482,9 +541,10 @@ export class AiModelsV2 implements OnInit {
   }
 
   private async refreshKeysAndDashboard(): Promise<void> {
+    const scopeWs = this.selectedDashboardWorkspaceId() || null;
     const [overview, dashboard, keys] = await Promise.all([
       this.api.overview(),
-      this.api.dashboard(),
+      this.api.dashboard(scopeWs),
       this.api.listKeys(),
     ]);
     this.overview.set(overview);
@@ -680,6 +740,7 @@ export class AiModelsV2 implements OnInit {
       const updated = await this.api.updateAssignment(assignment.task_code as AiTaskCode, {
         id_ai_models: idModel,
         id_ai_workspaces: assignment.id_ai_workspaces,
+        reasoning_effort: assignment.reasoning_effort,
       });
       this.assignments.update((list) =>
         list.map((a) => (a.task_code === updated.task_code ? updated : a)),
@@ -694,6 +755,38 @@ export class AiModelsV2 implements OnInit {
     } finally {
       this.busyAction.set(null);
     }
+  }
+
+  protected async onReasoningEffortChange(
+    assignment: AiTaskAssignmentDto,
+    effortRaw: string,
+  ): Promise<void> {
+    const effort = (effortRaw || null) as AiReasoningEffort | null;
+    this.busyAction.set(`assign-${assignment.task_code}`);
+    this.errorMessage.set(null);
+    try {
+      const updated = await this.api.updateAssignment(assignment.task_code as AiTaskCode, {
+        id_ai_models: assignment.id_ai_models,
+        id_ai_workspaces: assignment.id_ai_workspaces,
+        reasoning_effort: effort,
+      });
+      this.assignments.update((list) =>
+        list.map((a) => (a.task_code === updated.task_code ? updated : a)),
+      );
+      const label =
+        REASONING_EFFORT_OPTIONS.find((o) => o.value === (updated.reasoning_effort ?? ''))?.label ??
+        'Par défaut';
+      this.flashNotice(`Effort de raisonnement pour ${updated.task_label} : ${label}.`);
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    } finally {
+      this.busyAction.set(null);
+    }
+  }
+
+  protected formatReasoningEffort(effort: AiReasoningEffort | null): string {
+    if (!effort) return 'Défaut';
+    return REASONING_EFFORT_OPTIONS.find((o) => o.value === effort)?.label ?? effort;
   }
 
   /* ---------- Formatters ---------- */

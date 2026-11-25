@@ -232,6 +232,14 @@ export const routes: Routes = [
           import('./features/admin/ai-models-v2/ai-models-v2').then((m) => m.AiModelsV2),
       },
 
+      {
+        path: 'bac-a-sable-ia',
+        title: 'Bac à sable IA · IAGORA',
+        canActivate: [permissionGuard('manage_ai_models')],
+        loadComponent: () =>
+          import('./features/admin/ai-sandbox/ai-sandbox').then((m) => m.AiSandbox),
+      },
+
 
       {
         path: 'parametres/modeles-ia',

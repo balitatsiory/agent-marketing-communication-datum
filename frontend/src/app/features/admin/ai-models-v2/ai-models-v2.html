@@ -42,7 +42,16 @@
   <!-- ============================================================
        Bandeau Flash Synthèse OpenRouter
        ============================================================ -->
-  @if (overview(); as ov) {
+  @if (loading() && !overview()) {
+    <div class="flash-banner" aria-busy="true" aria-label="Chargement de la synthèse OpenRouter">
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="flash-item">
+          <span class="skel skel-xs" style="width: 55%"></span>
+          <span class="skel skel-md" style="width: 78%"></span>
+        </div>
+      }
+    </div>
+  } @else if (overview(); as ov) {
     <div class="flash-banner" role="region" aria-label="Synthèse OpenRouter">
       <div class="flash-item" (click)="setTab('dashboard')" title="Voir le tableau de bord FinOps">
         <span class="flash-label">Crédits OpenRouter</span>
@@ -153,7 +162,97 @@
        ======================================================================== -->
   @if (activeTab() === 'dashboard') {
     <div class="tab-pane" role="tabpanel" aria-label="Tableau de bord FinOps OpenRouter">
-      @if (dashboard(); as d) {
+      <!-- Barre de sélection du périmètre Workspace (Cumulé vs Workspace précis) -->
+      <div class="panel scope-bar">
+        <div class="scope-left">
+          <app-icon name="grid" size="sm" />
+          <div>
+            <b>Périmètre des statistiques FinOps</b>
+            <p class="sub">
+              @if (dashboard(); as d) {
+                Actuellement affiché : <b>{{ d.scope_label }}</b>
+                @if (!d.scope_workspace_id) {
+                  <span>(les crédits du compte sont toujours globaux)</span>
+                }
+              } @else {
+                Choisissez un workspace précis ou la vue cumulée.
+              }
+            </p>
+          </div>
+        </div>
+        <div class="scope-control">
+          <label for="dashboard-ws-select" class="scope-select-label">Workspace :</label>
+          <select
+            id="dashboard-ws-select"
+            class="select scope-select"
+            [ngModel]="selectedDashboardWorkspaceId()"
+            (ngModelChange)="onDashboardWorkspaceChange($event)"
+            [disabled]="loading() || dashboardLoading()"
+          >
+            <option value="">Tous les workspaces (cumulé — {{ workspaces().length }})</option>
+            @for (ws of workspaces(); track ws.id_ai_workspaces) {
+              <option [value]="ws.openrouter_workspace_id">
+                {{ ws.name }} ({{ ws.openrouter_workspace_id.slice(0, 8) }}…)
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if ((loading() && !dashboard()) || dashboardLoading()) {
+        <!-- Skeleton 4 Cartes KPI -->
+        <section class="finops-kpi-grid" aria-busy="true" aria-label="Chargement des indicateurs FinOps">
+          @for (i of [1, 2, 3, 4]; track i) {
+            <article class="panel kpi-card">
+              <div class="kpi-head">
+                <span class="skel skel-xs" style="width: 55%"></span>
+                <span class="skel skel-xs" style="width: 28%"></span>
+              </div>
+              <span class="skel skel-lg" style="width: 62%"></span>
+              <span class="skel skel-bar" style="width: 100%"></span>
+            </article>
+          }
+        </section>
+
+        <!-- Skeleton 4 Graphiques -->
+        <section class="charts-grid" aria-busy="true" aria-label="Chargement des graphiques FinOps">
+          <div class="panel chart-card chart-wide">
+            <span class="skel skel-sm" style="width: 38%"></span>
+            <div class="skel skel-chart"></div>
+          </div>
+          <div class="panel chart-card chart-narrow">
+            <span class="skel skel-sm" style="width: 48%"></span>
+            <div class="skel skel-chart"></div>
+          </div>
+          <div class="panel chart-card chart-half">
+            <span class="skel skel-sm" style="width: 45%"></span>
+            <div class="skel skel-chart"></div>
+          </div>
+          <div class="panel chart-card chart-half">
+            <span class="skel skel-sm" style="width: 45%"></span>
+            <div class="skel skel-chart"></div>
+          </div>
+        </section>
+
+        <!-- Skeleton Journal d'activité -->
+        <section class="panel history-panel" aria-busy="true" aria-label="Chargement du journal d'activité">
+          <div class="panel-head">
+            <span class="skel skel-sm" style="width: 260px"></span>
+            <span class="skel skel-md" style="width: 220px"></span>
+          </div>
+          <div class="skel-table">
+            @for (row of [1, 2, 3, 4, 5]; track row) {
+              <div class="skel-table-row">
+                <span class="skel skel-sm" style="width: 12%"></span>
+                <span class="skel skel-sm" style="width: 28%"></span>
+                <span class="skel skel-sm" style="width: 15%"></span>
+                <span class="skel skel-sm" style="width: 12%"></span>
+                <span class="skel skel-sm" style="width: 15%"></span>
+              </div>
+            }
+          </div>
+        </section>
+      } @else if (dashboard(); as d) {
         <!-- Avertissements éventuels (ex: clé management non configurée ou scope /activity restreint) -->
         @for (w of d.warnings; track w) {
           <div class="empty-banner">
@@ -324,28 +423,34 @@
               </div>
             </div>
             @if (d.daily_series.length > 0) {
-              <div class="chart-canvas" [appChart]="dailyTrendOption()"></div>
+              <div class="chart-canvas" [appChart]="dailyTrendOption()" [loading]="loading()"></div>
             } @else {
               <div class="chart-empty">Aucune activité quotidienne retournée pour le moment.</div>
             }
           </div>
 
-          <!-- Graphique 2 : Répartition par Modèle (Doughnut) -->
+          <!-- Graphique 2 : Répartition par Workspace (cumulé) ou par Modèle (filtré) -->
           <div class="panel chart-card chart-narrow">
             <div class="chart-head">
               <div>
-                <h3>Part de coût par Modèle</h3>
-                <p class="sub">Ventilation des dépenses OpenRouter</p>
+                <h3>{{ showWorkspaceDoughnut() ? 'Dépenses par Workspace' : 'Part de coût par Modèle' }}</h3>
+                <p class="sub">
+                  {{
+                    showWorkspaceDoughnut()
+                      ? 'Part de consommation entre vos workspaces isolés'
+                      : 'Ventilation des dépenses sur le périmètre sélectionné'
+                  }}
+                </p>
               </div>
             </div>
-            @if (d.by_model.length > 0) {
-              <div class="chart-canvas chart-canvas-sm" [appChart]="modelShareDoughnutOption()"></div>
+            @if (topModelsLegend().length > 0) {
+              <div class="chart-canvas chart-canvas-sm" [appChart]="modelShareDoughnutOption()" [loading]="loading() || dashboardLoading()"></div>
               <div class="doughnut-legend">
-                @for (item of topModelsLegend(); track item.model) {
+                @for (item of topModelsLegend(); track item.label) {
                   <div class="legend-row">
                     <div class="legend-left">
                       <span class="legend-dot" [style.background]="item.color"></span>
-                      <span class="legend-name num" [title]="item.model">{{ item.model }}</span>
+                      <span class="legend-name num" [title]="item.label">{{ item.label }}</span>
                     </div>
                     <span class="num legend-val">
                       {{ formatUsdPrecise(item.costUsd) }}
@@ -355,7 +460,7 @@
                 }
               </div>
             } @else {
-              <div class="chart-empty">Aucune dépense par modèle enregistrée.</div>
+              <div class="chart-empty">Aucune dépense enregistrée sur ce périmètre.</div>
             }
           </div>
 
@@ -368,7 +473,7 @@
               </div>
             </div>
             @if (d.by_model.length > 0) {
-              <div class="chart-canvas" [appChart]="topModelsBarOption()"></div>
+              <div class="chart-canvas" [appChart]="topModelsBarOption()" [loading]="loading()"></div>
             } @else {
               <div class="chart-empty">En attente de données d'activité OpenRouter.</div>
             }
@@ -383,7 +488,7 @@
               </div>
             </div>
             @if (totalTokens() > 0) {
-              <div class="chart-canvas" [appChart]="tokenBreakdownOption()"></div>
+              <div class="chart-canvas" [appChart]="tokenBreakdownOption()" [loading]="loading()"></div>
             } @else {
               <div class="chart-empty">Aucun volume de tokens enregistré pour le moment.</div>
             }
@@ -420,6 +525,7 @@
               <thead>
                 <tr>
                   <th>Date</th>
+                  <th>Workspace</th>
                   <th>Modèle</th>
                   <th>Fournisseur</th>
                   <th class="num">Requêtes</th>
@@ -430,9 +536,10 @@
                 </tr>
               </thead>
               <tbody>
-                @for (item of filteredActivity(); track item.date + '-' + item.model + '-' + (item.provider_name ?? '')) {
+                @for (item of filteredActivity(); track item.date + '-' + (item.workspace_id ?? '') + '-' + item.model + '-' + (item.provider_name ?? '')) {
                   <tr class="clickable-row" (click)="selectedActivityLog.set(item)">
                     <td class="num">{{ item.date || '—' }}</td>
+                    <td>{{ item.workspace_name || 'Global' }}</td>
                     <td class="num"><b>{{ item.model }}</b></td>
                     <td><span class="provider-tag">{{ item.provider_name || '—' }}</span></td>
                     <td class="num">{{ item.requests.toLocaleString('fr-FR') }}</td>
@@ -443,8 +550,8 @@
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="8" class="empty-cell">
-                      Aucune ligne d'activité disponible.
+                    <td colspan="9" class="empty-cell">
+                      Aucune ligne d'activité disponible sur ce périmètre.
                     </td>
                   </tr>
                 }
@@ -605,7 +712,21 @@
       }
 
       <div class="ws-grid">
-        @for (ws of workspaces(); track ws.id_ai_workspaces) {
+        @if ((loading() && workspaces().length === 0) || busyAction() === 'sync-workspaces') {
+          @for (i of [1, 2, 3]; track i) {
+            <article class="panel ws-card" aria-busy="true">
+              <span class="skel skel-xs" style="width: 35%"></span>
+              <span class="skel skel-md" style="width: 70%"></span>
+              <span class="skel skel-xs" style="width: 50%"></span>
+              <div class="skel skel-box"></div>
+              <div class="ws-foot">
+                <span class="skel skel-btn"></span>
+                <span class="skel skel-btn"></span>
+              </div>
+            </article>
+          }
+        } @else {
+          @for (ws of workspaces(); track ws.id_ai_workspaces) {
           <article class="panel ws-card" [class.is-selected]="ws.is_selected">
             <div class="ws-head">
               <div>
@@ -680,6 +801,7 @@
             <p>Aucun workspace synchronisé pour le moment.</p>
             <p class="sub">Cliquez sur « Synchroniser depuis OpenRouter » ou créez un nouveau workspace.</p>
           </div>
+          }
         }
       </div>
     </div>
@@ -691,7 +813,16 @@
   @if (activeTab() === 'models') {
     <div class="tab-pane" role="tabpanel" aria-label="Catalogue des modèles OpenRouter et affectations">
       <section class="task-grid" aria-label="Affectation des modèles par spécialité">
-        @for (a of assignments(); track a.task_code) {
+        @if (loading() && assignments().length === 0) {
+          @for (i of [1, 2, 3, 4]; track i) {
+            <div class="task-card" aria-busy="true">
+              <span class="skel skel-xs" style="width: 45%"></span>
+              <span class="skel skel-md" style="width: 75%"></span>
+              <span class="skel skel-input"></span>
+            </div>
+          }
+        } @else {
+          @for (a of assignments(); track a.task_code) {
           <div class="task-card">
             <div class="task-head">
               <span class="task-badge">{{ a.task_code }}</span>
@@ -715,13 +846,30 @@
                 }
               </select>
             </div>
+            <div class="field">
+              <label [attr.for]="'effort-' + a.task_code">Effort de raisonnement</label>
+              <select
+                [id]="'effort-' + a.task_code"
+                class="select"
+                [ngModel]="a.reasoning_effort ?? ''"
+                (ngModelChange)="onReasoningEffortChange(a, $event)"
+                [disabled]="busyAction() !== null"
+              >
+                @for (opt of reasoningEffortOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </div>
             <div class="task-foot">
               <span class="num text-muted">{{ a.openrouter_model_id || 'Non défini' }}</span>
-              @if (a.id_ai_models) {
+              @if (a.reasoning_effort) {
+                <span class="reasoning-pill">{{ formatReasoningEffort(a.reasoning_effort) }}</span>
+              } @else if (a.id_ai_models) {
                 <span class="status status-published">Actif</span>
               }
             </div>
           </div>
+          }
         }
       </section>
 
@@ -812,7 +960,20 @@
               </tr>
             </thead>
             <tbody>
-              @for (m of displayedModels(); track m.id_ai_models) {
+              @if ((loading() && models().length === 0) || busyAction() === 'sync-models') {
+                @for (r of [1, 2, 3, 4, 5, 6]; track r) {
+                  <tr aria-busy="true">
+                    <td><span class="skel skel-sm" style="width: 80%"></span></td>
+                    <td><span class="skel skel-xs" style="width: 65%"></span></td>
+                    <td><span class="skel skel-xs" style="width: 50%"></span></td>
+                    <td><span class="skel skel-xs" style="width: 70%"></span></td>
+                    <td><span class="skel skel-xs" style="width: 60%"></span></td>
+                    <td><span class="skel skel-xs" style="width: 55%"></span></td>
+                    <td class="num"><span class="skel skel-btn" style="margin-left: auto"></span></td>
+                  </tr>
+                }
+              } @else {
+                @for (m of displayedModels(); track m.id_ai_models) {
                 <tr>
                   <td>
                     <div class="model-name-cell">
@@ -865,6 +1026,7 @@
                     }
                   </td>
                 </tr>
+              }
               }
             </tbody>
           </table>
@@ -1169,8 +1331,8 @@
                 @for (k of keys(); track k.id_openrouter_api_keys) {
                   <tr>
                     <td>
-                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind === 'standard'">
-                        {{ k.key_kind === 'management' ? 'Management' : 'Standard' }}
+                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind !== 'management'">
+                        {{ k.key_kind === 'management' ? 'Management' : k.key_kind === 'sandbox' ? 'Sandbox' : 'Standard' }}
                       </span>
                     </td>
                     <td>{{ k.label || '—' }}</td>
