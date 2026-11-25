@@ -18,6 +18,7 @@ from app.core.database import Base
 # --- Les modèles doivent être importés pour que leurs tables soient connues ---
 # Une ligne par module, ajoutée au fur et à mesure. Sans cet import, Alembic ne
 # voit pas la table et l'autogénération proposerait de la supprimer.
+from app.modules.ai_models import models as ai_models_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.media import models as media_models  # noqa: F401
 from app.modules.platforms import models as platforms_models  # noqa: F401

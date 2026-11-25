@@ -41,6 +41,7 @@ COMPTES = [
             "purge_media",
             "manage_social_accounts",
             "read_social_statistics",
+            "manage_ai_models",
         ],
         "is_active": True,
         "archive": False,

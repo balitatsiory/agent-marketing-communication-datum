@@ -109,6 +109,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
         icon: 'sparkle',
         items: [
           {  key: 'ai-models', label: 'Modèles IA', icon: 'sparkle', route: '/modeles-ia', count: '8' },
+          {  key: 'ai-models-v2', label: 'Modèles IA v2 (OpenRouter)', icon: 'sparkle', route: '/modeles-ia_v2' },
           {  key: 'prompt-system', label: 'Prompt système', icon: 'pencil', route: '/admin/prompts/system' },
           {  key: 'prompt-templates', label: 'Prompt templates', icon: 'files', route: '/admin/prompts/templates' },
             ],

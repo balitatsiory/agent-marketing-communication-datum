@@ -213,6 +213,13 @@ export const routes: Routes = [
           import('./features/admin/ai-models/ai-models').then((m) => m.AiModels),
       },
 
+      {
+        path: 'modeles-ia_v2',
+        title: 'Modèles IA v2 (OpenRouter) · IAGORA',
+        loadComponent: () =>
+          import('./features/admin/ai-models-v2/ai-models-v2').then((m) => m.AiModelsV2),
+      },
+
 
       {
         path: 'parametres/modeles-ia',
