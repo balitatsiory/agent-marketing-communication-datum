@@ -1,0 +1,295 @@
+/* Modèles de mail — la liste par catégorie et le modèle ouvert. */
+
+@use '../../../../styles/design-system/type' as type;
+
+:host {
+  display: contents;
+}
+
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-head h1 {
+  @include type.page-title;
+}
+.page-head .sub {
+  color: var(--muted);
+  font-size: var(--t-xs);
+  margin-top: 2px;
+  max-width: 78ch;
+}
+
+.library {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .library {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- liste ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cat-head h2 {
+  @include type.section-title;
+}
+.cat-n {
+  font-size: var(--t-2xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cat-note {
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.tpl {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 13px;
+  margin-bottom: 7px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.tpl:hover {
+  border-color: var(--muted);
+}
+.tpl.is-on {
+  border-color: var(--ink);
+  border-width: 1.5px;
+}
+
+.tpl-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tpl-name {
+  font-size: 13.5px;
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+.tpl-subject {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.tpl-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+/* ---------- modèle ouvert ---------- */
+
+.detail .panel-head {
+  gap: 10px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px 18px;
+  margin: 0;
+  padding: 16px 18px;
+}
+.facts dt {
+  @include type.caps-label;
+  margin-bottom: 3px;
+}
+.facts dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.var {
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+.dash {
+  color: var(--muted);
+}
+
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0 18px 16px;
+}
+
+/* ---------- aperçu ---------- */
+
+.preview {
+  border-top: 1px solid var(--border);
+  padding: 14px 18px 18px;
+}
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.preview-head .label {
+  @include type.caps-label;
+}
+.preview-head .num {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le courriel fait 600 px de large : l'iframe lui laisse sa largeur réelle
+   plutôt que de le réduire, sans quoi l'aperçu mentirait sur le rendu. */
+.preview-frame {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  background: #e9f0f3;
+}
+.preview-frame-lg {
+  height: calc(100vh - 230px);
+  min-height: 420px;
+}
+
+.hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+}
+
+/* ---------- versions ---------- */
+
+.versions {
+  border-top: 1px solid var(--border);
+  padding: 14px 18px 18px;
+}
+.versions .label {
+  @include type.caps-label;
+  margin-bottom: 8px;
+}
+.vlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vrow {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.vlabel {
+  flex: none;
+  min-width: 28px;
+  font-size: 12px;
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+.vbody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vnote {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.vmeta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- formulaires ---------- */
+
+.modal {
+  max-width: 560px;
+}
+.modal.modal-wide {
+  max-width: 900px;
+}
+
+.form {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+.textarea.code {
+  font-family: var(--f-mono, ui-monospace, 'Cascadia Code', Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.foot-note {
+  margin-right: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+  max-width: 52ch;
+}

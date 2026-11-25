@@ -1,0 +1,425 @@
+<app-topbar [trail]="trail">
+  <a class="btn" routerLink="/newsletter/envois">
+    <app-icon name="send" size="sm" />
+    Boîte d'envois
+  </a>
+  @if (canManage()) {
+    <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="ouvrirCreation()">
+      <app-icon name="plus" size="sm" />
+      Nouveau modèle
+    </button>
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Modèles de mail</h1>
+      <p class="sub">
+        {{ total() }} modèle{{ total() > 1 ? 's' : '' }} · la bannière et la signature viennent de
+        la coquille commune, un modèle ne porte que son corps
+      </p>
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div class="banner banner-error">
+      <app-icon name="warn" size="sm" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  <div class="toolbar">
+    <div class="searchbox">
+      <app-icon name="search" size="sm" />
+      <input
+        type="search"
+        placeholder="Rechercher un modèle, un objet…"
+        aria-label="Rechercher un modèle"
+        [value]="searchTerm()"
+        (change)="rechercher($any($event.target).value)"
+      />
+    </div>
+    <div class="chips">
+      @for (category of categories(); track category.code) {
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="categoryFilter() === category.code"
+          [attr.aria-pressed]="categoryFilter() === category.code"
+          (click)="filtrerCategorie(category.code)"
+        >
+          {{ category.label }}
+        </button>
+      }
+      <button
+        class="chip"
+        type="button"
+        [class.is-on]="statusFilter() === 'published'"
+        [attr.aria-pressed]="statusFilter() === 'published'"
+        (click)="filtrerStatut('published')"
+      >
+        Publiés
+      </button>
+      <button
+        class="chip"
+        type="button"
+        [class.is-on]="statusFilter() === 'draft'"
+        [attr.aria-pressed]="statusFilter() === 'draft'"
+        (click)="filtrerStatut('draft')"
+      >
+        Brouillons
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="empty"><p>Chargement des modèles…</p></div>
+  } @else if (templates().length === 0) {
+    <div class="empty">
+      <h2>Aucun modèle</h2>
+      <p>
+        Cinq modèles standards sont livrés avec l'application — confirmation d'inscription, rappel,
+        modification ou annulation, compte rendu et visionnage. Ils reprennent la bannière et la
+        signature Datum Academy, et restent modifiables ensuite.
+      </p>
+      @if (canManage()) {
+        <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="installerLesStandards()">
+          <app-icon name="sparkle" size="sm" />
+          {{ busy() ? 'Installation…' : 'Installer les modèles standards' }}
+        </button>
+      } @else {
+        <p class="sub">Cette installation demande le droit « Gérer les modèles de mail ».</p>
+      }
+    </div>
+  } @else {
+    <div class="library">
+      <!-- ---------- la liste ---------- -->
+      <section class="list">
+        @for (groupe of groups(); track groupe.category.code) {
+          <section class="cat">
+            <header class="cat-head">
+              <h2>{{ groupe.category.label }}</h2>
+              <span class="cat-n">{{ groupe.templates.length }}</span>
+              <span class="cat-note">{{ groupe.category.note }}</span>
+            </header>
+
+            @for (modele of groupe.templates; track modele.id_mail_templates) {
+              <button
+                class="tpl"
+                type="button"
+                [class.is-on]="selectedId() === modele.id_mail_templates"
+                [attr.aria-pressed]="selectedId() === modele.id_mail_templates"
+                (click)="select(modele.id_mail_templates)"
+              >
+                <span class="tpl-top">
+                  <span class="tpl-name">{{ modele.name }}</span>
+                  <span class="status" [class]="statutModifier(modele.status)">
+                    {{ statutLisible(modele.status) }}
+                  </span>
+                </span>
+                <span class="tpl-subject">{{ modele.subject }}</span>
+                <span class="tpl-meta num">
+                  {{ modele.version_label }} · {{ modele.usage_count }} envoi{{
+                    modele.usage_count > 1 ? 's' : ''
+                  }}
+                  @if (modele.is_standard) {
+                    · standard
+                  }
+                </span>
+              </button>
+            }
+          </section>
+        }
+
+        @if (pages() > 1) {
+          <nav class="pager" aria-label="Pagination des modèles">
+            <button class="btn btn-sm" type="button" [disabled]="page() <= 1" (click)="allerPage(page() - 1)">
+              Précédents
+            </button>
+            <span class="num">Page {{ page() }} sur {{ pages() }}</span>
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="page() >= pages()"
+              (click)="allerPage(page() + 1)"
+            >
+              Suivants
+            </button>
+          </nav>
+        }
+      </section>
+
+      <!-- ---------- le modèle ouvert ---------- -->
+      <aside class="detail">
+        @if (selected(); as modele) {
+          <div class="panel">
+            <div class="panel-head">
+              <h2>{{ modele.name }}</h2>
+              <span class="status" [class]="statutModifier(modele.status)">
+                {{ statutLisible(modele.status) }}
+              </span>
+            </div>
+
+            <div class="panel-body">
+              <dl class="facts">
+                <div>
+                  <dt>Objet</dt>
+                  <dd>{{ modele.subject }}</dd>
+                </div>
+                <div>
+                  <dt>Pré-entête</dt>
+                  <dd>{{ modele.preheader || '—' }}</dd>
+                </div>
+                <div>
+                  <dt>Variables attendues</dt>
+                  <dd class="vars">
+                    @for (variable of modele.variables; track variable) {
+                      <span class="var num">{{ variable }}</span>
+                    } @empty {
+                      <span class="dash">aucune</span>
+                    }
+                  </dd>
+                </div>
+                <div>
+                  <dt>Version</dt>
+                  <dd class="num">
+                    {{ modele.version_label }} · modifié le
+                    {{ modele.updated_at | date: 'dd/MM/yyyy' : 'UTC' : 'fr' }}
+                  </dd>
+                </div>
+              </dl>
+
+              @if (canManage()) {
+                <div class="acts">
+                  <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="ouvrirModification(modele)">
+                    <app-icon name="pencil" size="sm" />
+                    Modifier
+                  </button>
+                  <button class="btn btn-sm" type="button" [disabled]="busy()" (click)="basculerPublication(modele)">
+                    {{ modele.status === 'published' ? 'Repasser en brouillon' : 'Publier' }}
+                  </button>
+                  <button class="btn btn-sm btn-danger" type="button" [disabled]="busy()" (click)="archiver(modele)">
+                    <app-icon name="close" size="sm" />
+                    Archiver
+                  </button>
+                </div>
+              }
+
+              <!-- aperçu réel : coquille + corps, variables d'exemple -->
+              <div class="preview">
+                <div class="preview-head">
+                  <span class="label">Aperçu</span>
+                  @if (preview(); as apercu) {
+                    <span class="num">{{ apercu.subject }}</span>
+                    <button class="btn btn-sm" type="button" (click)="previewOpen.set(true)">
+                      <app-icon name="external" size="sm" />
+                      Agrandir
+                    </button>
+                  }
+                </div>
+                @if (preview(); as apercu) {
+                  @if (apercu.missing_variables.length > 0) {
+                    <p class="hint">
+                      Sans valeur à l'envoi, ces variables partiraient telles quelles :
+                      @for (variable of apercu.missing_variables; track variable) {
+                        <span class="var num">{{ variable }}</span>
+                      }
+                    </p>
+                  }
+                  <iframe
+                    class="preview-frame"
+                    title="Aperçu du courriel"
+                    sandbox=""
+                    [srcdoc]="previewHtml()"
+                  ></iframe>
+                } @else {
+                  <p class="hint">Chargement de l'aperçu…</p>
+                }
+              </div>
+
+              <div class="versions">
+                <div class="label">Versions</div>
+                <ol class="vlist">
+                  @for (version of versions(); track version.id_mail_template_versions) {
+                    <li class="vrow">
+                      <span class="num vlabel">{{ version.label }}</span>
+                      <span class="vbody">
+                        <span class="vnote">{{ version.change_note || 'Sans note.' }}</span>
+                        <span class="vmeta num">
+                          {{ version.created_at | date: 'dd/MM/yyyy HH:mm' : 'UTC' : 'fr' }}
+                          @if (version.author_name) {
+                            · {{ version.author_name }}
+                          }
+                        </span>
+                      </span>
+                    </li>
+                  } @empty {
+                    <li class="vrow"><span class="dash">Aucune version enregistrée.</span></li>
+                  }
+                </ol>
+              </div>
+            </div>
+          </div>
+        } @else {
+          <div class="panel">
+            <div class="panel-body">
+              <p class="hint">Choisissez un modèle pour voir son aperçu et ses versions.</p>
+            </div>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+</div>
+
+<!-- ---------- aperçu agrandi ---------- -->
+@if (previewOpen() && preview(); as apercu) {
+  <div class="modal-back" (click)="previewOpen.set(false)" (keydown.escape)="previewOpen.set(false)" tabindex="-1">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Aperçu du courriel" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>{{ apercu.subject }}</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="previewOpen.set(false)" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+      <div class="modal-body">
+        <iframe class="preview-frame preview-frame-lg" title="Aperçu du courriel" sandbox="" [srcdoc]="previewHtml()"></iframe>
+      </div>
+      <div class="modal-foot">
+        <span class="foot-note">{{ apercu.preheader }}</span>
+        <button class="btn" type="button" (click)="previewOpen.set(false)">Fermer</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ---------- création et modification ---------- -->
+@if (draft(); as brouillon) {
+  <div class="modal-back" (click)="fermerFormulaire()" (keydown.escape)="fermerFormulaire()" tabindex="-1">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Modèle de mail" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>{{ editing() === null ? 'Nouveau modèle' : 'Modifier le modèle' }}</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermerFormulaire()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form">
+          <div class="duo">
+            <div class="field">
+              <label for="tpl_cat">Catégorie</label>
+              <select
+                id="tpl_cat"
+                class="select"
+                [value]="brouillon.category_code"
+                (change)="majBrouillon('category_code', $any($event.target).value)"
+              >
+                @for (category of categories(); track category.code) {
+                  <option [value]="category.code">{{ category.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="tpl_status">État</label>
+              <select
+                id="tpl_status"
+                class="select"
+                [value]="brouillon.status"
+                (change)="majBrouillon('status', $any($event.target).value)"
+              >
+                <option value="draft">Brouillon — non envoyable</option>
+                <option value="published">Publié — envoyable</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="tpl_name">Nom du modèle</label>
+            <input
+              id="tpl_name"
+              class="input"
+              type="text"
+              [value]="brouillon.name"
+              (input)="majBrouillon('name', $any($event.target).value)"
+            />
+          </div>
+
+          <div class="field">
+            <label for="tpl_subject">Objet</label>
+            <input
+              id="tpl_subject"
+              class="input"
+              type="text"
+              placeholder="Votre inscription à « {{ '{{titre_webinaire}}' }} » est confirmée"
+              [value]="brouillon.subject"
+              (input)="majBrouillon('subject', $any($event.target).value)"
+            />
+            <p class="hint">Les variables s'écrivent entre doubles accolades.</p>
+          </div>
+
+          <div class="field">
+            <label for="tpl_pre">Pré-entête</label>
+            <input
+              id="tpl_pre"
+              class="input"
+              type="text"
+              placeholder="Première ligne visible dans la boîte de réception"
+              [value]="brouillon.preheader"
+              (input)="majBrouillon('preheader', $any($event.target).value)"
+            />
+          </div>
+
+          <div class="field">
+            <label for="tpl_body">Corps du message (HTML)</label>
+            <textarea
+              id="tpl_body"
+              class="textarea code"
+              rows="14"
+              [value]="brouillon.body_html"
+              (input)="majBrouillon('body_html', $any($event.target).value)"
+            ></textarea>
+            <p class="hint">
+              Seulement le corps : des lignes <code>&lt;tr&gt;</code> insérées dans la coquille, qui
+              apporte la bannière et la signature.
+            </p>
+          </div>
+
+          @if (editing() !== null) {
+            <div class="field">
+              <label for="tpl_note">Ce que cette version change</label>
+              <input
+                id="tpl_note"
+                class="input"
+                type="text"
+                placeholder="Ajout du rappel à H-2"
+                [value]="brouillon.change_note"
+                (input)="majBrouillon('change_note', $any($event.target).value)"
+              />
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="foot-note">
+          @if (editing() === null) {
+            Le modèle part en v1.
+          } @else {
+            Modifier l'objet, le pré-entête ou le corps crée une nouvelle version.
+          }
+        </span>
+        <button class="btn" type="button" (click)="fermerFormulaire()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="busy() || !formulaireValide()"
+          (click)="enregistrer()"
+        >
+          {{ busy() ? 'Enregistrement…' : 'Enregistrer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,491 @@
+<app-topbar [trail]="trail">
+  <a class="btn" routerLink="/newsletter/modeles">
+    <app-icon name="files" size="sm" />
+    Modèles de mail
+  </a>
+  @if (canSend()) {
+    <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="ouvrirComposer()">
+      <app-icon name="send" size="sm" />
+      Nouvel envoi
+    </button>
+  }
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Boîte d'envois</h1>
+      <p class="sub">
+        @if (stats(); as chiffres) {
+          {{ chiffres.sends }} envoi{{ chiffres.sends > 1 ? 's' : '' }} ·
+          {{ chiffres.delivered | number: '1.0-0' : 'fr' }} message{{
+            chiffres.delivered > 1 ? 's' : ''
+          }}
+          remis · {{ chiffres.delivery_rate }} % de remise · {{ chiffres.bounced }} rejet{{
+            chiffres.bounced > 1 ? 's' : ''
+          }}
+        } @else {
+          Chargement des chiffres…
+        }
+      </p>
+    </div>
+
+    <div class="head-tools">
+      <!-- Le choix du compte commande TOUT l'écran : chiffres et liste. -->
+      <div class="field field-inline">
+        <label for="compte">Compte d'envoi</label>
+        <select
+          id="compte"
+          class="select"
+          [value]="accountFilter() ?? ''"
+          (change)="choisirCompte($any($event.target).value)"
+        >
+          <option value="">Tous les comptes (cumulé)</option>
+          @for (compte of accounts(); track compte.id_email_accounts) {
+            <option [value]="compte.id_email_accounts">
+              {{ compte.label }} — {{ compte.from_email }}
+            </option>
+          }
+        </select>
+      </div>
+      <button class="btn" type="button" [disabled]="refreshing()" (click)="recharger()">
+        <app-icon name="history" size="sm" />
+        {{ refreshing() ? 'Actualisation…' : 'Actualiser' }}
+      </button>
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div class="banner banner-error">
+      <app-icon name="warn" size="sm" />
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  @if (report(); as compte_rendu) {
+    <div class="banner" [class.banner-error]="!compte_rendu.ok">
+      <app-icon [name]="compte_rendu.ok ? 'check' : 'warn'" size="sm" />
+      <span>{{ compte_rendu.message }}</span>
+      <button class="btn btn-sm" type="button" (click)="report.set(null)">Fermer</button>
+    </div>
+  }
+
+  @if (accounts().length === 0 && !loading()) {
+    <div class="banner banner-error">
+      <app-icon name="warn" size="sm" />
+      <span>Aucun compte d'envoi n'est configuré : aucun courriel ne peut partir.</span>
+      @if (canManageAccounts()) {
+        <a class="btn btn-sm" routerLink="/newsletter/comptes-envoi">Configurer</a>
+      }
+    </div>
+  }
+
+  <!-- Chiffres de la période, recalculés à chaque actualisation. -->
+  @if (stats(); as chiffres) {
+    <div class="stat-figures">
+      <div class="stat-figure role-primary">
+        <span class="stat-figure__icon"><app-icon name="send" /></span>
+        <span class="stat-figure__value">{{ chiffres.sends }}</span>
+        <span class="stat-figure__label">Envois</span>
+        <span class="stat-figure__note">
+          @if (accountFilter() === null) {
+            tous comptes
+          } @else {
+            ce compte
+          }
+        </span>
+      </div>
+      <div class="stat-figure role-success">
+        <span class="stat-figure__icon"><app-icon name="check" /></span>
+        <span class="stat-figure__value">{{ chiffres.delivered | number: '1.0-0' : 'fr' }}</span>
+        <span class="stat-figure__label">Messages remis</span>
+        <span class="stat-figure__note">sur {{ chiffres.targeted }} visés</span>
+      </div>
+      <div class="stat-figure role-danger">
+        <span class="stat-figure__icon"><app-icon name="close" /></span>
+        <span class="stat-figure__value" [class.is-empty]="!chiffres.bounced">
+          {{ chiffres.bounced }}
+        </span>
+        <span class="stat-figure__label">Rejets</span>
+        <span class="stat-figure__note">refusés par le serveur</span>
+      </div>
+      <div class="stat-figure role-warning">
+        <span class="stat-figure__icon"><app-icon name="warn" /></span>
+        <span class="stat-figure__value" [class.is-empty]="!chiffres.needing_attention">
+          {{ chiffres.needing_attention }}
+        </span>
+        <span class="stat-figure__label">À reprendre</span>
+        <span class="stat-figure__note">échecs ou envois partiels</span>
+      </div>
+    </div>
+    <p class="computed">
+      Chiffres arrêtés le {{ chiffres.computed_at | date: 'dd/MM/yyyy à HH:mm:ss' : 'UTC' : 'fr' }}
+      (UTC). Seul l'acheminement est mesuré : ouvertures et clics ne transitent pas par SMTP.
+    </p>
+  }
+
+  <div class="log">
+    <!-- ---------- filtres ---------- -->
+    <aside class="filters" aria-label="Filtres">
+      <div class="fgroup">
+        <div class="label">Catégorie</div>
+        @for (category of categories(); track category.code) {
+          <button
+            class="frow"
+            type="button"
+            [class.is-on]="categoryFilter() === category.code"
+            [attr.aria-pressed]="categoryFilter() === category.code"
+            (click)="filtrerCategorie(category.code)"
+          >
+            <span class="who">{{ category.label }}</span>
+            <span class="n">{{ compteurCategorie(category.code) }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Statut</div>
+        @for (statut of statuses(); track statut.code) {
+          <button
+            class="frow"
+            type="button"
+            [class.is-on]="statusFilter() === statut.code"
+            [attr.aria-pressed]="statusFilter() === statut.code"
+            (click)="filtrerStatut(statut.code)"
+          >
+            <span class="who">{{ statut.label }}</span>
+            <span class="n">{{ compteurStatut(statut.code) }}</span>
+          </button>
+        }
+      </div>
+
+      @if (hasActiveFilters()) {
+        <button class="freset" type="button" (click)="reinitialiser()">Réinitialiser</button>
+      }
+    </aside>
+
+    <!-- ---------- liste ---------- -->
+    <section class="results">
+      <div class="toolbar">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Rechercher un objet, un événement, un modèle…"
+            aria-label="Rechercher un envoi"
+            [value]="searchTerm()"
+            (change)="rechercher($any($event.target).value)"
+          />
+        </div>
+      </div>
+
+      @if (loading()) {
+        <div class="empty"><p>Chargement des envois…</p></div>
+      } @else if (sends().length === 0) {
+        <div class="empty">
+          <h2>Aucun envoi</h2>
+          @if (hasActiveFilters()) {
+            <p>Aucun envoi ne correspond à ces filtres.</p>
+            <button class="btn" type="button" (click)="reinitialiser()">
+              Réinitialiser les filtres
+            </button>
+          } @else {
+            <p>
+              Rien n'est encore parti depuis
+              {{ accountFilter() === null ? 'aucun compte' : 'ce compte' }}. « Nouvel envoi »
+              choisit un modèle publié et ses destinataires.
+            </p>
+          }
+        </div>
+      } @else {
+        <div class="panel">
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Objet</th>
+                  <th>Modèle</th>
+                  <th>Compte</th>
+                  <th class="num">Destinataires</th>
+                  <th class="num">Remis</th>
+                  <th class="num">Rejets</th>
+                  <th>Envoi</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (envoi of sends(); track envoi.id_newsletter_sends) {
+                  <tr (click)="ouvrir(envoi)">
+                    <td>
+                      <span class="subj">{{ envoi.subject }}</span>
+                      <span class="evt">{{ envoi.event_title || envoi.category_label }}</span>
+                    </td>
+                    <td>
+                      <span class="tpl">{{ envoi.template_name }}</span>
+                      <span class="ver num">{{ envoi.template_version }}</span>
+                    </td>
+                    <td>
+                      <span class="tpl">{{ envoi.account_label }}</span>
+                      <span class="ver num">{{ envoi.account_from_email }}</span>
+                    </td>
+                    <td class="num">{{ envoi.recipient_count }}</td>
+                    <td class="num">
+                      @if (tente(envoi)) {
+                        {{ envoi.delivered_count }}
+                      } @else {
+                        <span class="dash">—</span>
+                      }
+                    </td>
+                    <td class="num">
+                      @if (!tente(envoi)) {
+                        <span class="dash">—</span>
+                      } @else if (envoi.bounce_count) {
+                        <span class="bounced">{{ envoi.bounce_count }}</span>
+                      } @else {
+                        0
+                      }
+                    </td>
+                    <td class="num when">
+                      {{ (envoi.sent_at ?? envoi.created_at) | date: 'dd/MM/yy HH:mm' : 'UTC' : 'fr' }}
+                    </td>
+                    <td>
+                      <span class="status" [class]="statutModifier(envoi.status_code)">
+                        {{ envoi.status_label }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <nav class="pager" aria-label="Pagination des envois">
+          <span class="num">
+            {{ total() }} envoi{{ total() > 1 ? 's' : '' }} · page {{ page() }} sur
+            {{ pages() }}
+          </span>
+          <span class="pager-acts">
+            <button class="btn btn-sm" type="button" [disabled]="page() <= 1" (click)="allerPage(page() - 1)">
+              Précédents
+            </button>
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="page() >= pages()"
+              (click)="allerPage(page() + 1)"
+            >
+              Suivants
+            </button>
+          </span>
+        </nav>
+      }
+    </section>
+  </div>
+</div>
+
+<!-- ---------- détail d'un envoi ---------- -->
+@if (opened(); as envoi) {
+  <div class="modal-back" (click)="fermer()" (keydown.escape)="fermer()" tabindex="-1">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" [attr.aria-label]="envoi.subject" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div class="sd-head">
+          <div class="sd-kicker">
+            <span class="label">{{ envoi.category_label }}</span>
+            <span class="status" [class]="statutModifier(envoi.status_code)">
+              {{ envoi.status_label }}
+            </span>
+          </div>
+          <h2>{{ envoi.subject }}</h2>
+          <p class="sd-sub">
+            {{ envoi.template_name }} {{ envoi.template_version }} · {{ envoi.account_label }}
+            ({{ envoi.account_from_email }}) ·
+            {{ (envoi.sent_at ?? envoi.created_at) | date: 'dd/MM/yyyy à HH:mm' : 'UTC' : 'fr' }}
+          </p>
+        </div>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermer()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        @if (envoi.failure_note) {
+          <div class="alert">
+            <app-icon name="warn" size="sm" />
+            <span>{{ envoi.failure_note }}</span>
+          </div>
+        }
+
+        <div class="stats">
+          <div class="stat">
+            <span class="label">Destinataires</span>
+            <span class="v">{{ envoi.recipient_count }}</span>
+          </div>
+          <div class="stat">
+            <span class="label">Remis</span>
+            <span class="v">{{ envoi.delivered_count }}</span>
+            <span class="d">{{ envoi.delivery_rate }} % des destinataires</span>
+          </div>
+          <div class="stat">
+            <span class="label">Rejets</span>
+            <span class="v">{{ envoi.bounce_count }}</span>
+            <span class="d">refusés par le serveur</span>
+          </div>
+        </div>
+
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Destinataire</th>
+                <th>Résultat</th>
+                <th>Motif du refus</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ligne of envoi.recipients; track ligne.email) {
+                <tr>
+                  <td>
+                    <span class="subj">{{ ligne.display_name || ligne.email }}</span>
+                    @if (ligne.display_name) {
+                      <span class="evt num">{{ ligne.email }}</span>
+                    }
+                  </td>
+                  <td>
+                    <span class="status" [class]="ligne.is_delivered ? 'status-published' : 'status-failed'">
+                      {{ ligne.is_delivered ? 'Accepté' : 'Refusé' }}
+                    </span>
+                  </td>
+                  <td class="motif">{{ ligne.error_message || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        @if (canSend()) {
+          <button class="btn" type="button" (click)="ouvrirComposer(); reprendreLesDestinataires()">
+            <app-icon name="send" size="sm" />
+            Renvoyer à ces destinataires
+          </button>
+        }
+        <button class="btn" type="button" (click)="fermer()">Fermer</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ---------- nouvel envoi ---------- -->
+@if (composer(); as etat) {
+  <div class="modal-back" (click)="fermerComposer()" (keydown.escape)="fermerComposer()" tabindex="-1">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Nouvel envoi" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Nouvel envoi</h2>
+        <button class="btn btn-icon btn-ghost" type="button" (click)="fermerComposer()" aria-label="Fermer">
+          <app-icon name="close" size="sm" />
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form">
+          <div class="field">
+            <label for="env_modele">Modèle</label>
+            <select
+              id="env_modele"
+              class="select"
+              [value]="etat.id_mail_templates ?? ''"
+              (change)="majComposerId('id_mail_templates', $any($event.target).value)"
+            >
+              @for (modele of publishedTemplates(); track modele.id_mail_templates) {
+                <option [value]="modele.id_mail_templates">
+                  {{ modele.category_label }} — {{ modele.name }} ({{ modele.version_label }})
+                </option>
+              } @empty {
+                <option value="">Aucun modèle publié</option>
+              }
+            </select>
+            @if (publishedTemplates().length === 0) {
+              <p class="hint">
+                Un modèle doit être publié pour servir à un envoi.
+                <a class="link" routerLink="/newsletter/modeles">Ouvrir les modèles</a>
+              </p>
+            }
+          </div>
+
+          <div class="field">
+            <label for="env_compte">Compte expéditeur</label>
+            <select
+              id="env_compte"
+              class="select"
+              [value]="etat.id_email_accounts ?? ''"
+              (change)="majComposerId('id_email_accounts', $any($event.target).value)"
+            >
+              <option value="">Compte d'envoi actif</option>
+              @for (compte of accounts(); track compte.id_email_accounts) {
+                <option [value]="compte.id_email_accounts">
+                  {{ compte.label }} — {{ compte.from_email }}
+                </option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="env_evt">Événement</label>
+            <input
+              id="env_evt"
+              class="input"
+              type="text"
+              placeholder="Webinaire du 11 décembre"
+              [value]="etat.event_title"
+              (input)="majComposer('event_title', $any($event.target).value)"
+            />
+          </div>
+
+          <div class="field">
+            <label for="env_dest">Destinataires</label>
+            <textarea
+              id="env_dest"
+              class="textarea"
+              rows="7"
+              placeholder="Mialy Rakoto &lt;mialy@exemple.fr&gt;&#10;contact@exemple.fr"
+              [value]="etat.recipients"
+              (input)="majComposer('recipients', $any($event.target).value)"
+            ></textarea>
+            <p class="hint">
+              Un par ligne, « Nom &lt;adresse&gt; » ou l'adresse seule. Le prénom sert la variable
+              <span class="num">prenom</span> : chacun reçoit son propre message, jamais une copie
+              cachée.
+              @if (opened()) {
+                <button class="btn btn-sm" type="button" (click)="reprendreLesDestinataires()">
+                  Reprendre ceux de l'envoi ouvert
+                </button>
+              }
+            </p>
+            <p class="hint">
+              {{ parsedRecipients().length }} destinataire{{
+                parsedRecipients().length > 1 ? 's' : ''
+              }}
+              retenu{{ parsedRecipients().length > 1 ? 's' : '' }}.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <span class="foot-note">Les messages partent tout de suite, un par destinataire.</span>
+        <button class="btn" type="button" (click)="fermerComposer()">Annuler</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="busy() || !envoiValide()"
+          (click)="envoyer()"
+        >
+          <app-icon name="send" size="sm" />
+          {{ busy() ? 'Envoi…' : 'Envoyer' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

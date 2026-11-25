@@ -73,6 +73,11 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 25/11 | Les identifiants d'envoi vivent **en base, chiffrés par Fernet** (`email_account_credentials`), et non dans `.env` | plusieurs comptes possibles, changement de mot de passe sans redéploiement, et la date de chaque remplacement est conservée |
 | 25/11 | Un **seul compte d'envoi actif**, tenu par un index unique partiel et non par le service | une requête concurrente ne peut pas créer deux expéditeurs |
 | 25/11 | **`aiosmtplib`** plutôt que `smtplib` | `smtplib` est bloquant : un serveur lent immobiliserait la boucle d'événements, donc toute l'API |
+| 25/11 | **Une coquille unique** porte la bannière et la signature ; un modèle ne porte que son corps | changer le logo ne doit pas demander de rouvrir chaque modèle — et un modèle oublié enverrait l'ancien |
+| 25/11 | Les cinq **modèles standards** vivent dans des fichiers `.html` et s'installent à la demande | du HTML dans un fichier se relit et se corrige ; noyé dans une migration, il ne se relit plus |
+| 25/11 | Un envoi part **message par message**, jamais en copie cachée | le prénom de chacun, et les adresses des inscrits ne se montrent pas les unes aux autres |
+| 25/11 | Les **cumuls d'un envoi sont déduits** du détail par destinataire | un total qui ne correspond pas au détail est invérifiable |
+| 25/11 | La maquette de la boîte d'envois garde son URL en **`/newsletter/envois_prototype`** | demandée pour une démonstration ; la page branchée prend l'URL d'origine |
 
 ## 5. Faits vérifiés
 

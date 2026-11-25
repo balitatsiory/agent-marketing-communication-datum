@@ -141,6 +141,14 @@ export const routes: Routes = [
 
 
       {
+        path: 'newsletter/envois',
+        title: "Boîte d'envois · IAGORA",
+        loadComponent: () =>
+          import('./features/newsletter/send-list/send-list').then((m) => m.SendList),
+      },
+
+
+      {
         path: 'newsletter/envois_prototype',
         title: "Boîte d'envois (prototype) · IAGORA",
         loadComponent: () =>
@@ -151,6 +159,16 @@ export const routes: Routes = [
       {
         path: 'newsletter/modeles',
         title: 'Modèles de mail · IAGORA',
+        loadComponent: () =>
+          import('./features/newsletter/template-library/template-library').then(
+            (m) => m.TemplateLibrary,
+          ),
+      },
+
+
+      {
+        path: 'newsletter/modeles_prototype',
+        title: 'Modèles de mail (prototype) · IAGORA',
         loadComponent: () =>
           import('./features/newsletter/mail-templates/mail-templates').then((m) => m.MailTemplates),
       },

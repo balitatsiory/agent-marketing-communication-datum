@@ -43,6 +43,8 @@ COMPTES = [
             "read_social_statistics",
             "manage_ai_models",
             "manage_email_accounts",
+            "manage_mail_templates",
+            "send_newsletters",
         ],
         "is_active": True,
         "archive": False,
