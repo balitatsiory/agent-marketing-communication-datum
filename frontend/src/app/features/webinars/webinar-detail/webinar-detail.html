@@ -135,16 +135,15 @@
                   </div>
                 </div>
 
-                @if (bars().length) {
+                @if (fiche.registration_series.length) {
                   <div class="block">
                     <span class="label">Inscriptions · 30 jours</span>
-                    <div class="spark">
-                      @for (bar of bars(); track bar.day) {
-                        <span class="spark-col" [title]="(bar.day | date: 'd MMM') + ' : ' + bar.count">
-                          <span [style.height.%]="bar.share * 100"></span>
-                        </span>
-                      }
-                    </div>
+                    <!-- Différé : ECharts ne se charge qu'à l'ouverture d'une fiche qui a des inscrits. -->
+                    @defer (on immediate) {
+                      <app-registration-chart [series]="fiche.registration_series" />
+                    } @placeholder {
+                      <div class="chart-wait" aria-hidden="true"></div>
+                    }
                   </div>
                 }
               </div>
@@ -290,6 +289,19 @@
                 <app-icon name="send" size="sm" />
                 Préparer une newsletter ({{ fiche.consented_count }})
               </a>
+              <button
+                class="btn export"
+                type="button"
+                [disabled]="exporting() || !registrationTotal()"
+                (click)="exportRegistrations()"
+              >
+                @if (exporting()) {
+                  <span class="spinner" aria-hidden="true"></span>
+                } @else {
+                  <app-icon name="download" size="sm" />
+                }
+                Exporter en CSV
+              </button>
             </div>
 
             <form class="add-form" (submit)="$event.preventDefault(); addRegistration()">
@@ -359,13 +371,16 @@
                   </tbody>
                 </table>
               </div>
-              @if (registrationPages() > 1) {
-                <div class="pane-actions">
-                  <button class="btn btn-sm" type="button" [disabled]="registrationPage() <= 1" (click)="loadRegistrations(registrationPage() - 1)">Précédent</button>
-                  <span class="cap">Page {{ registrationPage() }} / {{ registrationPages() }} · {{ registrationTotal() }} inscrits</span>
-                  <button class="btn btn-sm" type="button" [disabled]="registrationPage() >= registrationPages()" (click)="loadRegistrations(registrationPage() + 1)">Suivant</button>
-                </div>
-              }
+              <app-pager
+                label="Pagination des inscrits"
+                [page]="registrationPage()"
+                [pages]="registrationPages()"
+                [total]="registrationTotal()"
+                [size]="registrationSize()"
+                [sizes]="registrationSizes"
+                (pageChange)="loadRegistrations($event)"
+                (sizeChange)="chooseRegistrationSize($event)"
+              />
             }
           </div>
         }

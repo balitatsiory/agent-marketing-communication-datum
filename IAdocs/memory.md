@@ -92,6 +92,7 @@ Le prototype d'interface a été relu et corrigé. Le module `publications` n'es
 | 26/11 | Avant de créer une réunion, IAGORA **reprend une réunion identique** (titre et heure) rattachée à aucune fiche | une réponse de Zoom perdue puis un nouvel essai créaient un doublon |
 | 26/11 | Le formulaire public répond **toujours le même message**, sans promettre de courriel | Zoom peut refuser l'inscription après coup |
 | 26/11 | Un webinaire **déjà validé ne passe plus** d'un lien fourni à « Zoom » | la réunion ne se crée qu'à la validation d'un brouillon |
+| 26/11 | Export CSV des inscrits réservé à **`manage_webinars`**, **sans** les lignes effacées ni le lien Zoom personnel ; les valeurs commençant comme une formule sont neutralisées | le fichier sort d'IAGORA : le lien donne accès à la réunion, et un tableur exécuterait un prénom saisi dans le formulaire public |
 
 ## 5. Faits vérifiés
 

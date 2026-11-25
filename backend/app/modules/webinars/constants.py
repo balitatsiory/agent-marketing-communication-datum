@@ -88,3 +88,23 @@ FLYER_FORMATS = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
 
 # Nombre de jours de la courbe d'inscriptions d'une fiche.
 REGISTRATION_SERIES_DAYS = 30
+
+# Export CSV des inscrits.
+EXPORT_COLUMNS = (
+    "Prénom",
+    "Nom de famille",
+    "Adresse e-mail",
+    "Origine",
+    "Inscrit le (UTC)",
+    "Accord newsletter",
+    "Accord donné le (UTC)",
+    "État Zoom",
+    "Erreur Zoom",
+)
+EXPORT_SOURCE_LABELS = {
+    SOURCE_IAGORA_FORM: "Formulaire",
+    SOURCE_MANUAL: "Équipe",
+    SOURCE_ZOOM_SYNC: "Zoom",
+}
+# Débuts de cellule qu'un tableur interprète comme une formule.
+EXPORT_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")

@@ -411,6 +411,13 @@ export class WebinarsApi {
     );
   }
 
+  /** Tous les inscrits en CSV, quelle que soit la page affichée. */
+  exportRegistrations(id: number): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${this.base}/${id}/registrations/export`, { responseType: 'blob' }),
+    );
+  }
+
   addRegistration(id: number, inscription: RegistrationInput): Promise<RegistrationDto> {
     return firstValueFrom(
       this.http.post<RegistrationDto>(`${this.base}/${id}/registrations`, inscription),
