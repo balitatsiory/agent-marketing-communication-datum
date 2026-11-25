@@ -1331,8 +1331,8 @@
                 @for (k of keys(); track k.id_openrouter_api_keys) {
                   <tr>
                     <td>
-                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind === 'standard'">
-                        {{ k.key_kind === 'management' ? 'Management' : 'Standard' }}
+                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind !== 'management'">
+                        {{ k.key_kind === 'management' ? 'Management' : k.key_kind === 'sandbox' ? 'Sandbox' : 'Standard' }}
                       </span>
                     </td>
                     <td>{{ k.label || '—' }}</td>

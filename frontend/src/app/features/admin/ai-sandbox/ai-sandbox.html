@@ -1,0 +1,619 @@
+<app-topbar [trail]="['Administrer', 'Bac à sable IA']">
+  <span class="num quota">Session : +{{ formatCost6(sessionCostUsd()) }}</span>
+  <button
+    type="button"
+    class="btn"
+    (click)="showSandboxKeyModal.set(true)"
+  >
+    <app-icon name="sliders" size="sm" />
+    @if (activeSandboxKey(); as sk) {
+      Clé Sandbox active ({{ sk.key_masked }})
+    } @else {
+      Configurer clé Sandbox isolée
+    }
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Bac à sable IA — Comparateur de Modèles &amp; Raisonnement</h1>
+      <p class="sub">
+        Comparez vos modèles OpenRouter côte à côte sur vos vrais prompts (publications, images, messagerie RAG) et mesurez le coût réel sans polluer la production.
+      </p>
+    </div>
+
+    <div class="isolation-badge" [class.is-isolated]="!!activeSandboxKey()">
+      <app-icon [name]="activeSandboxKey() ? 'check' : 'warn'" size="sm" />
+      @if (activeSandboxKey(); as sk) {
+        <span>Clé Sandbox isolée chiffrée : <code class="num">{{ sk.key_masked }}</code></span>
+      } @else if (activeStandardKey(); as std) {
+        <span>Repli sur clé Standard (<code class="num">{{ std.key_masked }}</code>) — ajoutez une clé Sandbox pour isoler vos stats</span>
+      } @else {
+        <span>Aucune clé OpenRouter configurée</span>
+      }
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice" role="status">
+      <app-icon name="check" size="sm" />
+      <span>{{ message }}</span>
+    </p>
+  }
+
+  @if (errorMessage(); as err) {
+    <p class="notice notice-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      <span>{{ err }}</span>
+    </p>
+  }
+
+  <!-- ========================================================================
+       ÉTAPE 1 : CAS D'UTILISATION STRICT & PROMPTS COMMUNS
+       ======================================================================== -->
+  <section class="panel config-panel" aria-label="Configuration du cas d'utilisation et des prompts">
+    <div class="section-head">
+      <div>
+        <span class="step-label">Étape 1 · Cas d'utilisation strict &amp; entrée commune</span>
+        <h2>Choisissez un cas d'utilisation métier</h2>
+      </div>
+      <span class="token-est-pill num">
+        Entrée estimée : ~{{ estimatedInputTokens().toLocaleString('fr-FR') }} tokens
+      </span>
+    </div>
+
+    <!-- 3 Cartes Cas d'utilisation strict -->
+    <div class="usecase-grid" role="radiogroup" aria-label="Cas d'utilisation strict">
+      @for (uc of useCases; track uc.code) {
+        <button
+          type="button"
+          class="usecase-card"
+          [class.is-active]="selectedUseCase() === uc.code"
+          [attr.aria-checked]="selectedUseCase() === uc.code"
+          role="radio"
+          (click)="selectUseCase(uc.code)"
+        >
+          <div class="uc-top">
+            <span class="uc-title">{{ uc.title }}</span>
+            @if (selectedUseCase() === uc.code) {
+              <span class="status status-published">Sélectionné</span>
+            }
+          </div>
+          <p class="uc-sub">{{ uc.subtitle }}</p>
+        </button>
+      }
+    </div>
+
+    <!-- Champs Prompts (System + User) -->
+    <div class="prompts-grid">
+      <div class="field">
+        <div class="field-head">
+          <label for="sbx-sys-prompt">System Prompt (Rôle, ton &amp; contraintes)</label>
+          <code class="role-tag">role: "system"</code>
+        </div>
+        <textarea
+          id="sbx-sys-prompt"
+          rows="4"
+          class="textarea"
+          [ngModel]="systemPrompt()"
+          (ngModelChange)="systemPrompt.set($event)"
+        ></textarea>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label for="sbx-user-prompt">User Prompt (Requête à comparer)</label>
+          <code class="role-tag">role: "user"</code>
+        </div>
+        <textarea
+          id="sbx-user-prompt"
+          rows="4"
+          class="textarea"
+          [ngModel]="userPrompt()"
+          (ngModelChange)="userPrompt.set($event)"
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Champs Ton + Options spécifiques (Image ou Base de connaissance) + JSON type sortie -->
+    <div class="options-grid">
+      <!-- Ton -->
+      <div class="field">
+        <label for="sbx-tone-select">Ton / Style éditorial</label>
+        <select
+          id="sbx-tone-select"
+          class="select"
+          [ngModel]="tone()"
+          (ngModelChange)="tone.set($event)"
+        >
+          @for (t of currentUseCaseConfig().tones; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+        <input
+          type="text"
+          class="input input-sm"
+          [ngModel]="tone()"
+          (ngModelChange)="tone.set($event)"
+          placeholder="Ou saisissez un ton personnalisé…"
+          aria-label="Ton personnalisé"
+        />
+      </div>
+
+      <!-- Options spécifiques Image -->
+      @if (selectedUseCase() === 'image_generation') {
+        <div class="field">
+          <label for="sbx-img-mode">Mode visuel &amp; format</label>
+          <div class="inline-row">
+            <select
+              id="sbx-img-mode"
+              class="select"
+              [ngModel]="imageMode()"
+              (ngModelChange)="imageMode.set($event)"
+            >
+              <option value="create">Création d'image</option>
+              <option value="edit">Modification d'image existante</option>
+            </select>
+            <select
+              class="select"
+              aria-label="Ratio de l'image"
+              [ngModel]="imageAspectRatio()"
+              (ngModelChange)="imageAspectRatio.set($event)"
+            >
+              @for (r of aspectRatios; track r.value) {
+                <option [value]="r.value">{{ r.label }}</option>
+              }
+            </select>
+          </div>
+
+          @if (imageMode() === 'edit') {
+            <div class="ref-img-box">
+              <input
+                type="url"
+                class="input input-sm"
+                [ngModel]="referenceImageUrl()"
+                (ngModelChange)="referenceImageUrl.set($event)"
+                placeholder="URL de l'image de référence (ou importer un fichier ci-dessous)"
+              />
+              <input
+                type="file"
+                accept="image/*"
+                class="file-input"
+                (change)="onReferenceImageSelected($event)"
+              />
+              @if (referenceImageUrl()) {
+                <img [src]="referenceImageUrl()" alt="Image de référence" class="ref-thumb" />
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <!-- JSON type sortie -->
+      <div class="field">
+        <div class="field-head">
+          <label for="sbx-json-toggle">JSON type sortie</label>
+          <label class="toggle-inline">
+            <input
+              id="sbx-json-toggle"
+              type="checkbox"
+              [ngModel]="jsonOutputEnabled()"
+              (ngModelChange)="jsonOutputEnabled.set($event)"
+            />
+            <span>Activer la sortie JSON structurée</span>
+          </label>
+        </div>
+        <textarea
+          rows="4"
+          class="textarea mono-area"
+          [disabled]="!jsonOutputEnabled()"
+          [ngModel]="jsonOutputSchema()"
+          (ngModelChange)="jsonOutputSchema.set($event)"
+          placeholder='{"cle": "valeur attendue"}'
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Base de connaissances (toujours visible pour Message RAG, pliable pour les autres) -->
+    @if (selectedUseCase() === 'message_rag') {
+      <div class="kb-block">
+        <div class="field-head">
+          <label for="sbx-kb-input">
+            <b>{{ currentUseCaseConfig().contextLabel }}</b>
+          </label>
+          <span class="kind-pill kind-std">RAG injecté dans le prompt</span>
+        </div>
+        <textarea
+          id="sbx-kb-input"
+          rows="4"
+          class="textarea mono-area"
+          [ngModel]="knowledgeContext()"
+          (ngModelChange)="knowledgeContext.set($event)"
+          placeholder="Collez vos extraits de base de connaissances, tarifs, règlements ou FAQ…"
+        ></textarea>
+      </div>
+    } @else {
+      <div class="context-drawer-box">
+        <button
+          type="button"
+          class="drawer-toggle"
+          (click)="showContextDrawer.set(!showContextDrawer())"
+        >
+          <span>{{ showContextDrawer() ? '▼' : '▶' }} {{ currentUseCaseConfig().contextLabel }} (optionnel)</span>
+          <span class="text-muted">Cliquer pour modifier le contexte injecté</span>
+        </button>
+        @if (showContextDrawer()) {
+          <div class="drawer-body">
+            <textarea
+              rows="3"
+              class="textarea mono-area"
+              [ngModel]="knowledgeContext()"
+              (ngModelChange)="knowledgeContext.set($event)"
+            ></textarea>
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ========================================================================
+       ÉTAPE 2 : 2 BLOCS MODÈLES + BLOC AJOUTER UN MODÈLE + BOUTON GÉNÉRER
+       ======================================================================== -->
+  <section class="compare-section" aria-label="Sélection des modèles à comparer">
+    <div class="section-toolbar">
+      <div>
+        <span class="step-label">Étape 2 · Comparaison côte à côte</span>
+        <h2>Modèles &amp; Effort de raisonnement ({{ variants().length }} sélectionnés)</h2>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-primary btn-generate"
+        [disabled]="isRunning() || loadingInit()"
+        (click)="runComparison()"
+      >
+        <app-icon name="sparkle" size="sm" />
+        @if (isRunning()) {
+          <span>Génération en cours ({{ variants().length }} modèles)…</span>
+        } @else {
+          <span>Générer et comparer ({{ variants().length }} modèles)</span>
+        }
+      </button>
+    </div>
+
+    <div class="variants-grid">
+      @for (slot of variants(); track slot.slotId) {
+        <article class="panel variant-card">
+          <!-- Configuration du bloc modèle -->
+          <div class="variant-head">
+            <div class="vh-top">
+              <span class="slot-badge">Modèle {{ slot.slotId }}</span>
+              @if (variants().length > 2) {
+                <button
+                  type="button"
+                  class="btn-icon-remove"
+                  title="Retirer ce bloc"
+                  (click)="removeVariantSlot(slot.slotId)"
+                >
+                  <app-icon name="close" size="sm" />
+                </button>
+              }
+            </div>
+
+            <div class="field">
+              <label [attr.for]="'model-' + slot.slotId">Modèle OpenRouter</label>
+              @if (selectableModels().length > 0) {
+                <select
+                  [id]="'model-' + slot.slotId"
+                  class="select"
+                  [ngModel]="slot.modelId"
+                  (ngModelChange)="updateVariant(slot.slotId, { modelId: $event })"
+                  [disabled]="isRunning()"
+                >
+                  @for (m of selectableModels(); track m.id_ai_models) {
+                    <option [value]="m.openrouter_model_id">
+                      {{ m.is_enabled ? '★ ' : '' }}{{ m.name }} ({{ m.openrouter_model_id }})
+                    </option>
+                  }
+                </select>
+              } @else {
+                <input
+                  [id]="'model-' + slot.slotId"
+                  type="text"
+                  class="input num"
+                  [ngModel]="slot.modelId"
+                  (ngModelChange)="updateVariant(slot.slotId, { modelId: $event })"
+                  placeholder="ex: google/gemini-2.5-flash"
+                />
+              }
+            </div>
+
+            <div class="effort-temp-row">
+              <div class="field">
+                <label [attr.for]="'effort-' + slot.slotId">Effort de raisonnement</label>
+                <select
+                  [id]="'effort-' + slot.slotId"
+                  class="select num"
+                  [ngModel]="slot.reasoningEffort"
+                  (ngModelChange)="updateVariant(slot.slotId, { reasoningEffort: $event })"
+                  [disabled]="isRunning()"
+                >
+                  @for (eff of reasoningEfforts; track eff.value) {
+                    <option [value]="eff.value">{{ eff.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="field temp-field">
+                <label [attr.for]="'temp-' + slot.slotId">Temp.</label>
+                <input
+                  [id]="'temp-' + slot.slotId"
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  class="input num"
+                  [ngModel]="slot.temperature"
+                  (ngModelChange)="updateVariant(slot.slotId, { temperature: +$event })"
+                  [disabled]="isRunning()"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Zone Résultat & Coût réel sous chaque bloc -->
+          <div class="variant-body">
+            @if (isRunning()) {
+              <div class="variant-skel" aria-busy="true">
+                <span class="skel skel-sm" style="width: 45%"></span>
+                <span class="skel skel-box"></span>
+                <div class="cost-row">
+                  <span class="skel skel-md" style="width: 48%"></span>
+                  <span class="skel skel-md" style="width: 48%"></span>
+                </div>
+                <span class="skel skel-sm" style="width: 90%"></span>
+                <span class="skel skel-sm" style="width: 75%"></span>
+              </div>
+            } @else if (slot.result; as res) {
+              @if (!res.ok) {
+                <div class="notice notice-error">
+                  <app-icon name="warn" size="sm" />
+                  <span>{{ res.error || 'Erreur lors de la génération.' }}</span>
+                </div>
+              } @else {
+                <div class="res-header">
+                  <span class="res-title">
+                    {{ slot.showRawJson ? 'JSON usage OpenRouter' : 'Résultat généré' }}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn-mini num"
+                    (click)="updateVariant(slot.slotId, { showRawJson: !slot.showRawJson })"
+                  >
+                    {{ slot.showRawJson ? 'Vue lisible' : '{ } JSON usage' }}
+                  </button>
+                </div>
+
+                @if (slot.showRawJson) {
+                  <pre class="json-pre">{{ formatJson(res.raw_usage_json) }}</pre>
+                } @else {
+                  @if (res.images.length > 0) {
+                    <div class="generated-images">
+                      @for (img of res.images; track img) {
+                        <a [href]="img" target="_blank" rel="noopener" class="gen-img-link">
+                          <img [src]="img" alt="Visuel généré par le modèle" class="gen-img" />
+                        </a>
+                      }
+                    </div>
+                  }
+                  @if (res.text) {
+                    <div class="result-text" [class.is-json]="jsonOutputEnabled()">{{ res.text }}</div>
+                  }
+                  @if (res.reasoning_trace) {
+                    <details class="trace-box">
+                      <summary>
+                        Trace de raisonnement interne ({{ res.reasoning_tokens.toLocaleString('fr-FR') }} tokens)
+                      </summary>
+                      <pre class="trace-pre">{{ res.reasoning_trace }}</pre>
+                    </details>
+                  }
+                }
+
+                <!-- Coût réel & Projection -->
+                <div class="cost-cards">
+                  <div class="cost-box">
+                    <span class="cb-label">Coût réel (usage.cost)</span>
+                    <b class="cb-val num">{{ formatCost6(res.cost_usd) }}</b>
+                  </div>
+                  <div class="cost-box cost-box-accent">
+                    <span class="cb-label">Proj. 5 000 req / mois</span>
+                    <b class="cb-val num">{{ formatCost2(res.projected_monthly_5k_usd) }}<span>/mois</span></b>
+                  </div>
+                </div>
+
+                <!-- Détail tokens & latence -->
+                <div class="metrics-list num">
+                  <div class="ml-row">
+                    <span>prompt_tokens</span>
+                    <b>{{ res.prompt_tokens.toLocaleString('fr-FR') }}</b>
+                  </div>
+                  <div class="ml-row">
+                    <span>completion_tokens</span>
+                    <b>
+                      {{ res.completion_tokens.toLocaleString('fr-FR') }}
+                      <span class="text-muted">({{ res.visible_tokens.toLocaleString('fr-FR') }} vis.)</span>
+                    </b>
+                  </div>
+                  <div class="ml-row">
+                    <span>reasoning_tokens</span>
+                    <span
+                      class="reason-badge"
+                      [class.is-high]="getReasoningPct(res) >= 70"
+                      [class.is-med]="getReasoningPct(res) >= 40 && getReasoningPct(res) < 70"
+                    >
+                      {{ res.reasoning_tokens.toLocaleString('fr-FR') }} ({{ getReasoningPct(res) }} %)
+                    </span>
+                  </div>
+                  <div class="ml-row">
+                    <span>cached_tokens · Latence</span>
+                    <b>{{ res.cached_tokens.toLocaleString('fr-FR') }} · {{ res.latency_ms }} ms</b>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="btn btn-preset"
+                  (click)="applyAsProductionPreset(slot)"
+                >
+                  <app-icon name="check" size="sm" />
+                  Définir comme Preset Production
+                </button>
+              }
+            } @else {
+              <div class="variant-empty">
+                <app-icon name="sparkle" size="sm" />
+                <p>En attente de génération…</p>
+                <span class="text-muted">Cliquez sur « Générer et comparer » pour lancer le test réel.</span>
+              </div>
+            }
+          </div>
+        </article>
+      }
+
+      <!-- Bloc dédié "+ Ajouter un modèle à utiliser" -->
+      @if (canAddVariant()) {
+        <button
+          type="button"
+          class="add-variant-card"
+          [disabled]="isRunning()"
+          (click)="addVariantSlot()"
+        >
+          <span class="add-icon-circle">
+            <app-icon name="plus" size="sm" />
+          </span>
+          <b>Ajouter un modèle à comparer</b>
+          <span class="text-muted">
+            Ajouter une colonne ({{ variants().length }}/4 max) pour tester un autre modèle ou effort
+          </span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       ÉTAPE 3 : SYNTHÈSE FINOPS & GRAPHIQUES COMPARATIFS (ECHARTS)
+       ======================================================================== -->
+  @if (executedResults().length > 0) {
+    <section class="panel finops-summary" aria-label="Synthèse FinOps et projection mensuelle">
+      <div class="section-head">
+        <div>
+          <span class="step-label">Étape 3 · Diagnostic FinOps &amp; Projection</span>
+          <h2>Comparaison des Tokens &amp; Coût Mensuel (5 000 générations / mois)</h2>
+        </div>
+        <span class="text-muted">Frais OpenRouter 5,5 % inclus dans la projection</span>
+      </div>
+
+      @if (finopsDiagnostic(); as diag) {
+        <div class="diag-banner">
+          <div>
+            <b>Diagnostic FinOps : Modèle {{ diag.cheapestSlot }} vs Modèle {{ diag.priciestSlot }}</b>
+            <p>
+              Sur 5 000 générations/mois, le Modèle {{ diag.cheapestSlot }} (<code>{{ diag.cheapestModel }}</code>, effort <code>{{ diag.cheapestEffort }}</code>) coûte
+              <b>{{ formatCost2(diag.cheapestMonthly) }}/mois</b> contre <b>{{ formatCost2(diag.priciestMonthly) }}/mois</b> pour le Modèle {{ diag.priciestSlot }}
+              (<code>{{ diag.priciestModel }}</code>, effort <code>{{ diag.priciestEffort }}</code>).
+            </p>
+          </div>
+          <span class="diag-pill num">
+            -{{ diag.pctSaved }} % ({{ formatCost2(diag.diffMonthly) }}/mois économisés)
+          </span>
+        </div>
+      }
+
+      <div class="summary-charts-grid">
+        <div class="chart-col-wide">
+          <h3>Décomposition des Tokens par Modèle</h3>
+          <div class="chart-canvas" [appChart]="tokensChartOption()"></div>
+        </div>
+        <div class="chart-col-narrow">
+          <h3>Coût Mensuel Projeté (5 000 req/mois)</h3>
+          <div class="chart-canvas" [appChart]="monthlyCostChartOption()"></div>
+        </div>
+      </div>
+
+      @if (retainedPresetJson(); as preset) {
+        <div class="preset-banner">
+          <div class="preset-info">
+            <div class="preset-head">
+              <span class="preset-tag">PRESET PRODUCTION RETENU</span>
+              <span>{{ retainedPresetLabel() }}</span>
+            </div>
+            <pre class="preset-code">{{ preset }}</pre>
+          </div>
+          <button type="button" class="btn" (click)="copyPresetJson()">
+            Copier la config JSON
+          </button>
+        </div>
+      }
+    </section>
+  }
+</div>
+
+<!-- Modale Configuration Clé Sandbox isolée (chiffrée Fernet en base) -->
+@if (showSandboxKeyModal()) {
+  <div class="modal-backdrop" (click)="showSandboxKeyModal.set(false)">
+    <div class="panel modal-box" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <div>
+          <h3>Clé OpenRouter Sandbox isolée (chiffrée Fernet)</h3>
+          <p class="sub">Utilisez une clé plafonnée (ex. $5) rattachée à un workspace dédié pour ne pas polluer vos stats de production.</p>
+        </div>
+        <button type="button" class="btn btn-sm" (click)="showSandboxKeyModal.set(false)">
+          <app-icon name="close" size="sm" />
+          Fermer
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="sbx-key-label">Libellé</label>
+          <input
+            id="sbx-key-label"
+            type="text"
+            class="input"
+            [ngModel]="sandboxKeyLabel()"
+            (ngModelChange)="sandboxKeyLabel.set($event)"
+          />
+        </div>
+        <div class="field">
+          <div class="field-head">
+            <label for="sbx-key-val">Clé API Sandbox OpenRouter (sk-or-v1-...)</label>
+            <button type="button" class="btn-text" (click)="showSandboxKeyPlain.set(!showSandboxKeyPlain())">
+              {{ showSandboxKeyPlain() ? 'Masquer' : 'Afficher' }}
+            </button>
+          </div>
+          <input
+            id="sbx-key-val"
+            [type]="showSandboxKeyPlain() ? 'text' : 'password'"
+            class="input num"
+            autocomplete="off"
+            [ngModel]="sandboxKeyInput()"
+            (ngModelChange)="sandboxKeyInput.set($event)"
+            placeholder="sk-or-v1-..."
+          />
+          <p class="sub">Stockée chiffrée par Fernet en base (<code>openrouter_api_keys</code>, type <code>sandbox</code>).</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" (click)="showSandboxKeyModal.set(false)">Annuler</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="savingKey() || !sandboxKeyInput().trim()"
+          (click)="saveSandboxKey()"
+        >
+          <app-icon name="check" size="sm" />
+          {{ savingKey() ? 'Chiffrement…' : 'Chiffrer & activer la clé Sandbox' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

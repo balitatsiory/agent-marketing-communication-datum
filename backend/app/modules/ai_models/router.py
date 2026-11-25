@@ -22,6 +22,8 @@ from app.modules.ai_models.schemas import (
     OpenRouterKeySave,
     OpenRouterKeyVerifyRead,
     OpenRouterOverviewRead,
+    SandboxCompareRequest,
+    SandboxCompareResponse,
 )
 from app.modules.users.deps import CurrentUser, require
 from app.modules.users.models import User
@@ -262,3 +264,21 @@ async def modifier_affectation(
     par: GestionnaireIA,
 ) -> AiTaskAssignmentRead:
     return await service.modifier_affectation(session, task_code, corps, par)
+
+
+# ---------------------------------------------------------------------------
+# Bac à sable IA (comparateur A/B/C multi-modèles)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/sandbox/compare",
+    response_model=SandboxCompareResponse,
+    summary="Exécuter en parallèle une comparaison multi-modèles dans le Bac à sable IA",
+)
+async def comparer_bac_a_sable(
+    corps: SandboxCompareRequest,
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> SandboxCompareResponse:
+    return await service.comparer_bac_a_sable(session, corps)

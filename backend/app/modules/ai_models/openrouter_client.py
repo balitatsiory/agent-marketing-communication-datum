@@ -357,3 +357,67 @@ async def list_remote_keys(
     if isinstance(corps, list):
         return [item for item in corps if isinstance(item, dict)]
     return []
+
+
+async def run_chat_completion(
+    api_key: str,
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    temperature: float = 0.4,
+    reasoning_effort: str | None = None,
+    json_object: bool = False,
+    request_image_output: bool = False,
+    image_aspect_ratio: str | None = None,
+) -> dict[str, Any]:
+    """Appelle `POST /api/v1/chat/completions` avec `usage.include=true` pour récupérer le coût réel."""
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "usage": {"include": True},
+    }
+    if reasoning_effort:
+        if reasoning_effort == "none":
+            payload["reasoning"] = {"effort": "none"}
+        else:
+            payload["reasoning"] = {"effort": reasoning_effort}
+    if json_object and not request_image_output:
+        payload["response_format"] = {"type": "json_object"}
+    if request_image_output:
+        payload["modalities"] = ["image", "text"]
+        if image_aspect_ratio:
+            payload["image_config"] = {"aspect_ratio": image_aspect_ratio}
+
+    try:
+        async with httpx.AsyncClient(
+            base_url=OPENROUTER_BASE_URL,
+            timeout=90.0,
+        ) as client:
+            rep = await client.post(
+                "/chat/completions",
+                headers=_headers(api_key),
+                json=payload,
+            )
+    except httpx.TimeoutException as err:
+        raise ApiError(
+            "openrouter_timeout",
+            f"Le modèle {model} n'a pas répondu dans le délai imparti (90s).",
+            504,
+        ) from err
+    except httpx.HTTPError as err:
+        raise ApiError(
+            "openrouter_unreachable",
+            f"Impossible de joindre OpenRouter pour {model} : {err}",
+            502,
+        ) from err
+
+    if rep.status_code >= 400:
+        _lever_erreur_openrouter(rep, f"inférence {model}")
+
+    try:
+        corps = rep.json()
+    except ValueError as err:
+        raise ApiError("openrouter_invalid_json", "Réponse OpenRouter non JSON.", 502) from err
+
+    return dict(corps) if isinstance(corps, dict) else {}

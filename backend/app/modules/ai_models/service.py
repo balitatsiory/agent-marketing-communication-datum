@@ -9,10 +9,11 @@ Points clés de sécurité :
   (ex: `sk-or-v1-••••abcd`) est exposé.
 """
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
+import time
 from typing import Any
-import asyncio
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +23,7 @@ from app.core.security import decrypt_token, encrypt_token
 from app.modules.ai_models import openrouter_client
 from app.modules.ai_models.constants import (
     KEY_KIND_MANAGEMENT,
+    KEY_KIND_SANDBOX,
     KEY_KIND_STANDARD,
     TASK_CODES,
     TASK_LABELS,
@@ -52,6 +54,9 @@ from app.modules.ai_models.schemas import (
     OpenRouterOverviewRead,
     OpenRouterRemoteKeyRead,
     OpenRouterWorkspaceCostRead,
+    SandboxCompareRequest,
+    SandboxCompareResponse,
+    SandboxVariantResult,
 )
 from app.modules.users.models import User
 
@@ -1098,4 +1103,261 @@ async def modifier_affectation(
         workspace_name=ws.name if ws else None,
         reasoning_effort=affectation.reasoning_effort,  # type: ignore[arg-type]
         updated_at=affectation.updated_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bac à sable IA (comparateur multi-modèles côte à côte)
+# ---------------------------------------------------------------------------
+
+
+def _construire_messages_bac_a_sable(donnees: SandboxCompareRequest) -> list[dict[str, Any]]:
+    """Assemble les messages system/user selon le cas d'utilisation strict."""
+    blocs_systeme: list[str] = [donnees.system_prompt.strip()]
+
+    if donnees.tone and donnees.tone.strip():
+        blocs_systeme.append(f"Ton imposé : {donnees.tone.strip()}.")
+
+    if donnees.use_case == "image_generation":
+        mode_txt = (
+            "Modification d'image existante à partir du visuel de référence fourni."
+            if donnees.image_mode == "edit"
+            else "Création d'un nouveau visuel original."
+        )
+        blocs_systeme.append(f"Mode visuel : {mode_txt}")
+        if donnees.image_aspect_ratio:
+            blocs_systeme.append(f"Format / ratio souhaité : {donnees.image_aspect_ratio}.")
+
+    if donnees.knowledge_context and donnees.knowledge_context.strip():
+        titre_ctx = (
+            "Base de connaissances (réponds strictement à partir de ces extraits)"
+            if donnees.use_case == "message_rag"
+            else "Contexte & Brief éditorial"
+        )
+        blocs_systeme.append(f"{titre_ctx} :\n{donnees.knowledge_context.strip()}")
+
+    if donnees.json_output_enabled and donnees.json_output_schema and donnees.json_output_schema.strip():
+        blocs_systeme.append(
+            "IMPORTANT : Réponds STRICTEMENT avec un objet JSON valide respectant cette structure :\n"
+            f"{donnees.json_output_schema.strip()}"
+        )
+    elif donnees.json_output_enabled:
+        blocs_systeme.append("IMPORTANT : Réponds STRICTEMENT avec un objet JSON valide.")
+
+    system_content = "\n\n".join(blocs_systeme)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system_content}]
+
+    # Si image de référence fournie (modification ou analyse d'image), envoyer un contenu multimodal
+    if donnees.reference_image_url and donnees.reference_image_url.strip():
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": donnees.user_prompt.strip()},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": donnees.reference_image_url.strip()},
+                    },
+                ],
+            }
+        )
+    else:
+        messages.append({"role": "user", "content": donnees.user_prompt.strip()})
+
+    return messages
+
+
+def _extraire_images_reponse(message: dict[str, Any]) -> list[str]:
+    """Extrait les URLs ou data URLs d'images renvoyées par OpenRouter."""
+    images: list[str] = []
+    raw_images = message.get("images")
+    if isinstance(raw_images, list):
+        for item in raw_images:
+            if isinstance(item, str) and item.strip():
+                images.append(item.strip())
+            elif isinstance(item, dict):
+                url = item.get("url")
+                if not url and isinstance(item.get("image_url"), dict):
+                    url = item["image_url"].get("url")
+                if isinstance(url, str) and url.strip():
+                    images.append(url.strip())
+
+    content = message.get("content")
+    if isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "image_url":
+                img_obj = part.get("image_url")
+                if isinstance(img_obj, dict) and isinstance(img_obj.get("url"), str):
+                    images.append(img_obj["url"].strip())
+
+    return images
+
+
+def _extraire_texte_reponse(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        morceaux: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                morceaux.append(part["text"])
+        return "\n".join(morceaux)
+    return ""
+
+
+async def comparer_bac_a_sable(
+    session: AsyncSession, donnees: SandboxCompareRequest
+) -> SandboxCompareResponse:
+    """Exécute en parallèle les variantes choisies sur OpenRouter via la clé Sandbox (ou Standard)."""
+    sandbox_key = await _get_active_key_row(session, KEY_KIND_SANDBOX)
+    if sandbox_key is not None:
+        source_row = sandbox_key
+        key_source = "sandbox"
+    else:
+        std_key = await _get_active_key_row(session, KEY_KIND_STANDARD)
+        if std_key is None:
+            raise ApiError(
+                "openrouter_key_missing",
+                "Aucune clé OpenRouter (Sandbox ni Standard) n'est configurée. "
+                "Enregistrez une clé Sandbox isolée ou une clé Standard.",
+                400,
+            )
+        source_row = std_key
+        key_source = "standard"
+
+    api_key = decrypt_token(source_row.api_key_encrypted)
+    messages = _construire_messages_bac_a_sable(donnees)
+
+    # Charger les tarifs & modalités locaux pour estimation de repli et détection image-output
+    model_ids = [v.model_id for v in donnees.variants]
+    catalogue_rows = (
+        await session.execute(
+            select(AiModel).where(AiModel.openrouter_model_id.in_(model_ids))
+        )
+    ).scalars().all()
+    catalogue_map = {m.openrouter_model_id: m for m in catalogue_rows}
+
+    async def _executer_variante(v: Any) -> SandboxVariantResult:
+        debut = time.perf_counter()
+        info_locale = catalogue_map.get(v.model_id)
+        output_mods = list(info_locale.output_modalities_json or []) if info_locale else []
+        want_image_out = donnees.use_case == "image_generation" and (
+            "image" in output_mods
+            or any(
+                mot in v.model_id.lower()
+                for mot in ("image", "flux", "dall-e", "ideogram", "imagen", "sdxl", "recraft")
+            )
+        )
+
+        try:
+            corps = await openrouter_client.run_chat_completion(
+                api_key,
+                model=v.model_id,
+                messages=messages,
+                temperature=v.temperature,
+                reasoning_effort=v.reasoning_effort,
+                json_object=donnees.json_output_enabled and not want_image_out,
+                request_image_output=want_image_out,
+                image_aspect_ratio=donnees.image_aspect_ratio if want_image_out else None,
+            )
+        except ApiError as err:
+            latence = int((time.perf_counter() - debut) * 1000)
+            return SandboxVariantResult(
+                slot_id=v.slot_id,
+                model_id=v.model_id,
+                reasoning_effort=v.reasoning_effort,
+                temperature=v.temperature,
+                ok=False,
+                error=err.message,
+                latency_ms=latence,
+            )
+
+        latence = int((time.perf_counter() - debut) * 1000)
+        choices = corps.get("choices")
+        message = (
+            choices[0].get("message", {})
+            if isinstance(choices, list) and choices and isinstance(choices[0], dict)
+            else {}
+        )
+        if not isinstance(message, dict):
+            message = {}
+
+        texte = _extraire_texte_reponse(message)
+        images = _extraire_images_reponse(message)
+        reasoning_trace = message.get("reasoning")
+        if not isinstance(reasoning_trace, str):
+            reasoning_trace = None
+
+        usage = corps.get("usage") if isinstance(corps.get("usage"), dict) else {}
+        prompt_tok = _to_int(usage.get("prompt_tokens"))
+        comp_tok = _to_int(usage.get("completion_tokens"))
+        comp_details = (
+            usage.get("completion_tokens_details")
+            if isinstance(usage.get("completion_tokens_details"), dict)
+            else {}
+        )
+        prompt_details = (
+            usage.get("prompt_tokens_details")
+            if isinstance(usage.get("prompt_tokens_details"), dict)
+            else {}
+        )
+        reason_tok = _to_int(comp_details.get("reasoning_tokens"))
+        cached_tok = _to_int(prompt_details.get("cached_tokens"))
+        visible_tok = max(0, comp_tok - reason_tok)
+        total_tok = _to_int(usage.get("total_tokens")) or (prompt_tok + comp_tok)
+
+        # Coût réel retourné par OpenRouter (`usage.cost`), sinon estimation tarif catalogue
+        raw_cost = usage.get("cost")
+        if isinstance(raw_cost, (int, float)):
+            cost_usd = float(raw_cost)
+        else:
+            p_in = _to_float(info_locale.pricing_prompt) if info_locale else 0.0
+            p_out = _to_float(info_locale.pricing_completion) if info_locale else 0.0
+            cost_usd = prompt_tok * p_in + comp_tok * p_out
+
+        cost_usd = round(cost_usd, 7)
+        raw_5k = cost_usd * 5000.0
+        fee_5k = max(0.80, raw_5k * 0.055) if raw_5k > 0 else 0.0
+        projected_5k = round(raw_5k + fee_5k, 2)
+
+        raw_usage_json: dict[str, object] = {
+            "id": corps.get("id"),
+            "model": corps.get("model") or v.model_id,
+            "provider": corps.get("provider"),
+            "reasoning_effort": v.reasoning_effort,
+            "temperature": v.temperature,
+            "usage": usage,
+        }
+
+        return SandboxVariantResult(
+            slot_id=v.slot_id,
+            model_id=v.model_id,
+            reasoning_effort=v.reasoning_effort,
+            temperature=v.temperature,
+            ok=True,
+            text=texte,
+            images=images,
+            reasoning_trace=reasoning_trace,
+            prompt_tokens=prompt_tok,
+            completion_tokens=comp_tok,
+            visible_tokens=visible_tok,
+            reasoning_tokens=reason_tok,
+            cached_tokens=cached_tok,
+            total_tokens=total_tok,
+            cost_usd=cost_usd,
+            projected_monthly_5k_usd=projected_5k,
+            latency_ms=latence,
+            raw_usage_json=raw_usage_json,
+        )
+
+    results = list(await asyncio.gather(*(_executer_variante(v) for v in donnees.variants)))
+    total_batch = round(sum(r.cost_usd for r in results), 7)
+
+    return SandboxCompareResponse(
+        use_case=donnees.use_case,
+        key_source=key_source,  # type: ignore[arg-type]
+        key_masked=source_row.key_masked,
+        total_batch_cost_usd=total_batch,
+        results=results,
     )
