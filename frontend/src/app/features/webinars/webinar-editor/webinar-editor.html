@@ -72,6 +72,12 @@
         </div>
       </section>
 
+      <!-- Hors des cadres grisés : le visuel reste modifiable quand Zoom tient la réunion. -->
+      <section class="sec">
+        <span class="lab">Visuel · facultatif</span>
+        <app-visual-picker [currentUrl]="existing()?.flyer_url ?? null" [(file)]="visualFile" [(removed)]="visualRemoved" />
+      </section>
+
       <!-- ---------- 2 · date et durée ---------- -->
       <fieldset class="sec" [disabled]="lockedByZoom()">
         <legend class="sec-n"><b>2</b> Date et durée</legend>
@@ -303,6 +309,7 @@
           <dt>Quand</dt><dd>{{ date() }} à {{ time() }} GMT{{ duration() ? ' · ' + duration() + ' min' : '' }}</dd>
           <dt>Visioconférence</dt><dd>{{ linkMode() === 'zoom_auto' ? 'Réunion Zoom sur « ' + accountLabel() + ' »' : joinUrl() }}</dd>
           <dt>Inscription</dt><dd>{{ registrationLabel() }}</dd>
+          <dt>Visuel</dt><dd>{{ visualLabel() }}</dd>
         </dl>
         @if (linkMode() === 'zoom_auto') {
           <p class="notice is-info"><app-icon name="warn" size="sm" />La réunion sera réellement créée sur Zoom.</p>

@@ -1,4 +1,7 @@
-"""Rapatriement des flyers du site vers le stockage d'IAGORA.
+"""Visuels des webinaires : rapatriés du site, ou importés depuis le poste.
+
+Un fichier importé passe les mêmes contrôles qu'un flyer rapatrié : seul ce
+qui s'ouvre réellement comme une image PNG, JPEG ou WebP est rangé.
 
 Le serveur ne télécharge que depuis le site de l'école, sans suivre de
 redirection, et ne range que ce qui s'ouvre réellement comme une image : un
@@ -16,10 +19,14 @@ import httpx
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
 from app.core.errors import ApiError
 from app.core.storage import Stockage
+from app.modules.media.images import compresser
+from app.modules.users.models import User
+from app.modules.webinars import service
 from app.modules.webinars.constants import (
     FLYER_ALLOWED_HOSTS,
     FLYER_FORMATS,
@@ -192,3 +199,66 @@ async def fetch_pending_flyers(
         await session.execute(select(func.count()).select_from(Webinar).where(*en_attente))
     ).scalar_one()
     return resultat
+
+
+def _preparer(contenu: bytes) -> tuple[bytes, str]:
+    """Vérifie une image importée, et la compresse au-delà du plafond des médias."""
+    genre = _format_image(contenu)
+    donnees, _, _ = compresser(contenu, get_settings().MEDIA_MAX_STORED_BYTES)
+    return donnees, genre
+
+
+async def upload_flyer(
+    session: AsyncSession, stockage: Stockage, id_webinars: int, contenu: bytes, par: User
+) -> None:
+    """Remplace le visuel d'un webinaire par un fichier importé.
+
+    La fiche est marquée comme modifiée à la main et perd son adresse d'origine :
+    ni un nouvel import du site ni un rapatriement en cours ne l'écrasent.
+    L'ancien fichier reste dans le stockage.
+
+    Raises:
+        NotFoundError: webinaire inconnu ou archivé.
+        ApiError: fichier trop lourd (`file_too_large`) ou refusé (`invalid_image`).
+    """
+    if len(contenu) > FLYER_MAX_BYTES:
+        raise ApiError(
+            "file_too_large",
+            f"L'image dépasse {FLYER_MAX_BYTES // (1024 * 1024)} Mo.",
+            413,
+        )
+    try:
+        # Décoder et compresser occupent le processeur : hors de la boucle de l'API.
+        donnees, genre = await run_in_threadpool(_preparer, contenu)
+    except FlyerRefusedError as erreur:
+        raise ApiError("invalid_image", str(erreur), 415) from erreur
+
+    webinaire = await service.charger(session, id_webinars, verrouiller=True)
+    empreinte = hashlib.sha256(donnees).hexdigest()
+    cle = f"webinaires/{id_webinars}/visuel-{empreinte[:12]}.{EXTENSIONS[genre][0]}"
+    await stockage.deposer(cle, io.BytesIO(donnees), FLYER_FORMATS[genre])
+    webinaire.flyer_storage_key = cle
+    webinaire.flyer_sha256 = empreinte
+    webinaire.flyer_byte_size = len(donnees)
+    webinaire.flyer_source_url = None
+    webinaire.flyer_error = None
+    webinaire.id_users_changed_by = par.id_users
+    await session.flush()
+    logger.info("Visuel importé : webinaire %s, utilisateur %s", id_webinars, par.id_users)
+
+
+async def remove_flyer(session: AsyncSession, id_webinars: int, par: User) -> None:
+    """Retire le visuel de la fiche. Le fichier reste dans le stockage.
+
+    Raises:
+        NotFoundError: webinaire inconnu ou archivé.
+    """
+    webinaire = await service.charger(session, id_webinars, verrouiller=True)
+    webinaire.flyer_storage_key = None
+    webinaire.flyer_sha256 = None
+    webinaire.flyer_byte_size = None
+    webinaire.flyer_source_url = None
+    webinaire.flyer_error = None
+    webinaire.id_users_changed_by = par.id_users
+    await session.flush()
+    logger.info("Visuel retiré : webinaire %s, utilisateur %s", id_webinars, par.id_users)
