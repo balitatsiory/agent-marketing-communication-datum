@@ -22,6 +22,7 @@ from app.modules.webinars import (
 from app.modules.webinars.constants import (
     CREATE_ZOOM_MEETINGS,
     FLYER_BATCH_MAX,
+    FLYER_MAX_BYTES,
     IMPORT_FILE_MAX_BYTES,
     MANAGE_WEBINARS,
 )
@@ -316,6 +317,43 @@ async def refresh_from_zoom(
     _: GestionnaireWebinaires,
 ) -> WebinarDetailRead:
     return await zoom_service.refresh_from_zoom(session, zoom, stockage, id_webinars)
+
+
+# --- visuel ----------------------------------------------------------------
+
+
+@router.put(
+    "/{id_webinars}/flyer",
+    response_model=WebinarDetailRead,
+    summary="Importer le visuel d'un webinaire",
+    description=(
+        "PNG, JPEG ou WebP, 10 Mo au plus. Le type est lu dans le fichier et non "
+        "déduit de son nom. Le visuel précédent est remplacé."
+    ),
+    responses={
+        413: {"description": "Fichier trop lourd."},
+        415: {"description": "Le fichier n'est pas une image acceptée."},
+    },
+)
+async def upload_flyer(
+    id_webinars: int,
+    session: SessionDep,
+    stockage: StockageDep,
+    par: GestionnaireWebinaires,
+    file: Annotated[UploadFile, File(description="L'image à utiliser comme visuel.")],
+) -> WebinarDetailRead:
+    contenu = await file.read(FLYER_MAX_BYTES + 1)
+    await flyers.upload_flyer(session, stockage, id_webinars, contenu, par)
+    return await service.get_webinar(session, stockage, id_webinars, can_manage=True)
+
+
+@router.delete(
+    "/{id_webinars}/flyer",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Retirer le visuel d'un webinaire",
+)
+async def remove_flyer(id_webinars: int, session: SessionDep, par: GestionnaireWebinaires) -> None:
+    await flyers.remove_flyer(session, id_webinars, par)
 
 
 # --- publications liées ----------------------------------------------------

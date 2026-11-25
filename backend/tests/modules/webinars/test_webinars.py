@@ -3,13 +3,17 @@
 import csv
 import io
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.storage import StockageLocal
+from app.modules.webinars import flyers
 from app.modules.webinars.models import Webinar, WebinarRegistration
 from tests.faux_zoom import CLIENT_ID, CLIENT_SECRET, HOTE, FauxZoom
 
@@ -583,3 +587,95 @@ async def test_publication_links_follow_the_event_lifecycle(
         f"{base}/{ajoute.json()[0]['id_webinar_publication_links']}", headers=entete
     )
     assert retrait.status_code == 204
+
+
+# --- visuel ---------------------------------------------------------------
+
+
+def _image(genre: str = "PNG", couleur: str = "red") -> bytes:
+    tampon = io.BytesIO()
+    Image.new("RGB", (4, 4), couleur).save(tampon, genre)
+    return tampon.getvalue()
+
+
+async def _importer_visuel(
+    client: AsyncClient, entete: dict[str, str], id_webinars: int, contenu: bytes
+) -> Any:
+    return await client.put(
+        f"/api/v1/webinars/{id_webinars}/flyer",
+        files={"file": ("affiche.png", contenu, "image/png")},
+        headers=entete,
+    )
+
+
+async def test_upload_flyer_stores_the_image_under_its_real_type(
+    client: AsyncClient, entete: dict[str, str], stockage_de_test: StockageLocal, tmp_path: Path
+) -> None:
+    fiche = await _brouillon(client, entete)
+    contenu = _image("JPEG")
+
+    reponse = await _importer_visuel(client, entete, fiche["id_webinars"], contenu)
+
+    assert reponse.status_code == 200, reponse.text
+    adresse = reponse.json()["flyer_url"]
+    prefixe = f"https://medias.test/webinaires/{fiche['id_webinars']}/visuel-"
+    # Le fichier est nommé « .png » par le navigateur, mais c'est un JPEG.
+    assert adresse.startswith(prefixe) and adresse.endswith(".jpg")
+    cle = adresse.removeprefix("https://medias.test/")
+    assert (tmp_path / "medias" / cle).read_bytes() == contenu
+
+
+@pytest.mark.parametrize("contenu", [b"<svg/>", _image("GIF")], ids=["texte", "gif"])
+async def test_upload_flyer_refused_file_keeps_the_previous_one(
+    client: AsyncClient, entete: dict[str, str], contenu: bytes
+) -> None:
+    fiche = await _brouillon(client, entete)
+    avant = await _importer_visuel(client, entete, fiche["id_webinars"], _image())
+
+    reponse = await _importer_visuel(client, entete, fiche["id_webinars"], contenu)
+
+    assert reponse.status_code == 415
+    assert reponse.json()["error"]["code"] == "invalid_image"
+    apres = await client.get(f"/api/v1/webinars/{fiche['id_webinars']}", headers=entete)
+    assert apres.json()["flyer_url"] == avant.json()["flyer_url"]
+
+
+async def test_upload_flyer_too_heavy_is_refused(
+    client: AsyncClient, entete: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(flyers, "FLYER_MAX_BYTES", 20)
+    fiche = await _brouillon(client, entete)
+
+    reponse = await _importer_visuel(client, entete, fiche["id_webinars"], _image())
+
+    assert reponse.status_code == 413
+
+
+async def test_upload_flyer_without_right_is_forbidden(
+    client: AsyncClient, entete: dict[str, str], ouvrir: Any
+) -> None:
+    fiche = await _brouillon(client, entete)
+    lecteur = await ouvrir()
+
+    reponse = await _importer_visuel(client, lecteur, fiche["id_webinars"], _image())
+
+    assert reponse.status_code == 403
+
+
+async def test_upload_flyer_unknown_webinar_is_not_found(
+    client: AsyncClient, entete: dict[str, str]
+) -> None:
+    reponse = await _importer_visuel(client, entete, 999999, _image())
+
+    assert reponse.status_code == 404
+
+
+async def test_remove_flyer_clears_the_visual(client: AsyncClient, entete: dict[str, str]) -> None:
+    fiche = await _brouillon(client, entete)
+    await _importer_visuel(client, entete, fiche["id_webinars"], _image())
+
+    reponse = await client.delete(f"/api/v1/webinars/{fiche['id_webinars']}/flyer", headers=entete)
+
+    assert reponse.status_code == 204, reponse.text
+    apres = await client.get(f"/api/v1/webinars/{fiche['id_webinars']}", headers=entete)
+    assert apres.json()["flyer_url"] is None

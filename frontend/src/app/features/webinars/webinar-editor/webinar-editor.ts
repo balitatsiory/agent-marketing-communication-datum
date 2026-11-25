@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 
-import { toApiError } from '../../../core/api/api-error';
+import { ApiError, toApiError } from '../../../core/api/api-error';
 import {
   LinkMode,
   MeetingSettings,
@@ -26,6 +26,7 @@ import { Session } from '../../../core/services/session';
 import { Topbar } from '../../../layout/topbar/topbar';
 import { Dialog } from '../../../shared/dialog/dialog';
 import { Icon } from '../../../shared/icon/icon';
+import { VisualPicker } from '../visual-picker/visual-picker';
 import { longSchedule } from '../webinar-format';
 
 const DUREES = [30, 45, 60, 90] as const;
@@ -72,7 +73,7 @@ type BooleanSetting =
 @Component({
   selector: 'app-webinar-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Topbar, Icon, Dialog],
+  imports: [RouterLink, Topbar, Icon, Dialog, VisualPicker],
   templateUrl: './webinar-editor.html',
   styleUrl: './webinar-editor.scss',
 })
@@ -120,6 +121,9 @@ export class WebinarEditor implements OnInit {
   protected readonly replayUrl = signal('');
   protected readonly links = signal<readonly PublicationLinkCreate[]>([]);
   protected readonly linkDraft = signal({ type_code: 'promotion', platform_code: '', url: '' });
+  /** Visuel choisi, ou retrait demandé : appliqués à l'enregistrement. */
+  protected readonly visualFile = signal<File | null>(null);
+  protected readonly visualRemoved = signal(false);
 
   /** Date et heure telles que chargées : on ne renvoie qu'une date réellement changée. */
   private loadedDate = '';
@@ -199,6 +203,12 @@ export class WebinarEditor implements OnInit {
   protected readonly accountLabel = computed(
     () => this.accounts().find((c) => c.id_zoom_accounts === this.accountId())?.label ?? '—',
   );
+
+  protected readonly visualLabel = computed(() => {
+    const choisi = this.visualFile();
+    if (choisi) return choisi.name;
+    return this.existing()?.flyer_url && !this.visualRemoved() ? 'Visuel actuel' : 'Aucun';
+  });
 
   protected readonly registrationLabel = computed(
     () =>
@@ -357,7 +367,31 @@ export class WebinarEditor implements OnInit {
         });
     this.remplir(fiche);
     this.links.set([]);
+    await this.appliquerVisuel(fiche.id_webinars);
     return fiche;
+  }
+
+  /** Le visuel part après la fiche : un webinaire neuf n'a pas encore d'identifiant avant. */
+  private async appliquerVisuel(id: number): Promise<void> {
+    const fichier = this.visualFile();
+    if (!fichier && !this.visualRemoved()) return;
+    try {
+      if (fichier) {
+        this.existing.set(await this.api.uploadFlyer(id, fichier));
+      } else {
+        await this.api.removeFlyer(id);
+        this.existing.update((fiche) => fiche && { ...fiche, flyer_url: null });
+      }
+    } catch (erreur) {
+      const motif = toApiError(erreur);
+      throw new ApiError(
+        'flyer_not_saved',
+        `Le visuel n’a pas été enregistré. ${motif.message}`,
+        motif.status,
+      );
+    }
+    this.visualFile.set(null);
+    this.visualRemoved.set(false);
   }
 
   protected async save(): Promise<void> {
@@ -372,7 +406,12 @@ export class WebinarEditor implements OnInit {
       const fiche = await this.enregistrer();
       await this.router.navigate(['/webinaires'], { queryParams: { fiche: fiche.id_webinars } });
     } catch (erreur) {
-      this.error.set(toApiError(erreur).message);
+      const motif = toApiError(erreur);
+      this.error.set(
+        motif.code === 'flyer_not_saved'
+          ? `La fiche est enregistrée. ${motif.message}`
+          : motif.message,
+      );
     } finally {
       this.busy.set(false);
     }
