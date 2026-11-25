@@ -1,0 +1,835 @@
+<app-topbar [trail]="['Administrer', 'Modèles IA v2 (OpenRouter)']">
+  @if (overview(); as ov) {
+    <span class="num quota">
+      {{ ov.models_enabled_count }} actifs / {{ ov.models_total_count }} modèles
+    </span>
+  }
+  <button
+    class="btn"
+    type="button"
+    [disabled]="loading() || busyAction() !== null"
+    (click)="loadAll()"
+  >
+    <app-icon name="history" size="sm" />
+    Actualiser
+  </button>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Modèles IA &amp; Workspaces OpenRouter <span class="v2-badge">v2</span></h1>
+      <p class="sub">
+        Gestion centralisée via OpenRouter : clés API Management et Standard chiffrées en base de données (Fernet), workspaces et catalogue des modèles IA.
+      </p>
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice" role="status">
+      <app-icon name="check" size="sm" />
+      <span>{{ message }}</span>
+    </p>
+  }
+
+  @if (errorMessage(); as err) {
+    <p class="notice notice-error" role="alert">
+      <app-icon name="warn" size="sm" />
+      <span>{{ err }}</span>
+    </p>
+  }
+
+  <!-- ============================================================
+       Bandeau Flash Synthèse OpenRouter
+       ============================================================ -->
+  @if (overview(); as ov) {
+    <div class="flash-banner" role="region" aria-label="Synthèse OpenRouter">
+      <div class="flash-item" (click)="setTab('keys')" title="Configurer la Management API Key">
+        <span class="flash-label">Management API Key</span>
+        <div class="flash-val-row">
+          @if (ov.management_key) {
+            <span class="status" [class.status-published]="ov.management_key.last_verify_ok !== false" [class.status-warn]="ov.management_key.last_verify_ok === false">
+              ● {{ ov.management_key.last_verify_ok === false ? 'À vérifier' : 'Chiffrée & active' }}
+            </span>
+            <span class="flash-muted num">{{ ov.management_key.key_masked }}</span>
+          } @else {
+            <span class="status status-draft">● Non configurée</span>
+          }
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setTab('keys')" title="Configurer la clé API Standard">
+        <span class="flash-label">API Standard Key</span>
+        <div class="flash-val-row">
+          @if (ov.standard_key) {
+            <span class="status" [class.status-published]="ov.standard_key.last_verify_ok !== false" [class.status-warn]="ov.standard_key.last_verify_ok === false">
+              ● {{ ov.standard_key.last_verify_ok === false ? 'À vérifier' : 'Chiffrée & active' }}
+            </span>
+            <span class="flash-muted num">{{ ov.standard_key.key_masked }}</span>
+          } @else {
+            <span class="status status-draft">● Non configurée</span>
+          }
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setTab('workspaces')" title="Gérer les workspaces OpenRouter">
+        <span class="flash-label">Workspaces &amp; Crédits</span>
+        <div class="flash-val-row">
+          <b class="num">{{ ov.workspaces_count }} workspace{{ ov.workspaces_count > 1 ? 's' : '' }}</b>
+          @if (ov.credits.available && ov.credits.remaining_credits !== null) {
+            <span class="flash-pill num">Solde : {{ formatUsd(ov.credits.remaining_credits) }}</span>
+          } @else if (ov.selected_workspace_name) {
+            <span class="flash-muted">Actif : {{ ov.selected_workspace_name }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="flash-item" (click)="setTab('models')" title="Gérer le catalogue de modèles">
+        <span class="flash-label">Catalogue Modèles IA</span>
+        <div class="flash-val-row">
+          <b class="num text-ok">{{ ov.models_enabled_count }} activés</b>
+          <span class="flash-muted num">/ {{ ov.models_total_count }} synchronisés</span>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ============================================================
+       Barre des 3 Onglets Métier
+       ============================================================ -->
+  <div class="main-tabs" role="tablist" aria-label="Sections OpenRouter">
+    <button
+      type="button"
+      role="tab"
+      class="main-tab"
+      [class.is-active]="activeTab() === 'keys'"
+      [attr.aria-selected]="activeTab() === 'keys'"
+      (click)="setTab('keys')"
+    >
+      <app-icon name="sliders" size="sm" />
+      <span>1. Clés OpenRouter (chiffrées)</span>
+      <span class="tab-count num">{{ (activeManagementKey() ? 1 : 0) + (activeStandardKey() ? 1 : 0) }}/2</span>
+    </button>
+
+    <button
+      type="button"
+      role="tab"
+      class="main-tab"
+      [class.is-active]="activeTab() === 'workspaces'"
+      [attr.aria-selected]="activeTab() === 'workspaces'"
+      (click)="setTab('workspaces')"
+    >
+      <app-icon name="grid" size="sm" />
+      <span>2. Workspaces</span>
+      <span class="tab-count num">{{ workspaces().length }}</span>
+    </button>
+
+    <button
+      type="button"
+      role="tab"
+      class="main-tab"
+      [class.is-active]="activeTab() === 'models'"
+      [attr.aria-selected]="activeTab() === 'models'"
+      (click)="setTab('models')"
+    >
+      <app-icon name="sparkle" size="sm" />
+      <span>3. Modèles IA &amp; Affectations</span>
+      <span class="tab-count num">{{ enabledModels().length }}</span>
+    </button>
+  </div>
+
+  <!-- ========================================================================
+       ONGLET 1 : CLÉS OPENROUTER CHIFFRÉES EN BASE DE DONNÉES
+       ======================================================================== -->
+  @if (activeTab() === 'keys') {
+    <div class="tab-pane" role="tabpanel" aria-label="Clés API OpenRouter chiffrées">
+      <div class="security-callout">
+        <app-icon name="check" size="sm" />
+        <div>
+          <b>Stockage chiffré identique aux jetons réseaux sociaux</b>
+          <p>
+            Vos clés Management et Standard sont chiffrées côté serveur par <b>Fernet (TOKEN_ENCRYPTION_KEY)</b> avant écriture dans PostgreSQL (<code>openrouter_api_keys</code>). Elles ne sont jamais renvoyées en clair au navigateur et chaque rotation conserve l'historique de traçabilité.
+          </p>
+        </div>
+      </div>
+
+      <div class="keys-grid">
+        <!-- Carte 1 : Management API Key -->
+        <section class="panel key-card">
+          <div class="card-head">
+            <div>
+              <span class="kind-pill kind-mgmt">Administration</span>
+              <h2>Management API Key</h2>
+              <p class="sub">
+                Indispensable pour lister, créer, modifier et supprimer les <b>workspaces</b>, consulter les <b>crédits</b> et piloter les clés.
+              </p>
+            </div>
+            @if (activeManagementKey(); as mk) {
+              <span class="status" [class.status-published]="mk.last_verify_ok !== false" [class.status-warn]="mk.last_verify_ok === false">
+                {{ mk.last_verify_ok === false ? 'Erreur' : 'Active' }}
+              </span>
+            } @else {
+              <span class="status status-draft">Absente</span>
+            }
+          </div>
+
+          @if (activeManagementKey(); as mk) {
+            <div class="active-key-box">
+              <div class="ak-row">
+                <span class="ak-label">{{ mk.label || 'Management API Key' }}</span>
+                <code class="num ak-mask">{{ mk.key_masked }}</code>
+              </div>
+              <div class="ak-meta">
+                <span>Enregistrée le {{ formatDate(mk.obtained_at) }}</span>
+                @if (mk.last_verified_at) {
+                  <span>· Vérifiée le {{ formatDate(mk.last_verified_at) }}</span>
+                }
+              </div>
+              @if (mk.last_verify_message) {
+                <p class="ak-msg" [class.is-err]="mk.last_verify_ok === false">{{ mk.last_verify_message }}</p>
+              }
+              <div class="ak-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [disabled]="busyAction() !== null"
+                  (click)="verifyKey(mk)"
+                >
+                  <app-icon name="sparkle" size="sm" />
+                  {{ busyAction() === 'verify-' + mk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  [disabled]="busyAction() !== null"
+                  (click)="revokeKey(mk)"
+                >
+                  Révoquer
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="key-form">
+            <div class="field">
+              <label for="mgmt-label">Libellé interne</label>
+              <input
+                id="mgmt-label"
+                type="text"
+                class="input"
+                [ngModel]="mgmtLabelInput()"
+                (ngModelChange)="mgmtLabelInput.set($event)"
+                placeholder="ex: Management API Key Org DATUM"
+              />
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label for="mgmt-key">
+                  {{ activeManagementKey() ? 'Remplacer la Management API Key' : 'Coller votre Management API Key' }}
+                </label>
+                <button type="button" class="btn-text" (click)="showMgmtKey.set(!showMgmtKey())">
+                  {{ showMgmtKey() ? 'Masquer' : 'Afficher' }}
+                </button>
+              </div>
+              <input
+                id="mgmt-key"
+                [type]="showMgmtKey() ? 'text' : 'password'"
+                class="input num"
+                autocomplete="off"
+                [ngModel]="mgmtKeyInput()"
+                (ngModelChange)="mgmtKeyInput.set($event)"
+                placeholder="sk-or-v1-..."
+              />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="busyAction() !== null || !mgmtKeyInput().trim()"
+              (click)="saveKey('management')"
+            >
+              <app-icon name="check" size="sm" />
+              {{ busyAction() === 'save-management' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Management' }}
+            </button>
+          </div>
+        </section>
+
+        <!-- Carte 2 : Standard API Key -->
+        <section class="panel key-card">
+          <div class="card-head">
+            <div>
+              <span class="kind-pill kind-std">Inférence &amp; Catalogue</span>
+              <h2>API Standard Key</h2>
+              <p class="sub">
+                Utilisée pour interroger les <b>modèles IA</b> (génération texte, vision, image) et synchroniser le catalogue OpenRouter.
+              </p>
+            </div>
+            @if (activeStandardKey(); as sk) {
+              <span class="status" [class.status-published]="sk.last_verify_ok !== false" [class.status-warn]="sk.last_verify_ok === false">
+                {{ sk.last_verify_ok === false ? 'Erreur' : 'Active' }}
+              </span>
+            } @else {
+              <span class="status status-draft">Absente</span>
+            }
+          </div>
+
+          @if (activeStandardKey(); as sk) {
+            <div class="active-key-box">
+              <div class="ak-row">
+                <span class="ak-label">{{ sk.label || 'Clé API Standard' }}</span>
+                <code class="num ak-mask">{{ sk.key_masked }}</code>
+              </div>
+              <div class="ak-meta">
+                <span>Enregistrée le {{ formatDate(sk.obtained_at) }}</span>
+                @if (sk.last_verified_at) {
+                  <span>· Vérifiée le {{ formatDate(sk.last_verified_at) }}</span>
+                }
+              </div>
+              @if (sk.last_verify_message) {
+                <p class="ak-msg" [class.is-err]="sk.last_verify_ok === false">{{ sk.last_verify_message }}</p>
+              }
+              <div class="ak-actions">
+                <button
+                  type="button"
+                  class="btn btn-sm"
+                  [disabled]="busyAction() !== null"
+                  (click)="verifyKey(sk)"
+                >
+                  <app-icon name="sparkle" size="sm" />
+                  {{ busyAction() === 'verify-' + sk.id_openrouter_api_keys ? 'Vérification…' : 'Vérifier sur OpenRouter' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  [disabled]="busyAction() !== null"
+                  (click)="revokeKey(sk)"
+                >
+                  Révoquer
+                </button>
+              </div>
+            </div>
+          }
+
+          <div class="key-form">
+            <div class="field">
+              <label for="std-label">Libellé interne</label>
+              <input
+                id="std-label"
+                type="text"
+                class="input"
+                [ngModel]="stdLabelInput()"
+                (ngModelChange)="stdLabelInput.set($event)"
+                placeholder="ex: Clé API Standard Production"
+              />
+            </div>
+
+            <div class="field">
+              <div class="field-head">
+                <label for="std-key">
+                  {{ activeStandardKey() ? 'Remplacer la clé API Standard' : 'Coller votre clé API Standard' }}
+                </label>
+                <button type="button" class="btn-text" (click)="showStdKey.set(!showStdKey())">
+                  {{ showStdKey() ? 'Masquer' : 'Afficher' }}
+                </button>
+              </div>
+              <input
+                id="std-key"
+                [type]="showStdKey() ? 'text' : 'password'"
+                class="input num"
+                autocomplete="off"
+                [ngModel]="stdKeyInput()"
+                (ngModelChange)="stdKeyInput.set($event)"
+                placeholder="sk-or-v1-..."
+              />
+            </div>
+
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="busyAction() !== null || !stdKeyInput().trim()"
+              (click)="saveKey('standard')"
+            >
+              <app-icon name="check" size="sm" />
+              {{ busyAction() === 'save-standard' ? 'Chiffrement et vérification…' : 'Chiffrer & enregistrer la clé Standard' }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Historique d'audit des clés -->
+      @if (keys().length > 0) {
+        <section class="panel history-panel">
+          <div class="panel-head">
+            <div>
+              <h3>Historique des délivrances de clés</h3>
+              <p class="sub">Traçabilité complète des rotations et révocations (aperçus masqués uniquement).</p>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Libellé</th>
+                  <th>Aperçu masqué</th>
+                  <th>État</th>
+                  <th>Enregistrée par</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (k of keys(); track k.id_openrouter_api_keys) {
+                  <tr>
+                    <td>
+                      <span class="kind-pill" [class.kind-mgmt]="k.key_kind === 'management'" [class.kind-std]="k.key_kind === 'standard'">
+                        {{ k.key_kind === 'management' ? 'Management' : 'Standard' }}
+                      </span>
+                    </td>
+                    <td>{{ k.label || '—' }}</td>
+                    <td class="num"><code>{{ k.key_masked }}</code></td>
+                    <td>
+                      @if (k.is_active) {
+                        <span class="status status-published">Active</span>
+                      } @else if (k.revoked_at) {
+                        <span class="status status-warn">Révoquée</span>
+                      } @else {
+                        <span class="status status-draft">Remplacée</span>
+                      }
+                    </td>
+                    <td>{{ k.created_by_name || '—' }}</td>
+                    <td class="num">{{ formatDate(k.obtained_at) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+  <!-- ========================================================================
+       ONGLET 2 : WORKSPACES OPENROUTER
+       ======================================================================== -->
+  @if (activeTab() === 'workspaces') {
+    <div class="tab-pane" role="tabpanel" aria-label="Gestion des workspaces OpenRouter">
+      @if (!activeManagementKey()) {
+        <div class="empty-banner">
+          <app-icon name="warn" size="sm" />
+          <div>
+            <b>Management API Key requise</b>
+            <p>Enregistrez votre Management API Key OpenRouter pour synchroniser, créer ou modifier vos workspaces.</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" (click)="setTab('keys')">
+            Configurer la clé Management
+          </button>
+        </div>
+      }
+
+      <div class="section-toolbar">
+        <div>
+          <h2>Workspaces OpenRouter</h2>
+          <p class="sub">Isolez vos environnements (production, staging, campagnes) et définissez le workspace actif d'IAGORA.</p>
+        </div>
+        <div class="toolbar-actions">
+          <button
+            type="button"
+            class="btn"
+            [disabled]="busyAction() !== null || !activeManagementKey()"
+            (click)="syncWorkspaces()"
+          >
+            <app-icon name="history" size="sm" />
+            {{ busyAction() === 'sync-workspaces' ? 'Synchronisation…' : 'Synchroniser depuis OpenRouter' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="busyAction() !== null || !activeManagementKey()"
+            (click)="openCreateWorkspace()"
+          >
+            <app-icon name="plus" size="sm" />
+            Nouveau workspace
+          </button>
+        </div>
+      </div>
+
+      @if (showWorkspaceForm()) {
+        <section class="panel ws-form-panel">
+          <div class="panel-head">
+            <h3>{{ editingWorkspaceId() === null ? 'Créer un workspace OpenRouter' : 'Modifier le workspace' }}</h3>
+            <button type="button" class="btn btn-sm" (click)="cancelWorkspaceForm()">
+              <app-icon name="close" size="sm" />
+              Fermer
+            </button>
+          </div>
+          <div class="cfg-grid">
+            <div class="field">
+              <label for="ws-name">Nom du workspace *</label>
+              <input
+                id="ws-name"
+                type="text"
+                class="input"
+                [ngModel]="wsName()"
+                (ngModelChange)="wsName.set($event)"
+                placeholder="ex: IAGORA Production"
+              />
+            </div>
+
+            <div class="field">
+              <label for="ws-sort">Priorité de routage OpenRouter</label>
+              <select
+                id="ws-sort"
+                class="select"
+                [ngModel]="wsProviderSort()"
+                (ngModelChange)="wsProviderSort.set($event)"
+              >
+                <option value="">Par défaut OpenRouter</option>
+                <option value="price">Prix le plus bas (price)</option>
+                <option value="latency">Latence minimale (latency)</option>
+                <option value="throughput">Débit maximal (throughput)</option>
+                <option value="exacto">Qualité Exacto (exacto)</option>
+              </select>
+            </div>
+
+            <div class="field field-full">
+              <label for="ws-desc">Description</label>
+              <input
+                id="ws-desc"
+                type="text"
+                class="input"
+                [ngModel]="wsDescription()"
+                (ngModelChange)="wsDescription.set($event)"
+                placeholder="Usage du workspace au sein de DATUM Academy"
+              />
+            </div>
+
+            <div class="field">
+              <label for="ws-text-model">Modèle texte par défaut (ID OpenRouter)</label>
+              <input
+                id="ws-text-model"
+                type="text"
+                class="input num"
+                [ngModel]="wsDefaultTextModel()"
+                (ngModelChange)="wsDefaultTextModel.set($event)"
+                placeholder="ex: anthropic/claude-3.5-sonnet"
+              />
+            </div>
+
+            <div class="field">
+              <label for="ws-img-model">Modèle image par défaut (ID OpenRouter)</label>
+              <input
+                id="ws-img-model"
+                type="text"
+                class="input num"
+                [ngModel]="wsDefaultImageModel()"
+                (ngModelChange)="wsDefaultImageModel.set($event)"
+                placeholder="ex: black-forest-labs/flux-1.1-pro"
+              />
+            </div>
+
+            <div class="field">
+              <label for="ws-budget">Budget mensuel cible (USD, facultatif)</label>
+              <input
+                id="ws-budget"
+                type="number"
+                min="0"
+                step="1"
+                class="input num"
+                [ngModel]="wsMonthlyBudget()"
+                (ngModelChange)="wsMonthlyBudget.set($event)"
+                placeholder="ex: 100"
+              />
+            </div>
+          </div>
+          <div class="form-foot">
+            <button type="button" class="btn" (click)="cancelWorkspaceForm()">Annuler</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              [disabled]="busyAction() !== null || !wsName().trim()"
+              (click)="submitWorkspaceForm()"
+            >
+              <app-icon name="check" size="sm" />
+              {{ busyAction() === 'save-workspace' ? 'Enregistrement…' : 'Enregistrer sur OpenRouter' }}
+            </button>
+          </div>
+        </section>
+      }
+
+      <div class="ws-grid">
+        @for (ws of workspaces(); track ws.id_ai_workspaces) {
+          <article class="panel ws-card" [class.is-selected]="ws.is_selected">
+            <div class="ws-head">
+              <div>
+                <div class="ws-badges">
+                  @if (ws.is_selected) {
+                    <span class="status status-published">● Actif IAGORA</span>
+                  }
+                  @if (ws.is_default) {
+                    <span class="kind-pill kind-std">Défaut OpenRouter</span>
+                  }
+                </div>
+                <h3>{{ ws.name }}</h3>
+                <code class="num text-muted">{{ ws.openrouter_workspace_id }}</code>
+              </div>
+            </div>
+
+            @if (ws.description) {
+              <p class="ws-desc">{{ ws.description }}</p>
+            }
+
+            <dl class="ws-meta">
+              <div>
+                <dt>Modèle texte</dt>
+                <dd class="num">{{ ws.default_text_model || '—' }}</dd>
+              </div>
+              <div>
+                <dt>Modèle image</dt>
+                <dd class="num">{{ ws.default_image_model || '—' }}</dd>
+              </div>
+              <div>
+                <dt>Routage</dt>
+                <dd>{{ ws.default_provider_sort || 'Défaut' }}</dd>
+              </div>
+              <div>
+                <dt>Budget cible</dt>
+                <dd class="num">{{ formatUsd(ws.monthly_budget_usd) }}</dd>
+              </div>
+            </dl>
+
+            <div class="ws-foot">
+              @if (!ws.is_selected) {
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  [disabled]="busyAction() !== null"
+                  (click)="selectWorkspace(ws)"
+                >
+                  Définir actif
+                </button>
+              }
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="busyAction() !== null"
+                (click)="openEditWorkspace(ws)"
+              >
+                <app-icon name="pencil" size="sm" />
+                Modifier
+              </button>
+              <button
+                type="button"
+                class="btn btn-sm btn-danger"
+                [disabled]="busyAction() !== null"
+                (click)="deleteWorkspace(ws)"
+              >
+                Supprimer
+              </button>
+            </div>
+          </article>
+        } @empty {
+          <div class="panel empty-panel">
+            <p>Aucun workspace synchronisé pour le moment.</p>
+            <p class="sub">Cliquez sur « Synchroniser depuis OpenRouter » ou créez un nouveau workspace.</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ========================================================================
+       ONGLET 3 : MODÈLES IA & AFFECTATIONS
+       ======================================================================== -->
+  @if (activeTab() === 'models') {
+    <div class="tab-pane" role="tabpanel" aria-label="Catalogue des modèles OpenRouter et affectations">
+      <!-- Affectations par tâche métier -->
+      <section class="task-grid" aria-label="Affectation des modèles par spécialité">
+        @for (a of assignments(); track a.task_code) {
+          <div class="task-card">
+            <div class="task-head">
+              <span class="task-badge">{{ a.task_code }}</span>
+              <app-icon name="sparkle" size="sm" />
+            </div>
+            <h3>{{ a.task_label }}</h3>
+            <div class="field">
+              <label [attr.for]="'assign-' + a.task_code">Modèle OpenRouter actif</label>
+              <select
+                [id]="'assign-' + a.task_code"
+                class="select"
+                [ngModel]="a.id_ai_models ?? ''"
+                (ngModelChange)="onAssignmentChange(a, $event)"
+                [disabled]="busyAction() !== null"
+              >
+                <option value="">— Aucun modèle affecté —</option>
+                @for (m of enabledModels(); track m.id_ai_models) {
+                  <option [value]="m.id_ai_models">
+                    {{ m.name }} ({{ m.openrouter_model_id }})
+                  </option>
+                }
+              </select>
+            </div>
+            <div class="task-foot">
+              <span class="num text-muted">{{ a.openrouter_model_id || 'Non défini' }}</span>
+              @if (a.id_ai_models) {
+                <span class="status status-published">Actif</span>
+              }
+            </div>
+          </div>
+        }
+      </section>
+
+      <!-- Barre catalogue -->
+      <div class="section-toolbar">
+        <div>
+          <h2>Catalogue OpenRouter</h2>
+          <p class="sub">Activez les modèles autorisés dans IAGORA pour les rendre sélectionnables par spécialité.</p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [disabled]="busyAction() !== null || (!activeStandardKey() && !activeManagementKey())"
+          (click)="syncModels()"
+        >
+          <app-icon name="sparkle" size="sm" />
+          {{ busyAction() === 'sync-models' ? 'Synchronisation…' : 'Synchroniser le catalogue OpenRouter' }}
+        </button>
+      </div>
+
+      <div class="toolbar">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Rechercher un modèle, identifiant (ex: claude, gpt-4o, gemini)…"
+            [value]="modelSearch()"
+            (input)="modelSearch.set($any($event.target).value)"
+          />
+          @if (modelSearch()) {
+            <button type="button" class="btn-clear" (click)="modelSearch.set('')" aria-label="Effacer">
+              <app-icon name="close" size="sm" />
+            </button>
+          }
+        </div>
+
+        <select
+          class="select filter-select"
+          aria-label="Filtrer par fournisseur"
+          [ngModel]="modelProviderFilter()"
+          (ngModelChange)="modelProviderFilter.set($event)"
+        >
+          <option value="all">Tous les fournisseurs ({{ providers().length }})</option>
+          @for (p of providers(); track p) {
+            <option [value]="p">{{ p }}</option>
+          }
+        </select>
+
+        <div class="chips">
+          <button
+            type="button"
+            class="chip"
+            [class.is-on]="modelEnabledOnly()"
+            (click)="modelEnabledOnly.set(!modelEnabledOnly())"
+          >
+            Activés uniquement ({{ enabledModels().length }})
+          </button>
+          <button
+            type="button"
+            class="chip"
+            [class.is-on]="modelModalityFilter() === 'vision'"
+            (click)="modelModalityFilter.set(modelModalityFilter() === 'vision' ? 'all' : 'vision')"
+          >
+            Vision (image en entrée)
+          </button>
+          <button
+            type="button"
+            class="chip"
+            [class.is-on]="modelModalityFilter() === 'image-out'"
+            (click)="modelModalityFilter.set(modelModalityFilter() === 'image-out' ? 'all' : 'image-out')"
+          >
+            Génération d'image
+          </button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>Modèle</th>
+                <th>Fournisseur</th>
+                <th>Contexte</th>
+                <th>Modalités</th>
+                <th>Tarif Entrée / Sortie</th>
+                <th>Statut</th>
+                <th class="num">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of displayedModels(); track m.id_ai_models) {
+                <tr>
+                  <td>
+                    <div class="model-name-cell">
+                      <b>{{ m.name }}</b>
+                      <span class="num text-muted">{{ m.openrouter_model_id }}</span>
+                    </div>
+                  </td>
+                  <td><span class="provider-tag">{{ m.provider_slug }}</span></td>
+                  <td class="num">{{ formatContext(m.context_length) }}</td>
+                  <td>
+                    <div class="modalities-cell">
+                      @for (mod of m.input_modalities; track mod) {
+                        <span class="spec-pill">in:{{ mod }}</span>
+                      }
+                      @for (mod of m.output_modalities; track mod) {
+                        <span class="spec-pill spec-out">out:{{ mod }}</span>
+                      }
+                    </div>
+                  </td>
+                  <td class="num">
+                    <div>{{ formatPricePerMillion(m.pricing_prompt) }}</div>
+                    <div class="text-muted">{{ formatPricePerMillion(m.pricing_completion) }}</div>
+                  </td>
+                  <td>
+                    @if (m.is_enabled) {
+                      <span class="status status-published">Activé</span>
+                    } @else {
+                      <span class="status status-draft">Désactivé</span>
+                    }
+                  </td>
+                  <td class="num">
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      [class.btn-primary]="!m.is_enabled"
+                      [disabled]="busyAction() !== null"
+                      (click)="toggleModel(m)"
+                    >
+                      {{ m.is_enabled ? 'Désactiver' : 'Activer' }}
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="empty-cell">
+                    @if (models().length === 0) {
+                      Aucun modèle synchronisé. Cliquez sur « Synchroniser le catalogue OpenRouter ».
+                    } @else {
+                      Aucun modèle ne correspond aux filtres sélectionnés.
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (hasMoreModels()) {
+          <div class="table-foot-note">
+            Affichage limité aux 100 premiers résultats sur {{ filteredModels().length }}. Affinez votre recherche pour trouver un modèle précis.
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,247 @@
+"""Routes du module Modèles IA (OpenRouter). Aucune règle métier ici."""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Response, status
+
+from app.core.deps import SessionDep
+from app.modules.ai_models import service
+from app.modules.ai_models.constants import MANAGE_AI_MODELS
+from app.modules.ai_models.schemas import (
+    AiModelRead,
+    AiModelsSyncRead,
+    AiModelToggle,
+    AiTaskAssignmentRead,
+    AiTaskAssignmentUpdate,
+    AiWorkspaceCreate,
+    AiWorkspaceRead,
+    AiWorkspaceSyncRead,
+    AiWorkspaceUpdate,
+    OpenRouterKeyRead,
+    OpenRouterKeySave,
+    OpenRouterKeyVerifyRead,
+    OpenRouterOverviewRead,
+)
+from app.modules.users.deps import CurrentUser, require
+from app.modules.users.models import User
+
+router = APIRouter(prefix="/openrouter", tags=["modeles-ia-openrouter"])
+
+GestionnaireIA = Annotated[User, Depends(require(MANAGE_AI_MODELS))]
+
+
+@router.get(
+    "/overview",
+    response_model=OpenRouterOverviewRead,
+    summary="Synthèse globale OpenRouter (clés, crédits, workspaces, modèles)",
+)
+async def obtenir_synthese(
+    session: SessionDep, _: CurrentUser
+) -> OpenRouterOverviewRead:
+    return await service.obtenir_synthese(session)
+
+
+# ---------------------------------------------------------------------------
+# Clés API chiffrées (Management & Standard)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/keys",
+    response_model=list[OpenRouterKeyRead],
+    summary="Lister les clés OpenRouter (actives et historique, toujours masquées)",
+)
+async def lister_cles(
+    session: SessionDep, _: CurrentUser
+) -> list[OpenRouterKeyRead]:
+    return await service.lister_cles(session)
+
+
+@router.post(
+    "/keys",
+    response_model=OpenRouterKeyVerifyRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Chiffrer et enregistrer une clé OpenRouter (Management ou Standard)",
+)
+async def enregistrer_cle(
+    corps: OpenRouterKeySave,
+    session: SessionDep,
+    par: GestionnaireIA,
+    reponse: Response,
+) -> OpenRouterKeyVerifyRead:
+    resultat = await service.enregistrer_cle(session, corps, par)
+    reponse.headers["Location"] = (
+        f"/api/v1/openrouter/keys/{resultat.key.id_openrouter_api_keys}"
+    )
+    return resultat
+
+
+@router.post(
+    "/keys/{id_key}/verify",
+    response_model=OpenRouterKeyVerifyRead,
+    summary="Vérifier en direct une clé OpenRouter active",
+)
+async def verifier_cle(
+    id_key: int,
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> OpenRouterKeyVerifyRead:
+    return await service.verifier_cle(session, id_key)
+
+
+@router.post(
+    "/keys/{id_key}/revoke",
+    response_model=OpenRouterKeyRead,
+    summary="Révoquer une clé OpenRouter",
+)
+async def revoquer_cle(
+    id_key: int,
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> OpenRouterKeyRead:
+    return await service.revoquer_cle(session, id_key)
+
+
+# ---------------------------------------------------------------------------
+# Workspaces OpenRouter
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/workspaces",
+    response_model=list[AiWorkspaceRead],
+    summary="Lister les workspaces OpenRouter synchronisés",
+)
+async def lister_workspaces(
+    session: SessionDep, _: CurrentUser
+) -> list[AiWorkspaceRead]:
+    return await service.lister_workspaces(session)
+
+
+@router.post(
+    "/workspaces/sync",
+    response_model=AiWorkspaceSyncRead,
+    summary="Synchroniser les workspaces depuis OpenRouter (Management API Key)",
+)
+async def synchroniser_workspaces(
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> AiWorkspaceSyncRead:
+    return await service.synchroniser_workspaces(session, par)
+
+
+@router.post(
+    "/workspaces",
+    response_model=AiWorkspaceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Créer un workspace sur OpenRouter et l'enregistrer",
+)
+async def creer_workspace(
+    corps: AiWorkspaceCreate,
+    session: SessionDep,
+    par: GestionnaireIA,
+    reponse: Response,
+) -> AiWorkspaceRead:
+    ws = await service.creer_workspace(session, corps, par)
+    reponse.headers["Location"] = f"/api/v1/openrouter/workspaces/{ws.id_ai_workspaces}"
+    return ws
+
+
+@router.patch(
+    "/workspaces/{id_workspace}",
+    response_model=AiWorkspaceRead,
+    summary="Modifier un workspace OpenRouter ou le définir comme workspace actif IAGORA",
+)
+async def modifier_workspace(
+    id_workspace: int,
+    corps: AiWorkspaceUpdate,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> AiWorkspaceRead:
+    return await service.modifier_workspace(session, id_workspace, corps, par)
+
+
+@router.delete(
+    "/workspaces/{id_workspace}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Supprimer un workspace sur OpenRouter et l'archiver localement",
+)
+async def supprimer_workspace(
+    id_workspace: int,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> None:
+    await service.supprimer_workspace(session, id_workspace, par)
+
+
+# ---------------------------------------------------------------------------
+# Catalogue des modèles & Affectations
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/models",
+    response_model=list[AiModelRead],
+    summary="Lister les modèles OpenRouter synchronisés",
+)
+async def lister_modeles(
+    session: SessionDep,
+    _: CurrentUser,
+    search: str | None = Query(None, description="Filtre texte sur nom, ID ou fournisseur."),
+    provider: str | None = Query(None, description="Filtre par slug fournisseur."),
+    enabled_only: bool = Query(False, description="Limiter aux modèles activés."),
+) -> list[AiModelRead]:
+    return await service.lister_modeles(
+        session, search=search, provider=provider, enabled_only=enabled_only
+    )
+
+
+@router.post(
+    "/models/sync",
+    response_model=AiModelsSyncRead,
+    summary="Synchroniser le catalogue des modèles depuis OpenRouter",
+)
+async def synchroniser_modeles(
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> AiModelsSyncRead:
+    return await service.synchroniser_modeles(session)
+
+
+@router.patch(
+    "/models/{id_model}",
+    response_model=AiModelRead,
+    summary="Activer ou désactiver un modèle IA",
+)
+async def basculer_modele(
+    id_model: int,
+    corps: AiModelToggle,
+    session: SessionDep,
+    _: GestionnaireIA,
+) -> AiModelRead:
+    return await service.basculer_modele(session, id_model, corps.is_enabled)
+
+
+@router.get(
+    "/assignments",
+    response_model=list[AiTaskAssignmentRead],
+    summary="Lister les affectations des modèles IA par tâche métier",
+)
+async def lister_affectations(
+    session: SessionDep, _: CurrentUser
+) -> list[AiTaskAssignmentRead]:
+    return await service.lister_affectations(session)
+
+
+@router.put(
+    "/assignments/{task_code}",
+    response_model=AiTaskAssignmentRead,
+    summary="Affecter un modèle OpenRouter à une tâche métier IAGORA",
+)
+async def modifier_affectation(
+    task_code: str,
+    corps: AiTaskAssignmentUpdate,
+    session: SessionDep,
+    par: GestionnaireIA,
+) -> AiTaskAssignmentRead:
+    return await service.modifier_affectation(session, task_code, corps, par)

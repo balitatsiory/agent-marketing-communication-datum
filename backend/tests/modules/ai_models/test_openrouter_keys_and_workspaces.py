@@ -1,0 +1,272 @@
+"""Tests du module Modèles IA (OpenRouter) : clés chiffrées, workspaces et modèles."""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import decrypt_token
+from app.modules.ai_models.constants import MANAGE_AI_MODELS
+from app.modules.ai_models.models import OpenRouterApiKey
+from app.modules.ai_models.openrouter_client import VerifyKeyResult
+from tests.conftest import entete
+
+pytestmark = pytest.mark.asyncio
+
+
+async def test_enregistrer_cles_chiffrees_en_base_et_rotation(
+    client: AsyncClient,
+    session: AsyncSession,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Les clés Management et Standard sont chiffrées par Fernet en base et jamais renvoyées en clair."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    cle_mgmt_1 = "sk-or-v1-management-secret-key-111111"
+    cle_mgmt_2 = "sk-or-v1-management-secret-key-222222"
+    cle_std = "sk-or-v1-standard-secret-key-999999"
+
+    with (
+        patch(
+            "app.modules.ai_models.openrouter_client.verify_management_key",
+            new=AsyncMock(
+                return_value=VerifyKeyResult(
+                    ok=True,
+                    message="Management API Key valide.",
+                    total_credits=25.0,
+                    total_usage=3.5,
+                    remaining_credits=21.5,
+                )
+            ),
+        ),
+        patch(
+            "app.modules.ai_models.openrouter_client.verify_standard_key",
+            new=AsyncMock(
+                return_value=VerifyKeyResult(
+                    ok=True,
+                    message="Clé API Standard valide.",
+                    key_label="IAGORA Std",
+                    limit_remaining=10.0,
+                    is_free_tier=False,
+                )
+            ),
+        ),
+    ):
+        # 1. Enregistrement de la 1ère Management API Key
+        r1 = await client.post(
+            "/api/v1/openrouter/keys",
+            headers=entete(jetons),
+            json={
+                "key_kind": "management",
+                "api_key": cle_mgmt_1,
+                "label": "Mgmt v1",
+                "verify_immediately": True,
+            },
+        )
+        assert r1.status_code == 201, r1.text
+        corps1 = r1.json()
+        assert corps1["verified"] is True
+        assert corps1["remaining_credits"] == 21.5
+        assert cle_mgmt_1 not in r1.text
+        assert corps1["key"]["is_active"] is True
+        assert corps1["key"]["key_masked"].endswith("1111")
+
+        # Vérification directe en base : stockée chiffrée (Fernet), jamais en clair
+        lignes_db = (
+            await session.execute(
+                select(OpenRouterApiKey).where(OpenRouterApiKey.key_kind == "management")
+            )
+        ).scalars().all()
+        assert len(lignes_db) == 1
+        assert lignes_db[0].api_key_encrypted != cle_mgmt_1
+        assert decrypt_token(lignes_db[0].api_key_encrypted) == cle_mgmt_1
+
+        # 2. Rotation de la Management API Key -> remplace l'ancienne
+        r2 = await client.post(
+            "/api/v1/openrouter/keys",
+            headers=entete(jetons),
+            json={
+                "key_kind": "management",
+                "api_key": cle_mgmt_2,
+                "label": "Mgmt v2",
+                "verify_immediately": True,
+            },
+        )
+        assert r2.status_code == 201, r2.text
+        assert cle_mgmt_2 not in r2.text
+
+        # 3. Enregistrement de la Standard API Key
+        r3 = await client.post(
+            "/api/v1/openrouter/keys",
+            headers=entete(jetons),
+            json={
+                "key_kind": "standard",
+                "api_key": cle_std,
+                "label": "Std Prod",
+                "verify_immediately": True,
+            },
+        )
+        assert r3.status_code == 201, r3.text
+        assert cle_std not in r3.text
+
+        # 4. Liste des clés : 3 lignes dont 2 actives (1 management + 1 standard) et 1 remplacée
+        r_list = await client.get("/api/v1/openrouter/keys", headers=entete(jetons))
+        assert r_list.status_code == 200
+        cles = r_list.json()
+        assert len(cles) == 3
+        actives = [c for c in cles if c["is_active"]]
+        assert len(actives) == 2
+        assert {c["key_kind"] for c in actives} == {"management", "standard"}
+
+
+async def test_droits_requis_pour_gestion_cles(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Un utilisateur sans `manage_ai_models` reçoit 403 en écriture."""
+    simple = await fabrique_utilisateur(droits=[])
+    jetons = await connexion(simple.email)
+
+    r = await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={"key_kind": "standard", "api_key": "sk-or-v1-forbidden-test-key"},
+    )
+    assert r.status_code == 403
+
+
+async def test_workspaces_et_modeles_openrouter(
+    client: AsyncClient,
+    fabrique_utilisateur,
+    connexion,
+) -> None:
+    """Synchronisation, création et sélection de workspaces + synchro et affectation de modèles."""
+    admin = await fabrique_utilisateur(droits=[MANAGE_AI_MODELS])
+    jetons = await connexion(admin.email)
+
+    # Enregistrer les deux clés sans appel réseau
+    await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "management",
+            "api_key": "sk-or-v1-mgmt-key-for-workspaces",
+            "verify_immediately": False,
+        },
+    )
+    await client.post(
+        "/api/v1/openrouter/keys",
+        headers=entete(jetons),
+        json={
+            "key_kind": "standard",
+            "api_key": "sk-or-v1-std-key-for-models",
+            "verify_immediately": False,
+        },
+    )
+
+    with (
+        patch(
+            "app.modules.ai_models.openrouter_client.list_workspaces",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "id": "ws_default_1",
+                        "name": "Default Workspace",
+                        "slug": "default",
+                        "description": "Workspace principal",
+                        "is_default": True,
+                    }
+                ]
+            ),
+        ),
+        patch(
+            "app.modules.ai_models.openrouter_client.create_workspace",
+            new=AsyncMock(
+                return_value={
+                    "id": "ws_iagora_prod",
+                    "name": "IAGORA Production",
+                    "slug": "iagora-production",
+                    "description": "Production DATUM",
+                    "default_text_model": "anthropic/claude-3.5-sonnet",
+                    "default_provider_sort": "latency",
+                }
+            ),
+        ),
+        patch(
+            "app.modules.ai_models.openrouter_client.list_models",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "id": "anthropic/claude-3.5-sonnet",
+                        "name": "Claude 3.5 Sonnet",
+                        "description": "Modèle rédactionnel",
+                        "context_length": 200000,
+                        "pricing": {"prompt": "0.000003", "completion": "0.000015"},
+                        "architecture": {
+                            "input_modalities": ["text", "image"],
+                            "output_modalities": ["text"],
+                        },
+                    }
+                ]
+            ),
+        ),
+    ):
+        # Sync workspaces
+        r_sync_ws = await client.post("/api/v1/openrouter/workspaces/sync", headers=entete(jetons))
+        assert r_sync_ws.status_code == 200, r_sync_ws.text
+        assert r_sync_ws.json()["synced_count"] == 1
+
+        # Créer workspace
+        r_create_ws = await client.post(
+            "/api/v1/openrouter/workspaces",
+            headers=entete(jetons),
+            json={
+                "name": "IAGORA Production",
+                "description": "Production DATUM",
+                "default_text_model": "anthropic/claude-3.5-sonnet",
+                "default_provider_sort": "latency",
+                "monthly_budget_usd": 120,
+            },
+        )
+        assert r_create_ws.status_code == 201, r_create_ws.text
+        ws_id = r_create_ws.json()["id_ai_workspaces"]
+
+        # Définir comme workspace actif IAGORA
+        r_sel = await client.patch(
+            f"/api/v1/openrouter/workspaces/{ws_id}",
+            headers=entete(jetons),
+            json={"is_selected": True},
+        )
+        assert r_sel.status_code == 200
+        assert r_sel.json()["is_selected"] is True
+
+        # Synchroniser le catalogue de modèles
+        r_sync_m = await client.post("/api/v1/openrouter/models/sync", headers=entete(jetons))
+        assert r_sync_m.status_code == 200, r_sync_m.text
+        assert r_sync_m.json()["synced_count"] == 1
+
+        # Activer et affecter le modèle
+        r_models = await client.get("/api/v1/openrouter/models", headers=entete(jetons))
+        model_id = r_models.json()[0]["id_ai_models"]
+
+        r_toggle = await client.patch(
+            f"/api/v1/openrouter/models/{model_id}",
+            headers=entete(jetons),
+            json={"is_enabled": True},
+        )
+        assert r_toggle.status_code == 200
+        assert r_toggle.json()["is_enabled"] is True
+
+        r_assign = await client.put(
+            "/api/v1/openrouter/assignments/text-generation",
+            headers=entete(jetons),
+            json={"id_ai_models": model_id, "id_ai_workspaces": ws_id},
+        )
+        assert r_assign.status_code == 200, r_assign.text
+        assert r_assign.json()["openrouter_model_id"] == "anthropic/claude-3.5-sonnet"
+        assert r_assign.json()["workspace_name"] == "IAGORA Production"
