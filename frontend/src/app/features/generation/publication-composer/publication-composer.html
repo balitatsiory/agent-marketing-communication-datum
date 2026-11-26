@@ -23,11 +23,28 @@
   @if (resetNotice(); as message) {
     <p class="notice is-warn"><app-icon name="warn" size="sm" />{{ message }}</p>
   }
+  @if (sendError(); as message) {
+    <p class="notice is-warn"><app-icon name="warn" size="sm" />{{ message }}</p>
+  }
   @if (draftMessage(); as message) {
-    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+    <p class="notice">
+      <app-icon name="check" size="sm" />
+      <span>{{ message }}</span>
+      @if (createdPublicationId(); as pubId) {
+        <a class="btn btn-sm" [routerLink]="['/publications', pubId]">Voir la fiche</a>
+      }
+    </p>
   }
   @if (successMessage(); as message) {
-    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+    <p class="notice">
+      <app-icon name="check" size="sm" />
+      <span>{{ message }}</span>
+      @if (createdPublicationId(); as pubId) {
+        <a class="btn btn-sm btn-primary" [routerLink]="['/publications', pubId]">
+          Voir la publication #{{ pubId }}
+        </a>
+      }
+    </p>
   }
 
   <div class="editor">
@@ -387,6 +404,37 @@
             Fuseau&nbsp;: Antananarivo (UTC+3)@if (gmtSchedule(); as gmt) { — soit {{ gmt }} }
           </p>
         }
+
+        <div class="link-grid" style="margin-top: 12px">
+          <div class="field">
+            <label for="pub-title">Titre de la publication (facultatif)</label>
+            <input
+              class="input"
+              id="pub-title"
+              type="text"
+              placeholder="Ex. : Lancement Masterclass IA"
+              [ngModel]="title()"
+              (ngModelChange)="title.set($event)"
+            />
+          </div>
+
+          <div class="field">
+            <label for="pub-validator">Envoyer en validation à</label>
+            <select
+              class="select"
+              id="pub-validator"
+              [ngModel]="selectedValidatorId()"
+              (ngModelChange)="selectedValidatorId.set($event)"
+            >
+              <option value="">Toute l'équipe (notification collective)</option>
+              @for (v of validators(); track v.id_users) {
+                <option [value]="v.id_users">
+                  {{ v.full_name }}{{ v.is_self ? ' (moi)' : '' }} — {{ v.email }}
+                </option>
+              }
+            </select>
+          </div>
+        </div>
       </section>
 
       @if (blockers().length) {
@@ -609,11 +657,11 @@
       </div>
 
       <div class="modal-foot">
-        <span class="num foot-note">Aucun envoi réel depuis ce prototype.</span>
+        <span class="num foot-note">Une notification sera envoyée au validateur choisi.</span>
         <button class="btn" type="button" (click)="closeSummary()">Revenir à l'édition</button>
-        <button class="btn btn-primary" type="button" (click)="confirmSend()">
+        <button class="btn btn-primary" type="button" [disabled]="isSending()" (click)="confirmSend()">
           <app-icon name="send" size="sm" />
-          Envoyer à la validation
+          {{ isSending() ? 'Envoi…' : 'Envoyer à la validation' }}
         </button>
       </div>
     </div>

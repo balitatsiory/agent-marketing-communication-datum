@@ -1,0 +1,406 @@
+<app-topbar [trail]="trail()">
+  <a class="btn" routerLink="/notifications">
+    <app-icon name="bell" size="sm" />
+    Notifications
+  </a>
+  <a class="btn" routerLink="/publications">
+    <app-icon name="files" size="sm" />
+    Toutes les publications
+  </a>
+</app-topbar>
+
+<div class="page">
+  @if (isLoading()) {
+    <div class="panel empty-state">
+      <p>Chargement de la publication…</p>
+    </div>
+  } @else if (errorMessage() && !publication()) {
+    <div class="panel empty-state">
+      <app-icon name="warn" size="lg" />
+      <h3>Publication indisponible</h3>
+      <p>{{ errorMessage() }}</p>
+      <a class="btn btn-primary btn-sm" routerLink="/publications">Retour aux publications</a>
+    </div>
+  } @else if (publication(); as pub) {
+    <div class="page-head">
+      <div class="head-meta">
+        <div class="kicker">
+          <app-status-badge [status]="pub.status_code" />
+          <span class="chip-pill">{{ formatLabels[pub.format_code] }}</span>
+          <span class="sub num">Publication #{{ pub.id_publications }}</span>
+        </div>
+        <h1>{{ pub.title }}</h1>
+        <p class="sub">
+          Créée par <b>{{ pub.author_name }}</b> · le {{ formatShortDateTime(pub.created_at) }}
+          @if (pub.validator_name) {
+            · Validateur : <b>{{ pub.validator_name }}</b>
+          }
+        </p>
+      </div>
+    </div>
+
+    @if (notice(); as message) {
+      <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+    }
+    @if (errorMessage(); as error) {
+      <p class="notice is-error"><app-icon name="warn" size="sm" />{{ error }}</p>
+    }
+
+    <!-- ---------- Cycle de validation ---------- -->
+    <section class="stepper panel" aria-label="Cycle de validation">
+      <div class="step" [class]="'is-' + stepState('draft')">
+        <span class="dot">1</span>
+        <div>
+          <b>Brouillon</b>
+          <span>Rédaction & programmation</span>
+        </div>
+      </div>
+      <div class="step" [class]="'is-' + stepState('review')">
+        <span class="dot">2</span>
+        <div>
+          <b>{{ pub.status_code === 'changes_requested' ? 'Corrections demandées' : 'En validation' }}</b>
+          <span>Relecture par l'équipe</span>
+        </div>
+      </div>
+      <div class="step" [class]="'is-' + stepState('decision')">
+        <span class="dot">3</span>
+        <div>
+          <b>Approuvée / Programmée</b>
+          <span>Prête pour diffusion</span>
+        </div>
+      </div>
+      <div class="step" [class]="'is-' + stepState('published')">
+        <span class="dot">4</span>
+        <div>
+          <b>Publiée</b>
+          <span>Diffusée sur les réseaux</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- Bannière de correction si demandée ---------- -->
+    @if (pub.status_code === 'changes_requested' && latestCorrection(); as corr) {
+      <section class="correction-banner" aria-label="Correction demandée">
+        <app-icon name="warn" size="md" />
+        <div class="cb-body">
+          <b>Correction suggérée par {{ corr.author_name }}</b>
+          <p>{{ corr.comment }}</p>
+        </div>
+      </section>
+    }
+
+    <div class="detail-grid">
+      <!-- ---------- Colonne gauche : contenu + actions de validation ---------- -->
+      <div class="main-col">
+        <section class="card card-pad block">
+          <div class="block-head">
+            <span class="label">Contenu de la publication</span>
+            @if (canEditOrResubmit() && !isEditing()) {
+              <button class="btn btn-sm" type="button" (click)="isEditing.set(true)">
+                <app-icon name="pencil" size="sm" />
+                Modifier & renvoyer
+              </button>
+            }
+          </div>
+
+          @if (isEditing()) {
+            <div class="edit-form">
+              <div class="field">
+                <label for="edit-title">Titre</label>
+                <input
+                  id="edit-title"
+                  class="input"
+                  type="text"
+                  [ngModel]="editTitle()"
+                  (ngModelChange)="editTitle.set($event)"
+                />
+              </div>
+
+              <div class="field">
+                <label for="edit-caption">Légende</label>
+                <textarea
+                  id="edit-caption"
+                  class="textarea"
+                  rows="5"
+                  [ngModel]="editCaption()"
+                  (ngModelChange)="editCaption.set($event)"
+                ></textarea>
+              </div>
+
+              <div class="field">
+                <label for="edit-validator">Destinataire de validation</label>
+                <select
+                  id="edit-validator"
+                  class="select"
+                  [ngModel]="editValidatorId()"
+                  (ngModelChange)="editValidatorId.set($event)"
+                >
+                  <option value="">Toute l'équipe (tous les collaborateurs)</option>
+                  @for (v of validators(); track v.id_users) {
+                    <option [value]="v.id_users">
+                      {{ v.full_name }}{{ v.is_self ? ' (moi)' : '' }} — {{ v.email }}
+                    </option>
+                  }
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="resubmit-note">Note pour le validateur (facultatif)</label>
+                <input
+                  id="resubmit-note"
+                  class="input"
+                  type="text"
+                  placeholder="Ex. : Heure GMT ajoutée et lien vérifié"
+                  [ngModel]="resubmitNote()"
+                  (ngModelChange)="resubmitNote.set($event)"
+                />
+              </div>
+
+              <div class="form-actions">
+                <button class="btn" type="button" (click)="isEditing.set(false)">Annuler</button>
+                <button
+                  class="btn btn-primary"
+                  type="button"
+                  [disabled]="isSubmitting()"
+                  (click)="saveAndResubmit()"
+                >
+                  <app-icon name="send" size="sm" />
+                  Enregistrer et renvoyer à la validation
+                </button>
+              </div>
+            </div>
+          } @else {
+            <p class="caption">{{ pub.caption || 'Aucune légende saisie.' }}</p>
+
+            @if (platformCaptionEntries().length > 1) {
+              <div class="platform-captions">
+                <div class="label">Variantes par réseau</div>
+                @for (entry of platformCaptionEntries(); track entry[0]) {
+                  <div class="pc-row">
+                    @if (isSocialNetwork(entry[0])) {
+                      <app-network-logo [network]="entry[0]" />
+                    }
+                    <div>
+                      <b class="pc-net">{{ entry[0] }}</b>
+                      <p>{{ entry[1] }}</p>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (pub.hashtags.length) {
+              <div class="chips">
+                @for (tag of pub.hashtags; track tag) {
+                  <span class="chip-active">{{ tag }}</span>
+                }
+              </div>
+            }
+
+            @if (pub.media_items && pub.media_items.length) {
+              <div class="media-list">
+                <div class="label">Médias joints ({{ pub.media_items.length }})</div>
+                @for (m of pub.media_items; track $index) {
+                  <div class="media-pill">
+                    <app-icon name="image" size="sm" />
+                    <span>{{ m.name }}</span>
+                    @if (m.size_label) {
+                      <span class="num muted">{{ m.size_label }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          }
+        </section>
+
+        <!-- ---------- Panneau de décision (Utilisateur B) ---------- -->
+        @if (canValidate()) {
+          <section class="card card-pad block validation-box" aria-label="Décision de validation">
+            <div class="block-head">
+              <span class="label">Validation de la publication</span>
+              <span class="cap">En attente de décision</span>
+            </div>
+
+            <div class="decision-actions">
+              <div class="decision-primary">
+                <input
+                  class="input"
+                  type="text"
+                  placeholder="Note de validation (facultatif)…"
+                  [ngModel]="approvalComment()"
+                  (ngModelChange)="approvalComment.set($event)"
+                />
+                <div class="btn-row">
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    [disabled]="isSubmitting()"
+                    (click)="confirmAndPublish(true)"
+                  >
+                    <app-icon name="check" size="sm" />
+                    Confirmer et publier maintenant
+                  </button>
+                  @if (pub.scheduled_at) {
+                    <button
+                      class="btn"
+                      type="button"
+                      [disabled]="isSubmitting()"
+                      (click)="confirmAndPublish(false)"
+                    >
+                      <app-icon name="clock" size="sm" />
+                      Approuver et programmer
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <hr class="divider" />
+
+              <div class="correction-form">
+                <label class="label" for="correction-input">
+                  Ou suggérer une correction (en commentaire)
+                </label>
+                <textarea
+                  id="correction-input"
+                  class="textarea"
+                  rows="3"
+                  placeholder="Indiquez les corrections souhaitées pour l'auteur…"
+                  [ngModel]="correctionComment()"
+                  (ngModelChange)="correctionComment.set($event)"
+                ></textarea>
+                <button
+                  class="btn btn-warn"
+                  type="button"
+                  [disabled]="!correctionComment().trim() || isSubmitting()"
+                  (click)="suggestCorrection()"
+                >
+                  <app-icon name="chat" size="sm" />
+                  Suggérer cette correction à {{ pub.author_name }}
+                </button>
+              </div>
+            </div>
+          </section>
+        }
+
+        @if (canPublishScheduled()) {
+          <section class="card card-pad block">
+            <div class="block-head">
+              <span class="label">Publication programmée</span>
+              <button
+                class="btn btn-primary btn-sm"
+                type="button"
+                [disabled]="isSubmitting()"
+                (click)="confirmAndPublish(true)"
+              >
+                <app-icon name="send" size="sm" />
+                Publier maintenant
+              </button>
+            </div>
+            <p class="cap">
+              Départ prévu : {{ formatDateTime(pub.scheduled_at) }}. Vous pouvez également la
+              publier immédiatement.
+            </p>
+          </section>
+        }
+
+        @if (canEditOrResubmit() && !isEditing()) {
+          <section class="card card-pad block">
+            <div class="block-head">
+              <span class="label">Action auteur</span>
+            </div>
+            <p class="cap">
+              @if (pub.status_code === 'changes_requested') {
+                Appliquez les corrections demandées puis renvoyez la publication à la validation.
+              } @else {
+                Ce brouillon n'a pas encore été soumis. Envoyez-le à la validation pour notifier
+                votre équipe.
+              }
+            </p>
+            <div class="btn-row">
+              <button class="btn btn-primary" type="button" (click)="isEditing.set(true)">
+                <app-icon name="pencil" size="sm" />
+                {{ pub.status_code === 'changes_requested' ? 'Corriger et renvoyer à la validation' : 'Modifier et envoyer à la validation' }}
+              </button>
+            </div>
+          </section>
+        }
+      </div>
+
+      <!-- ---------- Colonne droite : réseaux + historique & commentaires ---------- -->
+      <aside class="side-col">
+        <section class="card card-pad block">
+          <div class="label">Réseaux & programmation</div>
+          <div class="net-list">
+            @for (code of pub.platform_codes; track code) {
+              <div class="pd-net">
+                @if (isSocialNetwork(code)) {
+                  <app-network-logo [network]="code" size="lg" />
+                }
+                <div class="who">
+                  <b>{{ code }}</b>
+                  <span>
+                    @if (pub.published_at) {
+                      Publiée le {{ formatShortDateTime(pub.published_at) }}
+                    } @else if (pub.scheduled_at) {
+                      Prévue le {{ formatShortDateTime(pub.scheduled_at) }}
+                    } @else {
+                      Dès validation
+                    }
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+          @if (formatGmt(pub.scheduled_at); as gmt) {
+            <p class="cap">Échéance UTC : {{ gmt }}</p>
+          }
+        </section>
+
+        <section class="card card-pad block">
+          <div class="block-head">
+            <span class="label">Journal & commentaires</span>
+            <span class="cap">{{ pub.events.length }} étapes</span>
+          </div>
+
+          <div class="history">
+            @for (ev of pub.events; track ev.id_publication_events) {
+              <article class="ev" [class]="'kind-' + ev.kind">
+                <div class="ev-top">
+                  <b>{{ ev.label }}</b>
+                  <span class="num">{{ formatShortDateTime(ev.created_at) }}</span>
+                </div>
+                @if (ev.comment) {
+                  <p class="ev-comment">« {{ ev.comment }} »</p>
+                }
+                <div class="ev-author">
+                  <span class="av">{{ ev.author_initials }}</span>
+                  <span>{{ ev.author_name }}</span>
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="comment-box">
+            <textarea
+              class="textarea"
+              rows="2"
+              placeholder="Ajouter un commentaire dans le fil…"
+              [ngModel]="discussionComment()"
+              (ngModelChange)="discussionComment.set($event)"
+            ></textarea>
+            <button
+              class="btn btn-sm"
+              type="button"
+              [disabled]="!discussionComment().trim() || isSubmitting()"
+              (click)="postComment()"
+            >
+              <app-icon name="send" size="sm" />
+              Commenter
+            </button>
+          </div>
+        </section>
+      </aside>
+    </div>
+  }
+</div>

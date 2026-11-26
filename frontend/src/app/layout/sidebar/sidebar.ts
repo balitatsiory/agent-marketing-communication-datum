@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { IsActiveMatchOptions, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NAVIGATION } from '../../core/data/navigation.data';
 import { NavigationChild, NavigationEntry, NavigationLink } from '../../core/models/navigation';
+import { NotificationBadgeStore } from '../../core/services/notification-badge-store';
 import { Session } from '../../core/services/session';
 import { SidebarState } from '../../core/services/sidebar-state';
 import { BrandLogo } from '../../shared/brand-logo/brand-logo';
@@ -19,8 +20,13 @@ import { Icon } from '../../shared/icon/icon';
     '(document:keydown.escape)': 'fermerMenu()',
   },
 })
-export class Sidebar {
+export class Sidebar implements OnInit {
   protected readonly state = inject(SidebarState);
+  private readonly notificationBadge = inject(NotificationBadgeStore);
+
+  ngOnInit(): void {
+    void this.notificationBadge.refresh();
+  }
 
   /**
    * « Voir les webinaires » ne s'allume que sur la liste : ses voisins
@@ -57,10 +63,17 @@ export class Sidebar {
     const autorise = (lien: NavigationLink): boolean =>
       !lien.requiresPermission || this.session.has(lien.requiresPermission);
 
+    const unread = this.notificationBadge.unreadCount();
     const entrees: NavigationEntry[] = [];
     for (const entree of NAVIGATION) {
       if (entree.type === 'link') {
-        if (autorise(entree)) entrees.push(entree);
+        if (autorise(entree)) {
+          if (entree.key === 'notifications') {
+            entrees.push({ ...entree, badge: unread > 0 ? String(unread) : undefined });
+          } else {
+            entrees.push(entree);
+          }
+        }
         continue;
       }
 

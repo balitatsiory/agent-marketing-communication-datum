@@ -85,6 +85,15 @@ export const routes: Routes = [
           ),
       },
 
+      {
+        path: 'publications/:id',
+        title: 'Détail de la publication · IAGORA',
+        loadComponent: () =>
+          import('./features/publications/publication-detail/publication-detail').then(
+            (m) => m.PublicationDetail,
+          ),
+      },
+
 
       {
         path: 'medias',
@@ -281,16 +290,10 @@ export const routes: Routes = [
       {
         path: 'notifications',
         title: 'Notifications · IAGORA',
-        data: {
-          title: 'Notifications',
-          trail: ['Notifications'],
-          icon: 'bell',
-          mockup: '11a',
-        },
-
-
         loadComponent: () =>
-          import('./features/placeholder/pending-screen').then((m) => m.PendingScreen),
+          import('./features/notifications/notification-center/notification-center').then(
+            (m) => m.NotificationCenter,
+          ),
       },
 
 
