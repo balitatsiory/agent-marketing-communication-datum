@@ -95,24 +95,25 @@
         </span>
       </div>
 
-      <!-- 3 Cartes Cas d'utilisation strict -->
+      <!-- 4 Cartes Cas d'utilisation strict -->
       <div class="usecase-grid" role="radiogroup" aria-label="Cas d'utilisation strict">
-        @for (uc of useCases; track uc.code) {
+        @for (uc of useCases; track uc.id) {
           <button
             type="button"
             class="usecase-card"
-            [class.is-active]="selectedUseCase() === uc.code"
-            [attr.aria-checked]="selectedUseCase() === uc.code"
+            [class.is-active]="selectedUiUseCase() === uc.id"
+            [attr.aria-checked]="selectedUiUseCase() === uc.id"
             role="radio"
-            (click)="selectUseCase(uc.code)"
+            (click)="selectUseCase(uc.id)"
           >
             <div class="uc-top">
               <span class="uc-title">{{ uc.title }}</span>
-              @if (selectedUseCase() === uc.code) {
+              @if (selectedUiUseCase() === uc.id) {
                 <span class="status status-published">Sélectionné</span>
               }
             </div>
             <p class="uc-sub">{{ uc.subtitle }}</p>
+            <span class="mini-tag tag-suggest num">{{ uc.modalityHint }}</span>
           </button>
         }
       </div>
@@ -235,9 +236,14 @@
         </div>
       </div>
 
-      <!-- Bloc dédié Génération / Modification d'image + Médias de référence IAGORA -->
+      <!-- Bloc dédié Génération / Édition d'image + Médias de référence IAGORA -->
       @if (selectedUseCase() === 'image_generation') {
         <div class="image-config-block">
+          @if (selectedUiUseCase() === 'image_edit') {
+            <p class="sub">
+              <b>Mode Édition d'image par prompt :</b> sélectionnez ci-dessous l'image source à modifier (média de référence IAGORA, URL ou fichier importé) puis décrivez la retouche souhaitée dans le User Prompt.
+            </p>
+          }
           <div class="inline-row">
             <div class="field">
               <label for="sbx-img-mode">Mode visuel</label>
@@ -245,10 +251,10 @@
                 id="sbx-img-mode"
                 class="select"
                 [ngModel]="imageMode()"
-                (ngModelChange)="imageMode.set($event)"
+                (ngModelChange)="imageMode.set($event); selectedUiUseCase.set($event === 'edit' ? 'image_edit' : 'image_create')"
               >
                 <option value="create">Création d'image (avec ou sans références)</option>
-                <option value="edit">Modification d'image existante</option>
+                <option value="edit">Édition d'image existante par prompt</option>
               </select>
             </div>
             <div class="field">
@@ -374,14 +380,17 @@
         <button
           type="button"
           class="btn btn-primary btn-generate"
-          [disabled]="isRunning() || loadingInit()"
+          [disabled]="isAnyRunning() || loadingInit()"
           (click)="runComparison()"
         >
           <app-icon name="sparkle" size="sm" />
           @if (isRunning()) {
-            <span>Génération en cours ({{ variants().length }} modèles)…</span>
+            <span>Génération en cours ({{ variants().length }} modèle{{ variants().length > 1 ? 's' : '' }})…</span>
           } @else {
-            <span>Générer et comparer ({{ variants().length }} modèles)</span>
+            <span>
+              {{ variants().length > 1 ? 'Générer et comparer' : 'Générer' }}
+              ({{ variants().length }} modèle{{ variants().length > 1 ? 's' : '' }})
+            </span>
           }
         </button>
       </div>
@@ -397,17 +406,28 @@
                   <button
                     type="button"
                     class="btn-mini"
+                    title="Régénérer uniquement ce modèle avec les paramètres actuels"
+                    [disabled]="isAnyRunning() || loadingInit()"
+                    (click)="runSingleVariant(slot.slotId)"
+                  >
+                    <app-icon name="sparkle" size="sm" />
+                    {{ runningSlotId() === slot.slotId ? 'En cours…' : 'Régénérer' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-mini"
                     title="Agrandir cette carte en pop-up"
                     (click)="expandedSlotId.set(slot.slotId)"
                   >
                     <app-icon name="external" size="sm" />
                     Agrandir
                   </button>
-                  @if (variants().length > 2) {
+                  @if (variants().length > 1) {
                     <button
                       type="button"
                       class="btn-icon-remove"
                       title="Retirer ce bloc"
+                      [disabled]="isAnyRunning()"
                       (click)="removeVariantSlot(slot.slotId)"
                     >
                       <app-icon name="close" size="sm" />
@@ -493,9 +513,9 @@
                           <div class="ss-empty">Aucun modèle activé trouvé.</div>
                         }
 
-                        <!-- Groupe 2 : 5 autres modèles non activés proposés -->
+                        <!-- Groupe 2 : 5 autres modèles non activés proposés (filtrés par modalités de la tâche) -->
                         <div class="ss-group-label ss-group-divider">
-                          5 autres suggestions (non activées) ({{ filteredSuggestedDropdownModels().length }})
+                          5 autres suggestions ({{ currentUseCaseConfig().modalityHint }}) ({{ filteredSuggestedDropdownModels().length }})
                         </div>
                         @for (m of filteredSuggestedDropdownModels(); track m.id_ai_models) {
                           <button
@@ -506,12 +526,12 @@
                           >
                             <div class="ss-opt-left">
                               <b>{{ m.name }}</b>
-                              <span class="num text-muted">{{ m.openrouter_model_id }}</span>
+                              <span class="num text-muted">{{ m.openrouter_model_id }} · {{ formatModalities(m) }}</span>
                             </div>
                             <span class="mini-tag tag-suggest">Non activé</span>
                           </button>
                         } @empty {
-                          <div class="ss-empty">Aucune suggestion correspondante.</div>
+                          <div class="ss-empty">Aucune suggestion correspondante pour {{ currentUseCaseConfig().modalityHint }}.</div>
                         }
                       </div>
                     </div>
@@ -553,7 +573,7 @@
 
             <!-- Zone Résultat & Coût réel sous chaque bloc -->
             <div class="variant-body">
-              @if (isRunning()) {
+              @if (isSlotLoading(slot.slotId)) {
                 <div class="variant-skel" aria-busy="true">
                   <span class="skel skel-sm" style="width: 45%"></span>
                   <span class="skel skel-box"></span>
@@ -695,7 +715,7 @@
           <button
             type="button"
             class="add-variant-card"
-            [disabled]="isRunning()"
+            [disabled]="isAnyRunning()"
             (click)="addVariantSlot()"
           >
             <span class="add-icon-circle">
@@ -1062,6 +1082,15 @@
                   JSON usage
                 </button>
               </div>
+              <button
+                type="button"
+                class="btn btn-sm"
+                [disabled]="isAnyRunning()"
+                (click)="runSingleVariant(slot.slotId)"
+              >
+                <app-icon name="sparkle" size="sm" />
+                {{ runningSlotId() === slot.slotId ? 'Régénération…' : 'Régénérer' }}
+              </button>
               <button
                 type="button"
                 class="btn btn-sm"

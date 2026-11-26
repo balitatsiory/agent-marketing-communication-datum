@@ -26,6 +26,7 @@ import { Chart } from '../../../shared/chart/chart';
 import { Icon } from '../../../shared/icon/icon';
 
 export type SandboxMainTab = 'sandbox' | 'history';
+export type SandboxUiUseCase = 'publication_text' | 'image_create' | 'image_edit' | 'message_rag';
 export type VariantViewMode = 'rendered' | 'response_json' | 'usage_json';
 export type HistorySortColumn = 'created_at' | 'use_case' | 'cost' | 'author' | 'models';
 
@@ -49,7 +50,10 @@ interface SandboxVariantSlot {
 }
 
 interface UseCaseConfig {
+  readonly id: SandboxUiUseCase;
   readonly code: SandboxUseCase;
+  readonly defaultImageMode?: 'create' | 'edit';
+  readonly modalityHint: string;
   readonly title: string;
   readonly shortTitle: string;
   readonly subtitle: string;
@@ -65,7 +69,9 @@ interface UseCaseConfig {
 
 const USE_CASES: readonly UseCaseConfig[] = [
   {
+    id: 'publication_text',
     code: 'publication_text',
+    modalityHint: 'text → text',
     title: 'Génération de texte pour publication',
     shortTitle: 'Texte publication',
     subtitle: 'Posts LinkedIn, Facebook, Instagram orientés conversion et engagement.',
@@ -97,13 +103,16 @@ const USE_CASES: readonly UseCaseConfig[] = [
     contextLabel: 'Brief éditorial & cible',
   },
   {
+    id: 'image_create',
     code: 'image_generation',
-    title: "Génération d'image / Modification image",
-    shortTitle: 'Image / Modif.',
-    subtitle: 'Création de visuels réseaux sociaux ou retouche/analyse sur image existante.',
+    defaultImageMode: 'create',
+    modalityHint: 'text → image',
+    title: "Génération d'image",
+    shortTitle: 'Création image',
+    subtitle: 'Création de nouveaux visuels réseaux sociaux à partir du brief et de vos références.',
     targetTaskCode: 'image-generation',
     defaultSystemPrompt:
-      "Tu es directeur artistique senior chez Datum Academy. Produis ou modifie des visuels professionnels, modernes et lisibles sur mobile pour LinkedIn et Meta, en respectant une palette institutionnelle (bleu nuit #0F172A, indigo #4F46E5, blanc pur) avec une hiérarchie typographique claire.",
+      "Tu es directeur artistique senior chez Datum Academy. Produis des visuels professionnels, modernes et lisibles sur mobile pour LinkedIn et Meta, en respectant une palette institutionnelle (bleu nuit #0F172A, indigo #4F46E5, blanc pur) avec une hiérarchie typographique claire.",
     defaultUserPrompt:
       "Crée un visuel carré promotionnel épuré pour annoncer notre atelier pratique « IA Générative & Data pour Décideurs » : ambiance tech moderne, mise en page aérée, contraste fort, zéro texte illisible.",
     tones: [
@@ -116,7 +125,7 @@ const USE_CASES: readonly UseCaseConfig[] = [
     defaultTone: 'Institutionnel moderne Datum Academy',
     defaultJsonSchema: JSON.stringify(
       {
-        prompt_visuel_final: 'Description détaillée du visuel généré ou retouché',
+        prompt_visuel_final: 'Description détaillée du visuel généré',
         palette_couleurs: ['#0F172A', '#4F46E5', '#FFFFFF'],
         texte_alternatif_seo: 'Texte alternatif accessible',
         recommandations_meta: ['Conseil lisibilité mobile'],
@@ -129,7 +138,42 @@ const USE_CASES: readonly UseCaseConfig[] = [
     contextLabel: 'Charte graphique & contraintes visuelles',
   },
   {
+    id: 'image_edit',
+    code: 'image_generation',
+    defaultImageMode: 'edit',
+    modalityHint: 'text+image → image',
+    title: "Édition d'image par prompt",
+    shortTitle: 'Édition image',
+    subtitle: 'Modifier ou retoucher une image existante (média de référence ou import) par consigne.',
+    targetTaskCode: 'image-generation',
+    defaultSystemPrompt:
+      "Tu es retoucheur et directeur artistique senior chez Datum Academy. Modifie précisément l'image source fournie selon la consigne utilisateur tout en préservant la cohérence globale, la lisibilité et l'identité visuelle Datum Academy.",
+    defaultUserPrompt:
+      "Modifie l'image fournie : améliore la luminosité et le contraste du sujet principal, harmonise l'arrière-plan dans la palette bleu nuit (#0F172A) et indigo (#4F46E5), et garde le cadrage propre pour une publication LinkedIn.",
+    tones: [
+      'Retouche fidèle & subtile',
+      'Institutionnel moderne Datum Academy',
+      'Contraste fort & haute lisibilité mobile',
+      'Refonte graphique complète',
+    ],
+    defaultTone: 'Retouche fidèle & subtile',
+    defaultJsonSchema: JSON.stringify(
+      {
+        modifications_appliquees: ['Ajustement contraste', 'Harmonisation palette'],
+        elements_preserves: ['Logo', 'Composition centrale'],
+        texte_alternatif_seo: 'Description du visuel retouché',
+      },
+      null,
+      2,
+    ),
+    defaultContext:
+      "Conserver le logo et les éléments clés de l'image source. Ne pas déformer le texte existant ni ajouter d'artefacts.",
+    contextLabel: 'Contraintes de retouche & charte',
+  },
+  {
+    id: 'message_rag',
     code: 'message_rag',
+    modalityHint: 'text → text',
     title: 'Génération de texte pour Message (Base de connaissance)',
     shortTitle: 'Message (RAG)',
     subtitle: 'Réponses WhatsApp / Messenger / LinkedIn fondées strictement sur votre base documentaire.',
@@ -210,6 +254,7 @@ export class AiSandbox implements OnInit {
   protected readonly loadingInit = signal<boolean>(true);
   protected readonly loadingHistory = signal<boolean>(false);
   protected readonly isRunning = signal<boolean>(false);
+  protected readonly runningSlotId = signal<string | null>(null);
   protected readonly savingKey = signal<boolean>(false);
   protected readonly notice = signal<string | null>(null);
   protected readonly errorMessage = signal<string | null>(null);
@@ -244,7 +289,10 @@ export class AiSandbox implements OnInit {
   protected readonly showSandboxKeyPlain = signal<boolean>(false);
 
   /* ---------- Étape 1 : Cas d'utilisation strict & Prompts ---------- */
-  protected readonly selectedUseCase = signal<SandboxUseCase>('publication_text');
+  protected readonly selectedUiUseCase = signal<SandboxUiUseCase>('publication_text');
+  protected readonly selectedUseCase = computed<SandboxUseCase>(
+    () => this.currentUseCaseConfig().code,
+  );
   protected readonly systemPrompt = signal<string>(USE_CASES[0].defaultSystemPrompt);
   protected readonly userPrompt = signal<string>(USE_CASES[0].defaultUserPrompt);
   protected readonly tone = signal<string>(USE_CASES[0].defaultTone);
@@ -288,7 +336,11 @@ export class AiSandbox implements OnInit {
 
   /* ---------- Sélecteurs dérivés ---------- */
   protected readonly currentUseCaseConfig = computed(
-    () => USE_CASES.find((u) => u.code === this.selectedUseCase()) ?? USE_CASES[0],
+    () => USE_CASES.find((u) => u.id === this.selectedUiUseCase()) ?? USE_CASES[0],
+  );
+
+  protected readonly isAnyRunning = computed(
+    () => this.isRunning() || this.runningSlotId() !== null,
   );
 
   protected readonly activeSandboxKey = computed(
@@ -301,37 +353,83 @@ export class AiSandbox implements OnInit {
 
   protected readonly canAddVariant = computed(() => this.variants().length < MAX_VARIANTS);
 
+  private isImageOutputModel(m: AiModelDto): boolean {
+    return (
+      m.output_modalities.includes('image') ||
+      /image|flux|dall-e|ideogram|imagen|sdxl|recraft/i.test(m.openrouter_model_id)
+    );
+  }
+
+  private isEmbeddingOnlyModel(m: AiModelDto): boolean {
+    return (
+      m.output_modalities.includes('embeddings') ||
+      /embedding|embed/i.test(m.openrouter_model_id)
+    );
+  }
+
+  private matchesUseCaseModality(m: AiModelDto, uiUc: SandboxUiUseCase): boolean {
+    if (uiUc === 'image_create') {
+      return this.isImageOutputModel(m);
+    }
+    if (uiUc === 'image_edit') {
+      return this.isImageOutputModel(m) && m.input_modalities.includes('image');
+    }
+    // publication_text & message_rag : modèles de génération texte (hors image-only / embeddings)
+    return (
+      m.output_modalities.includes('text') &&
+      !this.isImageOutputModel(m) &&
+      !this.isEmbeddingOnlyModel(m)
+    );
+  }
+
+  protected formatModalities(m: AiModelDto): string {
+    const ins = m.input_modalities.length > 0 ? m.input_modalities.join('+') : 'text';
+    const outs = m.output_modalities.length > 0 ? m.output_modalities.join('+') : 'text';
+    return `${ins} → ${outs}`;
+  }
+
   /**
-   * Modèles activés dans le Catalogue OpenRouter (tous).
+   * Modèles activés dans le Catalogue OpenRouter, triés pour mettre en avant ceux compatibles avec la tâche.
    */
   protected readonly activeCatalogModels = computed(() => {
-    const isImage = this.selectedUseCase() === 'image_generation';
+    const uiUc = this.selectedUiUseCase();
     return this.models()
       .filter((m) => m.is_enabled)
       .sort((a, b) => {
-        if (isImage) {
-          const aImg = a.output_modalities.includes('image') ? 1 : 0;
-          const bImg = b.output_modalities.includes('image') ? 1 : 0;
-          if (aImg !== bImg) return bImg - aImg;
-        }
+        const aMatch = this.matchesUseCaseModality(a, uiUc) ? 1 : 0;
+        const bMatch = this.matchesUseCaseModality(b, uiUc) ? 1 : 0;
+        if (aMatch !== bMatch) return bMatch - aMatch;
         return a.name.localeCompare(b.name);
       });
   });
 
   /**
-   * Exactement 5 suggestions parmi les modèles NON activés du catalogue OpenRouter.
-   * Privilégie la diversité des fournisseurs (ou les modèles image-output pour le cas image).
+   * Jusqu'à 5 suggestions parmi les modèles NON activés du catalogue OpenRouter
+   * correspondant strictement aux modalités de la tâche sélectionnée.
    */
   protected readonly suggestedInactiveModels = computed(() => {
-    const isImage = this.selectedUseCase() === 'image_generation';
+    const uiUc = this.selectedUiUseCase();
     const inactive = this.models().filter((m) => !m.is_enabled);
     if (inactive.length === 0) return [];
 
-    const ranked = [...inactive].sort((a, b) => {
-      if (isImage) {
-        const aImg = a.output_modalities.includes('image') ? 1 : 0;
-        const bImg = b.output_modalities.includes('image') ? 1 : 0;
-        if (aImg !== bImg) return bImg - aImg;
+    // Filtrage strict par modalités de la tâche
+    let matching = inactive.filter((m) => this.matchesUseCaseModality(m, uiUc));
+
+    // Repli spécifique pour image_edit si moins de 5 modèles déclarent input=image ET output=image
+    if (uiUc === 'image_edit' && matching.length < SUGGESTED_INACTIVE_LIMIT) {
+      const seen = new Set(matching.map((m) => m.id_ai_models));
+      const extraImg = inactive.filter(
+        (m) => !seen.has(m.id_ai_models) && this.isImageOutputModel(m),
+      );
+      matching = [...matching, ...extraImg];
+    }
+
+    const ranked = [...matching].sort((a, b) => {
+      // En mode image_edit, garder en tête ceux qui supportent explicitement input+output image
+      if (uiUc === 'image_edit') {
+        const aExact = this.matchesUseCaseModality(a, 'image_edit') ? 1 : 0;
+        const bExact = this.matchesUseCaseModality(b, 'image_edit') ? 1 : 0;
+        if (aExact !== bExact) return bExact - aExact;
       }
       const aPref = PREFERRED_PROVIDERS.indexOf(a.provider_slug);
       const bPref = PREFERRED_PROVIDERS.indexOf(b.provider_slug);
@@ -711,7 +809,13 @@ export class AiSandbox implements OnInit {
   }
 
   protected reloadRunIntoSandbox(run: SandboxRunHistoryDto): void {
-    this.selectedUseCase.set(run.use_case);
+    const uiUc: SandboxUiUseCase =
+      run.use_case === 'image_generation'
+        ? run.image_mode === 'edit'
+          ? 'image_edit'
+          : 'image_create'
+        : run.use_case;
+    this.selectedUiUseCase.set(uiUc);
     this.systemPrompt.set(run.system_prompt);
     this.userPrompt.set(run.user_prompt);
     this.tone.set(run.tone ?? '');
@@ -734,7 +838,7 @@ export class AiSandbox implements OnInit {
       viewMode: 'rendered',
       result: resultsBySlot.get(v.slot_id) ?? null,
     }));
-    if (restoredSlots.length >= 2) {
+    if (restoredSlots.length >= 1) {
       this.variants.set(restoredSlots);
     }
 
@@ -748,7 +852,7 @@ export class AiSandbox implements OnInit {
 
   protected toggleModelDropdown(slotId: string, event: Event): void {
     event.stopPropagation();
-    if (this.isRunning()) return;
+    if (this.isAnyRunning()) return;
     if (this.openDropdownSlotId() === slotId) {
       this.openDropdownSlotId.set(null);
     } else {
@@ -778,31 +882,33 @@ export class AiSandbox implements OnInit {
      Sélection Cas d'utilisation strict
      ========================================================================= */
 
-  protected selectUseCase(code: SandboxUseCase): void {
-    this.selectedUseCase.set(code);
-    const cfg = USE_CASES.find((u) => u.code === code) ?? USE_CASES[0];
+  protected selectUseCase(id: SandboxUiUseCase): void {
+    this.selectedUiUseCase.set(id);
+    const cfg = USE_CASES.find((u) => u.id === id) ?? USE_CASES[0];
     this.systemPrompt.set(cfg.defaultSystemPrompt);
     this.userPrompt.set(cfg.defaultUserPrompt);
     this.tone.set(cfg.defaultTone);
     this.jsonOutputSchema.set(cfg.defaultJsonSchema);
     this.knowledgeContext.set(cfg.defaultContext);
-    this.showContextDrawer.set(code === 'message_rag');
+    this.showContextDrawer.set(cfg.code === 'message_rag');
+    if (cfg.defaultImageMode) {
+      this.imageMode.set(cfg.defaultImageMode);
+    }
     this.errorMessage.set(null);
     this.closeModelDropdown();
 
     const pool = [...this.activeCatalogModels(), ...this.suggestedInactiveModels()];
-    if (code === 'image_generation') {
-      const imgModels = pool.filter((m) => m.output_modalities.includes('image'));
-      if (imgModels.length > 0) {
-        this.variants.update((list) =>
-          list.map((v, idx) => ({
-            ...v,
-            modelId: (imgModels[idx] ?? imgModels[0]).openrouter_model_id,
-            result: null,
-          })),
-        );
-        return;
-      }
+    const compatible = pool.filter((m) => this.matchesUseCaseModality(m, id));
+    const preferredPool = compatible.length > 0 ? compatible : pool;
+    if (preferredPool.length > 0) {
+      this.variants.update((list) =>
+        list.map((v, idx) => ({
+          ...v,
+          modelId: (preferredPool[idx] ?? preferredPool[0]).openrouter_model_id,
+          result: null,
+        })),
+      );
+      return;
     }
     this.variants.update((list) => list.map((v) => ({ ...v, result: null })));
   }
@@ -855,8 +961,15 @@ export class AiSandbox implements OnInit {
   }
 
   protected removeVariantSlot(slotId: string): void {
-    if (this.variants().length <= 2) return;
+    if (this.variants().length <= 1) return;
+    if (this.expandedSlotId() === slotId) {
+      this.expandedSlotId.set(null);
+    }
     this.variants.update((list) => list.filter((v) => v.slotId !== slotId));
+  }
+
+  protected isSlotLoading(slotId: string): boolean {
+    return this.isRunning() || this.runningSlotId() === slotId;
   }
 
   protected updateVariant(slotId: string, patch: Partial<SandboxVariantSlot>): void {
@@ -866,14 +979,10 @@ export class AiSandbox implements OnInit {
   }
 
   /* =========================================================================
-     Exécution parallèle ("Générer")
+     Exécution parallèle ("Générer") & Régénération d'une seule carte
      ========================================================================= */
 
-  protected async runComparison(): Promise<void> {
-    if (!this.userPrompt().trim()) {
-      this.errorMessage.set('Veuillez renseigner un User Prompt avant de générer.');
-      return;
-    }
+  private buildComparePayload(targetVariants: readonly SandboxVariantSlot[]) {
     const selectedRefs = this.referenceMediaOptions().filter((opt) =>
       this.selectedReferenceIds().includes(opt.idReference),
     );
@@ -882,58 +991,71 @@ export class AiSandbox implements OnInit {
       ...(this.referenceImageUrl().trim() ? [this.referenceImageUrl().trim()] : []),
     ];
 
+    if (!this.userPrompt().trim()) {
+      this.errorMessage.set('Veuillez renseigner un User Prompt avant de générer.');
+      return null;
+    }
+
     if (
       this.selectedUseCase() === 'image_generation' &&
       this.imageMode() === 'edit' &&
       allRefUrls.length === 0
     ) {
       this.errorMessage.set(
-        "En mode Modification d'image, sélectionnez un média de référence ou importez une image.",
+        "En mode Édition d'image par prompt, sélectionnez un média de référence ou importez une image source.",
       );
-      return;
+      return null;
     }
+
+    return {
+      use_case: this.selectedUseCase(),
+      system_prompt: this.systemPrompt().trim(),
+      user_prompt: this.userPrompt().trim(),
+      tone: this.tone().trim() || null,
+      max_tokens: this.maxTokensLimit(),
+      json_output_enabled: this.jsonOutputEnabled(),
+      json_output_schema: this.jsonOutputEnabled() ? this.jsonOutputSchema().trim() : null,
+      knowledge_context: this.knowledgeContext().trim() || null,
+      image_mode: this.imageMode(),
+      image_aspect_ratio:
+        this.selectedUseCase() === 'image_generation' ? this.imageAspectRatio() : null,
+      reference_image_url:
+        this.selectedUseCase() === 'image_generation'
+          ? this.referenceImageUrl().trim() || null
+          : null,
+      reference_image_urls: this.selectedUseCase() === 'image_generation' ? allRefUrls : [],
+      reference_media_notes:
+        this.selectedUseCase() === 'image_generation'
+          ? selectedRefs.map(
+              (r) => `${r.label} (${r.natureCode})${r.description ? ' : ' + r.description : ''}`,
+            )
+          : [],
+      variants: targetVariants.map((v) => ({
+        slot_id: v.slotId,
+        model_id: v.modelId.trim(),
+        reasoning_effort: v.reasoningEffort || null,
+        temperature: v.temperature,
+      })),
+    };
+  }
+
+  protected async runComparison(): Promise<void> {
+    if (this.isAnyRunning()) return;
+    const payload = this.buildComparePayload(this.variants());
+    if (!payload) return;
 
     this.isRunning.set(true);
     this.errorMessage.set(null);
     this.closeModelDropdown();
 
     try {
-      const response = await this.api.compareSandbox({
-        use_case: this.selectedUseCase(),
-        system_prompt: this.systemPrompt().trim(),
-        user_prompt: this.userPrompt().trim(),
-        tone: this.tone().trim() || null,
-        max_tokens: this.maxTokensLimit(),
-        json_output_enabled: this.jsonOutputEnabled(),
-        json_output_schema: this.jsonOutputEnabled() ? this.jsonOutputSchema().trim() : null,
-        knowledge_context: this.knowledgeContext().trim() || null,
-        image_mode: this.imageMode(),
-        image_aspect_ratio: this.selectedUseCase() === 'image_generation' ? this.imageAspectRatio() : null,
-        reference_image_url:
-          this.selectedUseCase() === 'image_generation'
-            ? this.referenceImageUrl().trim() || null
-            : null,
-        reference_image_urls:
-          this.selectedUseCase() === 'image_generation' ? allRefUrls : [],
-        reference_media_notes:
-          this.selectedUseCase() === 'image_generation'
-            ? selectedRefs.map((r) => `${r.label} (${r.natureCode})${r.description ? ' : ' + r.description : ''}`)
-            : [],
-        variants: this.variants().map((v) => ({
-          slot_id: v.slotId,
-          model_id: v.modelId.trim(),
-          reasoning_effort: v.reasoningEffort || null,
-          temperature: v.temperature,
-        })),
-      });
-
+      const response = await this.api.compareSandbox(payload);
       const bySlot = new Map(response.results.map((r) => [r.slot_id, r]));
       this.variants.update((list) =>
         list.map((v) => ({ ...v, result: bySlot.get(v.slotId) ?? null })),
       );
       this.sessionCostUsd.update((c) => c + response.total_batch_cost_usd);
 
-      // Rafraîchir l'historique en arrière-plan pour que le compteur d'onglet soit à jour
       void this.loadHistory();
 
       this.flashNotice(
@@ -943,6 +1065,38 @@ export class AiSandbox implements OnInit {
       this.errorMessage.set(toApiError(err).message);
     } finally {
       this.isRunning.set(false);
+    }
+  }
+
+  protected async runSingleVariant(slotId: string): Promise<void> {
+    if (this.isAnyRunning()) return;
+    const slot = this.variants().find((v) => v.slotId === slotId);
+    if (!slot) return;
+
+    const payload = this.buildComparePayload([slot]);
+    if (!payload) return;
+
+    this.runningSlotId.set(slotId);
+    this.errorMessage.set(null);
+    this.closeModelDropdown();
+
+    try {
+      const response = await this.api.compareSandbox(payload);
+      const updatedRes = response.results.find((r) => r.slot_id === slotId) ?? response.results[0] ?? null;
+      this.variants.update((list) =>
+        list.map((v) => (v.slotId === slotId ? { ...v, result: updatedRes } : v)),
+      );
+      this.sessionCostUsd.update((c) => c + response.total_batch_cost_usd);
+
+      void this.loadHistory();
+
+      this.flashNotice(
+        `Modèle ${slotId} régénéré avec les paramètres actuels — Coût réel : ${this.formatCost6(response.total_batch_cost_usd)}.`,
+      );
+    } catch (err) {
+      this.errorMessage.set(toApiError(err).message);
+    } finally {
+      this.runningSlotId.set(null);
     }
   }
 
