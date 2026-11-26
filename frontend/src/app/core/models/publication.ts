@@ -10,6 +10,7 @@ import { MeetingPublicationType } from './webinar';
 export type PublicationStatus =
   | 'draft'
   | 'review'
+  | 'changes_requested'
   | 'approved'
   | 'scheduled'
   | 'published'
@@ -46,6 +47,7 @@ export interface PublicationEventLink {
 /** Une publication, du brouillon jusqu'à son envoi sur les réseaux. */
 export interface Publication {
   readonly id: number;
+  readonly isPersisted?: boolean;
   readonly title: string;
   /** Légende complète, telle qu'elle part sur les réseaux. */
   readonly caption: string;
@@ -80,6 +82,8 @@ export interface Publication {
 export type PublicationEventKind =
   | 'created'
   | 'submitted'
+  | 'comment'
+  | 'changes_requested'
   | 'approved'
   | 'scheduled'
   | 'modified'
@@ -112,6 +116,7 @@ export interface DailyStat {
 export const PUBLICATION_STATUS_LABELS: Readonly<Record<PublicationStatus, string>> = {
   draft: 'Brouillon',
   review: 'À valider',
+  changes_requested: 'Corrections demandées',
   approved: 'Approuvée',
   scheduled: 'Programmée',
   published: 'Publiée',
@@ -145,6 +150,7 @@ export function statusModifier(status: PublicationStatus): string {
     case 'approved':
       return 'status-scheduled';
     case 'review':
+    case 'changes_requested':
       return 'status-review';
     case 'failed':
     case 'partiallyPublished':

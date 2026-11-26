@@ -97,8 +97,6 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     label: 'Notifications',
     icon: 'bell',
     route: '/notifications',
-    badge: '3',
-    isPending: true,
   },
   {
     type: 'group',

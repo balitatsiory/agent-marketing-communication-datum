@@ -2,12 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  OnInit,
   computed,
   inject,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import { PublicationsApi, ValidatorOptionDto } from '../../../core/api/publications.api';
 import {
   CAPTION_LIMITS,
   FORMAT_BOUNDS,
@@ -22,6 +25,7 @@ import {
   Webinar,
   publicationTypesFor,
 } from '../../../core/models/webinar';
+import { NotificationBadgeStore } from '../../../core/services/notification-badge-store';
 import { WebinarStore } from '../../../core/services/webinar-store';
 import { SocialNetworkCode } from '../../../core/models/social-network';
 import { Topbar } from '../../../layout/topbar/topbar';
@@ -75,12 +79,28 @@ const LOCAL_UTC_OFFSET = 3;
 @Component({
   selector: 'app-publication-composer',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, Topbar, Icon, NetworkLogo],
+  imports: [FormsModule, RouterLink, Topbar, Icon, NetworkLogo],
   templateUrl: './publication-composer.html',
   styleUrl: './publication-composer.scss',
 })
-export class PublicationComposer {
+export class PublicationComposer implements OnInit {
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly publicationsApi = inject(PublicationsApi);
+  private readonly badgeStore = inject(NotificationBadgeStore);
+
+  protected readonly title = signal('');
+  protected readonly validators = signal<readonly ValidatorOptionDto[]>([]);
+  protected readonly selectedValidatorId = signal<string>('');
+  protected readonly createdPublicationId = signal<number | null>(null);
+  protected readonly isSending = signal(false);
+  protected readonly sendError = signal<string | null>(null);
+
+  ngOnInit(): void {
+    void this.publicationsApi
+      .validators()
+      .then((list) => this.validators.set(list))
+      .catch(() => this.validators.set([]));
+  }
 
   protected readonly networks = SOCIAL_NETWORKS.filter((network) => network.isConnected);
   protected readonly formats = Object.keys(PUBLICATION_FORMAT_LABELS) as PublicationFormat[];
@@ -564,35 +584,98 @@ export class PublicationComposer {
     this.isSummaryOpen.set(false);
   }
 
-  /**
-   * Envoi simulé.
-   *
-   * Rien ne part : le message de confirmation le dit, plutôt que de
-   * laisser croire à une publication réelle.
-   */
-  protected confirmSend(): void {
-    const networks = this.selectedNetworkLabels().join(', ');
-    const when = this.timing() === 'now' ? 'dès validation' : this.localSchedule();
-    this.isSummaryOpen.set(false);
-    this.successMessage.set(
-      `Publication envoyée à la validation pour ${networks}, départ ${when}${this.linkedSummary()} — simulation, rien n'a été publié.`,
-    );
+  protected async confirmSend(): Promise<void> {
+    if (this.isSending()) return;
+    const format = this.format();
+    if (!format) return;
+
+    this.isSending.set(true);
+    this.sendError.set(null);
+    this.draftMessage.set(null);
+    try {
+      const created = await this.publicationsApi.create(this.buildPayload(true));
+      this.isSummaryOpen.set(false);
+      this.createdPublicationId.set(created.id_publications);
+      const networks = this.selectedNetworkLabels().join(', ');
+      const when = this.timing() === 'now' ? 'dès validation' : this.localSchedule();
+      this.successMessage.set(
+        `Publication « ${created.title} » envoyée à la validation pour ${networks}, départ ${when}${this.linkedSummary()}. Le validateur a reçu une notification.`,
+      );
+      void this.badgeStore.refresh();
+    } catch {
+      this.isSummaryOpen.set(false);
+      this.sendError.set("Impossible d'envoyer la publication à la validation.");
+    } finally {
+      this.isSending.set(false);
+    }
   }
 
-  protected saveDraft(): void {
-    const format = this.format();
-    const pieces = [
-      format ? this.formatLabels[format].toLowerCase() : 'sans format',
-      this.mediaCount()
-        ? `${this.mediaCount()} média${this.mediaCount() > 1 ? 's' : ''}`
-        : 'sans média',
-      this.selectedNetworks().size
-        ? `${this.selectedNetworks().size} réseau${this.selectedNetworks().size > 1 ? 'x' : ''}`
-        : 'sans réseau',
-    ];
-    this.draftMessage.set(
-      `Brouillon enregistré — ${pieces.join(', ')}. Simulation, rien n'a été envoyé.`,
-    );
+  protected async saveDraft(): Promise<void> {
+    if (this.isSending()) return;
+    const format = this.format() ?? 'text';
+    const networks = [...this.selectedNetworks()];
+    if (networks.length === 0) {
+      this.draftMessage.set('Choisissez au moins un réseau avant d’enregistrer le brouillon.');
+      return;
+    }
+
+    this.isSending.set(true);
+    this.sendError.set(null);
+    this.successMessage.set(null);
+    try {
+      const created = await this.publicationsApi.create(this.buildPayload(false, format));
+      this.createdPublicationId.set(created.id_publications);
+      this.draftMessage.set(`Brouillon « ${created.title} » enregistré.`);
+    } catch {
+      this.sendError.set("Impossible d'enregistrer le brouillon.");
+    } finally {
+      this.isSending.set(false);
+    }
+  }
+
+  private buildPayload(submitForValidation: boolean, fallbackFormat?: PublicationFormat) {
+    const format = this.format() ?? fallbackFormat ?? 'text';
+    const networks = [...this.selectedNetworks()];
+    const captionsMap: Record<string, string> = {};
+    for (const code of networks) {
+      captionsMap[code] = this.captionFor(code);
+    }
+    const primaryCaption =
+      networks.map((code) => this.captionFor(code).trim()).find((text) => text.length > 0) ?? '';
+    const derivedTitle =
+      this.title().trim() ||
+      primaryCaption.split('\n')[0].slice(0, 80).trim() ||
+      `Publication ${this.formatLabels[format]}`;
+
+    let scheduledIso: string | null = null;
+    if (this.timing() === 'scheduled') {
+      const [year, month, day] = this.scheduledDate().split('-').map(Number);
+      const [hour, minute] = this.scheduledTime().split(':').map(Number);
+      if (![year, month, day, hour, minute].some(Number.isNaN)) {
+        scheduledIso = new Date(
+          Date.UTC(year, month - 1, day, hour - LOCAL_UTC_OFFSET, minute),
+        ).toISOString();
+      }
+    }
+
+    const validatorId = this.selectedValidatorId() ? Number(this.selectedValidatorId()) : null;
+
+    return {
+      title: derivedTitle,
+      caption: primaryCaption,
+      captions_by_platform: captionsMap,
+      format_code: format,
+      platform_codes: networks,
+      media_items: this.media().map((item) => ({
+        name: item.name,
+        kind: item.kind,
+        size_label: item.sizeLabel,
+        duration_label: item.durationLabel,
+      })),
+      scheduled_at: scheduledIso,
+      id_users_validator: validatorId,
+      submit_for_validation: submitForValidation,
+    };
   }
 }
 

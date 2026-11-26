@@ -1,4 +1,5 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { PublicationsApi, PublicationSummaryDto } from '../api/publications.api';
 import { PUBLICATIONS } from '../data/publications.data';
 import { Publication, PublicationFormat, PublicationStatus } from '../models/publication';
 import { MeetingPublicationType } from '../models/webinar';
@@ -25,7 +26,18 @@ export const PUBLICATION_SORT_LABELS: Readonly<Record<PublicationSort, string>> 
  */
 @Injectable({ providedIn: 'root' })
 export class PublicationStore {
+  private readonly api = inject(PublicationsApi);
   private readonly all = signal<readonly Publication[]>(PUBLICATIONS);
+
+  async loadFromApi(): Promise<void> {
+    try {
+      const page = await this.api.list({ page: 1, size: 100 });
+      const persisted = page.items.map(mapSummaryToPublication);
+      this.all.set([...persisted, ...PUBLICATIONS]);
+    } catch {
+      // Conserve les données existantes si l'API est indisponible.
+    }
+  }
 
   /** Filtres actifs. Un ensemble vide ne filtre rien. */
   readonly selectedNetworks = signal<ReadonlySet<SocialNetworkCode>>(new Set());
@@ -187,4 +199,25 @@ function toggle<T>(current: ReadonlySet<T>, value: T): ReadonlySet<T> {
   const next = new Set(current);
   if (!next.delete(value)) next.add(value);
   return next;
+}
+
+function mapSummaryToPublication(dto: PublicationSummaryDto): Publication {
+  return {
+    id: dto.id_publications,
+    isPersisted: true,
+    title: dto.title,
+    caption: dto.caption,
+    format: dto.format_code,
+    status: dto.status_code,
+    networks: dto.platform_codes as readonly SocialNetworkCode[],
+    authorName: dto.author_name,
+    scheduledAt: dto.scheduled_at,
+    publishedAt: dto.published_at,
+    viewCount: 0,
+    reactionCount: 0,
+    commentCount: dto.comment_count,
+    hashtags: dto.hashtags,
+    history: [],
+    dailyStats: null,
+  };
 }

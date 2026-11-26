@@ -1,0 +1,361 @@
+<app-topbar [trail]="['Piloter', 'Notifications']">
+  <button class="btn" type="button" [disabled]="isLoading()" (click)="loadAll()">
+    <app-icon name="history" size="sm" />
+    Actualiser
+  </button>
+  <button
+    class="btn"
+    type="button"
+    [disabled]="(stats()?.unread ?? 0) === 0"
+    (click)="markAllAsRead()"
+  >
+    <app-icon name="check" size="sm" />
+    Tout marquer comme lu
+  </button>
+  <a class="btn btn-primary" routerLink="/publications/nouvelle">
+    <app-icon name="plus" size="sm" />
+    Créer une publication
+  </a>
+</app-topbar>
+
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Notifications</h1>
+      @if (stats(); as s) {
+        <p class="sub">
+          {{ s.unread }} non lue{{ s.unread > 1 ? 's' : '' }} ·
+          {{ s.action_required }} demande{{ s.action_required > 1 ? 'nt' : '' }} une action ·
+          {{ s.internal_count }} interne{{ s.internal_count > 1 ? 's' : '' }} ·
+          {{ s.platform_count }} plateforme{{ s.platform_count > 1 ? 's' : '' }}
+        </p>
+      } @else {
+        <p class="sub">Suivi des validations internes et des événements plateformes.</p>
+      }
+    </div>
+  </div>
+
+  @if (notice(); as message) {
+    <p class="notice"><app-icon name="check" size="sm" />{{ message }}</p>
+  }
+  @if (errorMessage(); as error) {
+    <p class="notice is-error"><app-icon name="warn" size="sm" />{{ error }}</p>
+  }
+
+  <!-- ---------- Bloc de stats ---------- -->
+  <section class="stats notif-stats" aria-label="Statistiques des notifications">
+    <button
+      type="button"
+      class="stat stat-btn"
+      [class.is-active]="!hasActiveFilters()"
+      (click)="resetFilters()"
+    >
+      <span class="label">Total</span>
+      <span class="v num">{{ stats()?.total ?? 0 }}</span>
+      <span class="d">notifications reçues</span>
+    </button>
+
+    <button
+      type="button"
+      class="stat stat-btn"
+      [class.is-active]="unreadOnly()"
+      (click)="applyQuickChip('unread')"
+    >
+      <span class="label">Non lues</span>
+      <span class="v num is-accent">{{ stats()?.unread ?? 0 }}</span>
+      <span class="d">à consulter</span>
+    </button>
+
+    <button
+      type="button"
+      class="stat stat-btn"
+      [class.is-active]="actionOnly()"
+      (click)="applyQuickChip('action')"
+    >
+      <span class="label">Demandent une action</span>
+      <span class="v num is-warn">{{ stats()?.action_required ?? 0 }}</span>
+      <span class="d">validations & corrections</span>
+    </button>
+
+    <div class="stat stat-split">
+      <span class="label">Origine</span>
+      <div class="split-row">
+        <button
+          type="button"
+          class="split-pill"
+          [class.is-on]="selectedSource() === 'internal'"
+          (click)="setSource(selectedSource() === 'internal' ? 'all' : 'internal')"
+        >
+          <span class="v num">{{ stats()?.internal_count ?? 0 }}</span>
+          <span class="d">Internes</span>
+        </button>
+        <button
+          type="button"
+          class="split-pill"
+          [class.is-on]="selectedSource() === 'platform'"
+          (click)="setSource(selectedSource() === 'platform' ? 'all' : 'platform')"
+        >
+          <span class="v num">{{ stats()?.platform_count ?? 0 }}</span>
+          <span class="d">Plateformes</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Grille : aside de filtres + flux ---------- -->
+  <div class="notifs-layout">
+    <aside class="filters" aria-label="Filtrer les notifications">
+      <div class="fgroup">
+        <div class="label">Portée</div>
+        <label class="fopt">
+          <input
+            type="radio"
+            name="sourceScope"
+            [checked]="selectedSource() === 'all'"
+            (change)="setSource('all')"
+          />
+          Toutes
+          <span class="n">{{ stats()?.total ?? 0 }}</span>
+        </label>
+        <label class="fopt">
+          <input
+            type="radio"
+            name="sourceScope"
+            [checked]="selectedSource() === 'internal'"
+            (change)="setSource('internal')"
+          />
+          Internes (validation & équipe)
+          <span class="n">{{ stats()?.internal_count ?? 0 }}</span>
+        </label>
+        <label class="fopt">
+          <input
+            type="radio"
+            name="sourceScope"
+            [checked]="selectedSource() === 'platform'"
+            (change)="setSource('platform')"
+          />
+          Plateformes sociales
+          <span class="n">{{ stats()?.platform_count ?? 0 }}</span>
+        </label>
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Types de notification</div>
+        @for (opt of typeOptions; track opt.code) {
+          <label class="fopt" [class.is-empty]="typeCount(opt.code) === 0">
+            <input
+              type="checkbox"
+              [checked]="selectedTypes().has(opt.code)"
+              (change)="toggleType(opt.code)"
+            />
+            <span>{{ opt.label }}</span>
+            <span class="n">{{ typeCount(opt.code) }}</span>
+          </label>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Plateformes & interne</div>
+        <label class="fopt" [class.is-empty]="platformCount('internal') === 0">
+          <input
+            type="checkbox"
+            [checked]="selectedPlatforms().has('internal')"
+            (change)="togglePlatform('internal')"
+          />
+          <app-icon name="users" size="sm" />
+          <span>Interne (IAGORA)</span>
+          <span class="n">{{ platformCount('internal') }}</span>
+        </label>
+
+        @for (network of networks; track network.code) {
+          <label class="fopt" [class.is-empty]="platformCount(network.code) === 0">
+            <input
+              type="checkbox"
+              [checked]="selectedPlatforms().has(network.code)"
+              (change)="togglePlatform(network.code)"
+            />
+            <app-network-logo [network]="network.code" />
+            <span>{{ network.label }}</span>
+            <span class="n">{{ platformCount(network.code) }}</span>
+          </label>
+        }
+      </div>
+
+      <div class="fgroup">
+        <div class="label">Statut</div>
+        <label class="fopt">
+          <input type="checkbox" [checked]="unreadOnly()" (change)="toggleUnreadOnly()" />
+          <span>Non lues uniquement</span>
+          <span class="n">{{ stats()?.unread ?? 0 }}</span>
+        </label>
+        <label class="fopt">
+          <input type="checkbox" [checked]="actionOnly()" (change)="toggleActionOnly()" />
+          <span>Demandent une action</span>
+          <span class="n">{{ stats()?.action_required ?? 0 }}</span>
+        </label>
+      </div>
+
+      @if (hasActiveFilters()) {
+        <button class="freset" type="button" (click)="resetFilters()">
+          Réinitialiser les filtres
+        </button>
+      }
+    </aside>
+
+    <!-- ---------- Colonne principale ---------- -->
+    <section class="feed" aria-label="Liste des notifications">
+      <div class="toolbar">
+        <div class="searchbox">
+          <app-icon name="search" size="sm" />
+          <input
+            type="search"
+            placeholder="Rechercher une notification, un titre ou un commentaire…"
+            aria-label="Rechercher une notification"
+            [ngModel]="searchTerm()"
+            (ngModelChange)="onSearchChange($event)"
+          />
+        </div>
+      </div>
+
+      <div class="chips">
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="!hasActiveFilters()"
+          (click)="applyQuickChip('all')"
+        >
+          Toutes <span class="n">{{ stats()?.total ?? 0 }}</span>
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="unreadOnly()"
+          (click)="applyQuickChip('unread')"
+        >
+          Non lues <span class="n">{{ stats()?.unread ?? 0 }}</span>
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="actionOnly()"
+          (click)="applyQuickChip('action')"
+        >
+          À valider <span class="n">{{ stats()?.action_required ?? 0 }}</span>
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="selectedSource() === 'internal'"
+          (click)="applyQuickChip('internal')"
+        >
+          Internes <span class="n">{{ stats()?.internal_count ?? 0 }}</span>
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.is-on]="selectedSource() === 'platform'"
+          (click)="applyQuickChip('platform')"
+        >
+          Plateformes <span class="n">{{ stats()?.platform_count ?? 0 }}</span>
+        </button>
+      </div>
+
+      <div class="panel">
+        @if (isLoading() && items().length === 0) {
+          <div class="empty-state">
+            <p>Chargement des notifications…</p>
+          </div>
+        } @else if (items().length === 0) {
+          <div class="empty-state">
+            <app-icon name="bell" size="lg" />
+            <h3>Aucune notification</h3>
+            @if (hasActiveFilters()) {
+              <p>Aucune notification ne correspond aux filtres sélectionnés.</p>
+              <button class="btn btn-sm" type="button" (click)="resetFilters()">
+                Réinitialiser les filtres
+              </button>
+            } @else {
+              <p>
+                Dès qu'un collaborateur envoie une publication à valider, suggère une correction ou
+                publie, la notification apparaîtra ici.
+              </p>
+              <a class="btn btn-primary btn-sm" routerLink="/publications/nouvelle">
+                <app-icon name="plus" size="sm" />
+                Programmer une publication
+              </a>
+            }
+          </div>
+        } @else {
+          @for (group of groupedByDay(); track group.label) {
+            <div class="nday label">{{ group.label }}</div>
+
+            @for (item of group.items; track item.id_notifications) {
+              <article
+                class="n-row"
+                [class.is-unread]="!item.is_read"
+                [class.is-clickable]="!!item.action_url"
+                (click)="openNotification(item)"
+              >
+                <span class="n-mark" [class]="markTone(item)">
+                  @if (isSocialNetwork(item.platform_code)) {
+                    <app-network-logo [network]="item.platform_code" />
+                  } @else if (item.actor_initials) {
+                    <span class="init">{{ item.actor_initials }}</span>
+                  } @else {
+                    <app-icon name="bell" size="sm" />
+                  }
+                </span>
+
+                <div class="n-main">
+                  <div class="n-meta">
+                    <span
+                      class="n-tag"
+                      [class.is-internal]="item.source_scope === 'internal'"
+                      [class.is-platform]="item.source_scope === 'platform'"
+                    >
+                      {{ item.source_scope === 'internal' ? 'Interne' : (item.platform_code ?? 'Plateforme') }}
+                    </span>
+                    <span class="n-type">{{ item.notification_type_label }}</span>
+                    @if (item.actor_name) {
+                      <span class="n-actor">· {{ item.actor_name }}</span>
+                    }
+                  </div>
+                  <b>{{ item.title }}</b>
+                  <p>{{ item.body }}</p>
+                </div>
+
+                <div class="n-side">
+                  <span class="n-time num">{{ formatTime(item.created_at) }}</span>
+                  <div class="n-actions">
+                    @if (item.action_url) {
+                      <button
+                        class="btn btn-sm"
+                        [class.btn-primary]="item.requires_action && !item.is_read"
+                        type="button"
+                        (click)="openNotification(item); $event.stopPropagation()"
+                      >
+                        {{ item.action_label || 'Ouvrir' }}
+                      </button>
+                    }
+                    <button
+                      class="btn btn-sm btn-ghost"
+                      type="button"
+                      [attr.title]="item.is_read ? 'Marquer comme non lue' : 'Marquer comme lue'"
+                      (click)="toggleRead(item, $event)"
+                    >
+                      <app-icon name="check" size="sm" />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            }
+          }
+
+          <div class="n-foot">
+            <span class="n num">{{ items().length }} sur {{ total() }}</span>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

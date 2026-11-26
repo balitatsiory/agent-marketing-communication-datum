@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { SOCIAL_NETWORKS } from '../../../core/data/social-networks.data';
 import {
   PUBLICATION_FORMAT_LABELS,
@@ -34,8 +34,13 @@ type ViewMode = 'grid' | 'list';
   templateUrl: './publication-list.html',
   styleUrl: './publication-list.scss',
 })
-export class PublicationList {
+export class PublicationList implements OnInit {
   protected readonly store = inject(PublicationStore);
+  private readonly router = inject(Router);
+
+  ngOnInit(): void {
+    void this.store.loadFromApi();
+  }
 
   protected readonly networks = SOCIAL_NETWORKS;
   protected readonly formatLabels = PUBLICATION_FORMAT_LABELS;
@@ -166,6 +171,10 @@ export class PublicationList {
   /* ---------- détail ---------- */
 
   protected open(publication: Publication): void {
+    if (publication.isPersisted) {
+      void this.router.navigate(['/publications', publication.id]);
+      return;
+    }
     this.openedPublication.set(publication);
     this.notice.set(null);
   }
