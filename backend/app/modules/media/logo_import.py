@@ -17,7 +17,6 @@ from enum import StrEnum
 from typing import Any
 
 import httpx
-from PIL import Image
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +32,7 @@ from app.modules.media.constants import (
     LOGO_NATURE_CODE,
     LOGO_TIMEOUT_SECONDS,
 )
-from app.modules.media.images import detecter_type, dimensions, est_une_image
+from app.modules.media.images import inspect_image
 from app.modules.media.import_schemas import OrganisationLogo
 from app.modules.media.models import Media, MediaReference
 from app.modules.media.schemas import MediaReferenceCreate
@@ -75,22 +74,12 @@ class _LogoFile:
 
 
 def _inspect_image(content: bytes) -> _LogoFile:
-    """Type et dimensions lus dans les octets ; l'image est décodée en entier.
+    """Contenu reçu, avec le type et les dimensions lus dans ses octets.
 
     Raises:
-        ApiError: format non reconnu ou image trop grande.
-        DownloadRefusedError: vidéo, ou image tronquée ou illisible.
+        ApiError: format non reconnu, image illisible ou trop grande.
     """
-    file_type = detecter_type(content[: service.OCTETS_DE_RECONNAISSANCE])
-    if not est_une_image(file_type):
-        raise DownloadRefusedError("Le fichier reçu n'est pas une image.")
-    width, height = dimensions(content, get_settings().MEDIA_MAX_PIXELS)
-    try:
-        # L'en-tête ne suffit pas : un fichier coupé en route le porte aussi.
-        with Image.open(io.BytesIO(content)) as image:
-            image.load()
-    except (OSError, SyntaxError, ValueError) as error:
-        raise DownloadRefusedError("Le fichier reçu n'est pas une image lisible.") from error
+    file_type, width, height = inspect_image(content, get_settings().MEDIA_MAX_PIXELS)
     return _LogoFile(content, file_type, width, height)
 
 
@@ -181,8 +170,9 @@ async def import_logo(
     """Rapatrie un logo et le déclare comme référence, sans valider la transaction.
 
     Raises:
-        DownloadRefusedError: adresse refusée ou fichier qui n'est pas une image.
-        ApiError: format non reconnu, image trop grande ou stockage refusant le dépôt.
+        DownloadRefusedError: adresse refusée ou fichier trop lourd.
+        ApiError: fichier qui n'est pas une image lisible, image trop grande ou
+            stockage refusant le dépôt.
         httpx.HTTPError: panne réseau.
     """
     content = await download_image(

@@ -2,18 +2,38 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 from typing import BinaryIO
+from urllib.parse import unquote, urlsplit
 
+import httpx
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
+from app.core.downloads import (
+    DownloadRefusedError,
+    HostResolver,
+    download_public_image,
+    resolve_host,
+)
 from app.core.errors import ApiError, ConflictError, NotFoundError
 from app.core.pagination import PageParams
 from app.core.storage import FichierTropLourdError, Stockage
-from app.modules.media.images import compresser, detecter_type, dimensions, est_une_image
+from app.modules.media.constants import IMAGE_LINK_MAX_BYTES, IMAGE_LINK_TIMEOUT_SECONDS
+from app.modules.media.images import (
+    NotAnImageError,
+    TypeDeFichierRefuseError,
+    compresser,
+    detecter_type,
+    dimensions,
+    est_une_image,
+    inspect_image,
+)
 from app.modules.media.models import (
     Media,
     MediaReference,
@@ -363,6 +383,74 @@ async def modifier_reference(
         reference.is_active = donnees.is_active
 
     await session.flush()
+    return reference
+
+
+def _name_from_url(url: str, fallback: str) -> str:
+    """Nom de fichier porté par l'adresse, pour reconnaître le média en bibliothèque."""
+    name = PurePosixPath(unquote(urlsplit(url).path)).name
+    # PostgreSQL refuse l'octet nul, qu'une adresse peut porter sous la forme %00.
+    name = "".join(character for character in name if character.isprintable()).strip()
+    return name[:255] or fallback
+
+
+async def replace_reference_image(
+    session: AsyncSession,
+    storage: Stockage,
+    id_reference: int,
+    url: str,
+    by: User,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    resolve: HostResolver = resolve_host,
+) -> MediaReference:
+    """Rapatrie l'image servie à cette adresse et la donne à la référence.
+
+    L'image devient un nouveau média. L'ancien reste en bibliothèque : une
+    publication peut le porter.
+
+    Raises:
+        NotFoundError: référence inconnue.
+        ConflictError: référence archivée.
+        ApiError: adresse refusée ou injoignable (`image_link_refused`), fichier qui
+            n'est pas une image lisible, ou image trop grande.
+    """
+    reference = await obtenir_reference(session, id_reference)
+    if reference.deleted_at is not None:
+        raise ConflictError("Cette référence est archivée.")
+
+    settings = get_settings()
+    url = url.strip()
+    try:
+        content = await download_public_image(
+            url,
+            max_bytes=min(IMAGE_LINK_MAX_BYTES, settings.MEDIA_MAX_UPLOAD_BYTES),
+            timeout_seconds=IMAGE_LINK_TIMEOUT_SECONDS,
+            transport=transport,
+            resolve=resolve,
+        )
+    except DownloadRefusedError as error:
+        raise ApiError("image_link_refused", str(error), 422) from error
+    # Contrôle complet avant tout dépôt : un lien de page web ou un fichier coupé
+    # ne doit rien écrire.
+    try:
+        await run_in_threadpool(inspect_image, content, settings.MEDIA_MAX_PIXELS)
+    except (TypeDeFichierRefuseError, NotAnImageError) as error:
+        # Le message du dépôt, qui accepte les vidéos, égarerait ici.
+        raise NotAnImageError(
+            "Cette adresse ne renvoie pas une image lisible (PNG, JPEG, GIF ou WebP). "
+            "Collez l'adresse directe de l'image, pas celle d'une page."
+        ) from error
+
+    media = await deposer(
+        session, storage, io.BytesIO(content), _name_from_url(url, reference.label), by
+    )
+    reference.id_media = media.id_media
+    try:
+        await session.flush()
+    except Exception:
+        await storage.supprimer(media.storage_key)
+        raise
     return reference
 
 

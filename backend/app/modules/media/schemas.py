@@ -68,6 +68,15 @@ class MediaReferenceCreate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
 
 
+class MediaReferenceImageReplace(BaseModel):
+    """Nouvelle image d'une référence, désignée par son adresse sur le web.
+
+    L'adresse sert à rapatrier le fichier puis n'est pas conservée.
+    """
+
+    url: str = Field(min_length=1, max_length=2048)
+
+
 class MediaReferenceUpdate(BaseModel):
     """Modification partielle : seuls les champs fournis sont appliqués."""
 

@@ -9,7 +9,9 @@ reste fiable :
 """
 
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from datetime import UTC, datetime
+from ipaddress import ip_address
 from pathlib import Path
 
 import httpx
@@ -29,6 +31,7 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.core.storage import StockageLocal, get_stockage
 from app.main import create_app
+from app.modules.media.dependencies import get_host_resolver, get_image_link_transport
 from app.modules.webinars.flyers import get_flyer_transport
 from app.modules.zoom_accounts.zoom_client import ZoomClient, get_zoom_client
 from tests.faux_zoom import API_URL, OAUTH_URL, FauxZoom
@@ -102,15 +105,23 @@ def faux_site() -> dict[str, bytes]:
 
 
 @pytest.fixture
+def faux_dns() -> dict[str, list[str]]:
+    """Adresses IP des hôtes d'essai. Un hôte absent reçoit une adresse publique."""
+    return {}
+
+
+@pytest.fixture
 async def client(
     session: AsyncSession,
     stockage_de_test: StockageLocal,
     faux_zoom: FauxZoom,
     faux_site: dict[str, bytes],
+    faux_dns: dict[str, list[str]],
 ) -> AsyncIterator[AsyncClient]:
     """Client HTTP branché sur l'application, avec la session et le stockage de test.
 
-    Zoom et le site datumacademy.com sont simulés : aucun test n'appelle dehors.
+    Zoom, le site datumacademy.com, les adresses saisies et leur résolution DNS sont
+    simulés : aucun test n'appelle dehors.
     """
     application = create_app()
 
@@ -130,6 +141,23 @@ async def client(
     application.dependency_overrides[get_flyer_transport] = lambda: httpx.MockTransport(
         repondre_site
     )
+
+    def repondre_lien(requete: httpx.Request) -> httpx.Response:
+        # La requête vise l'adresse IP contrôlée : le nom demandé est dans « Host ».
+        adresse = f"https://{requete.headers['host']}{requete.url.raw_path.decode('ascii')}"
+        contenu = faux_site.get(adresse)
+        return httpx.Response(404) if contenu is None else httpx.Response(200, content=contenu)
+
+    async def resoudre(hote: str) -> list[str]:
+        # Une adresse IP écrite dans le lien se résout en elle-même, comme au vrai.
+        with suppress(ValueError):
+            return [str(ip_address(hote))]
+        return faux_dns.get(hote, ["93.184.215.14"])
+
+    application.dependency_overrides[get_image_link_transport] = lambda: httpx.MockTransport(
+        repondre_lien
+    )
+    application.dependency_overrides[get_host_resolver] = lambda: resoudre
 
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client_de_test:

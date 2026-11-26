@@ -79,6 +79,11 @@ class ImageTropGrandeError(ApiError):
         )
 
 
+class NotAnImageError(ApiError):
+    def __init__(self, message: str) -> None:
+        super().__init__("not_an_image", message, 415)
+
+
 class ImageIncompressibleError(ApiError):
     def __init__(self, octets_max: int) -> None:
         super().__init__(
@@ -129,6 +134,27 @@ def dimensions(donnees: bytes, pixels_max: int) -> tuple[int, int]:
     if largeur * hauteur > pixels_max:
         raise ImageTropGrandeError(largeur * hauteur, pixels_max)
     return largeur, hauteur
+
+
+def inspect_image(content: bytes, max_pixels: int) -> tuple[str, int, int]:
+    """Type, largeur et hauteur d'une image reçue d'un tiers, décodée en entier.
+
+    Raises:
+        TypeDeFichierRefuseError: format non reconnu.
+        NotAnImageError: vidéo, ou image tronquée ou illisible.
+        ImageTropGrandeError: au-delà de la limite de pixels.
+    """
+    file_type = detecter_type(content[:OCTETS_DE_RECONNAISSANCE])
+    if not est_une_image(file_type):
+        raise NotAnImageError("Le fichier reçu n'est pas une image.")
+    width, height = dimensions(content, max_pixels)
+    try:
+        # L'en-tête ne suffit pas : un fichier coupé en route le porte aussi.
+        with Image.open(io.BytesIO(content)) as image:
+            image.load()
+    except (OSError, SyntaxError, ValueError) as error:
+        raise NotAnImageError("Le fichier reçu n'est pas une image lisible.") from error
+    return file_type, width, height
 
 
 def _encoder(image: Image.Image, format_pillow: str, qualite: int | None) -> bytes:
