@@ -2300,7 +2300,8 @@ async def generer_visuel_publication(
                 .join(Media, Media.id_media == MediaReference.id_media)
                 .outerjoin(
                     MediaReferenceNature,
-                    MediaReferenceNature.code == MediaReference.nature_code,
+                    MediaReferenceNature.id_media_reference_natures
+                    == MediaReference.id_media_reference_natures,
                 )
                 .where(
                     MediaReference.id_media_references.in_(donnees.reference_media_ids),
@@ -2310,7 +2311,7 @@ async def generer_visuel_publication(
             )
         ).all()
         for ref, media, nature in lignes_ref:
-            nature_lbl = nature.label if nature else ref.nature_code
+            nature_lbl = nature.label if nature else "Référence"
             desc = f" — {ref.description}" if ref.description else ""
             ref_notes.append(f"- [{nature_lbl}] {ref.label}{desc}")
             if stockage is not None:
