@@ -167,6 +167,18 @@ export class MediaApi {
     );
   }
 
+  /**
+   * Donne à la référence l'image servie à cette adresse. L'API la rapatrie dans
+   * un nouveau média : la réponse porte son `id_media`, pas l'adresse saisie.
+   */
+  replaceReferenceImage(idReference: number, url: string): Promise<MediaReferenceDto> {
+    return firstValueFrom(
+      this.http.post<MediaReferenceDto>(`${this.base}/media-references/${idReference}/image`, {
+        url,
+      }),
+    );
+  }
+
   archiveReference(idReference: number): Promise<void> {
     return firstValueFrom(
       this.http.delete<void>(`${this.base}/media-references/${idReference}`),
