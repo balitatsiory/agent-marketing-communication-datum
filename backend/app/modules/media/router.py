@@ -3,18 +3,22 @@
 from collections.abc import Sequence
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from sqlalchemy import select
 
 from app.core.deps import SessionDep
+from app.core.downloads import HostResolver
 from app.core.pagination import Page, PageParams, page_params
 from app.core.storage import Stockage, get_stockage
 from app.modules.media import service
 from app.modules.media.constants import MANAGE_MEDIA, MANAGE_MEDIA_REFERENCE, PURGE_MEDIA
+from app.modules.media.dependencies import get_host_resolver, get_image_link_transport
 from app.modules.media.models import Media, MediaReference, MediaReferenceNature
 from app.modules.media.schemas import (
     MediaRead,
     MediaReferenceCreate,
+    MediaReferenceImageReplace,
     MediaReferenceNatureRead,
     MediaReferenceRead,
     MediaReferenceUpdate,
@@ -30,6 +34,10 @@ StockageDep = Annotated[Stockage, Depends(get_stockage)]
 GestionnaireMedias = Annotated[User, Depends(require(MANAGE_MEDIA))]
 GestionnaireReferences = Annotated[User, Depends(require(MANAGE_MEDIA_REFERENCE))]
 Purgeur = Annotated[User, Depends(require(PURGE_MEDIA))]
+ImageLinkTransportDep = Annotated[
+    httpx.AsyncBaseTransport | None, Depends(get_image_link_transport)
+]
+HostResolverDep = Annotated[HostResolver, Depends(get_host_resolver)]
 
 
 def _lire_media(media: Media, stockage: Stockage) -> MediaRead:
@@ -220,6 +228,39 @@ async def modifier(
     par: GestionnaireReferences,
 ) -> MediaReferenceRead:
     reference = await service.modifier_reference(session, id_reference, corps, par)
+    return (await _lire_references(session, [reference]))[0]
+
+
+@router.post(
+    "/media-references/{id_reference}/image",
+    response_model=MediaReferenceRead,
+    summary="Remplacer l'image d'une référence par celle d'une adresse",
+    description=(
+        "Le serveur rapatrie l'image, en fait un nouveau média et le donne à la "
+        "référence ; l'adresse saisie n'est pas conservée et l'ancien média reste "
+        "en bibliothèque. Seules les adresses HTTPS publiques sont acceptées, sans "
+        "redirection. Demande les droits « manage_media_reference » et « manage_media »."
+    ),
+    responses={
+        409: {"description": "Référence archivée."},
+        413: {"description": "Image au-delà de la limite de pixels."},
+        415: {"description": "L'adresse ne renvoie pas une image lisible."},
+        422: {"description": "Adresse refusée ou injoignable, ou image trop lourde."},
+    },
+)
+async def replace_reference_image(
+    id_reference: int,
+    body: MediaReferenceImageReplace,
+    session: SessionDep,
+    storage: StockageDep,
+    by: GestionnaireReferences,
+    _: GestionnaireMedias,
+    transport: ImageLinkTransportDep,
+    resolve: HostResolverDep,
+) -> MediaReferenceRead:
+    reference = await service.replace_reference_image(
+        session, storage, id_reference, body.url, by, transport=transport, resolve=resolve
+    )
     return (await _lire_references(session, [reference]))[0]
 
 

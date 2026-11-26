@@ -515,3 +515,32 @@
   font-size: var(--t-xs);
   color: var(--muted);
 }
+
+.hint.is-erreur {
+  @include roles.role('danger');
+  color: var(--deep);
+}
+
+.lien-ligne {
+  display: flex;
+  gap: 8px;
+}
+
+.lien-ligne .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lien-ligne .btn-icon {
+  flex: none;
+  align-self: center;
+}
+
+.lien-apercu {
+  max-height: 120px;
+  width: 100%;
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--ground-2);
+}

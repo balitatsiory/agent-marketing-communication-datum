@@ -44,6 +44,7 @@ export const ICON_SET = {
   external:
     '<path d="M14 5h5v5"/><path d="M19 5l-7.5 7.5"/><path d="M18 14.5v4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6h4"/>',
   arrowRight: '<path d="M5 12h13M13 7l5 5-5 5"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/>',
   check: '<path d="M5 12.5 10 17.5 19 6.5"/>',
   dots:
     '<circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>',

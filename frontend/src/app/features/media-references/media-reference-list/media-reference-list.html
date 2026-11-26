@@ -595,6 +595,97 @@
               />
             </div>
 
+            @if (etat.mode === 'modifier') {
+              <div class="field">
+                <label for="ref-lien">Lien de l'image</label>
+                <div class="lien-ligne">
+                  <input
+                    #champLien
+                    class="input"
+                    id="ref-lien"
+                    type="url"
+                    autocomplete="off"
+                    spellcheck="false"
+                    maxlength="2048"
+                    aria-describedby="ref-lien-aide"
+                    [attr.aria-invalid]="erreurLien() !== null"
+                    [value]="lienSaisi()"
+                    [disabled]="enCours()"
+                    [readOnly]="!peutDeposerMedia()"
+                    (input)="saisirLien($any($event.target).value)"
+                  />
+                  <button
+                    class="btn btn-icon"
+                    type="button"
+                    aria-label="Copier le lien"
+                    title="Copier le lien"
+                    [disabled]="!lienSaisi().trim()"
+                    (click)="copierLien(champLien)"
+                  >
+                    <app-icon [name]="lienCopie() ? 'check' : 'copy'" size="sm" />
+                  </button>
+                  @if (lienOuvrable(); as url) {
+                    <a
+                      class="btn btn-icon"
+                      [href]="url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Ouvrir le lien dans un nouvel onglet"
+                      title="Ouvrir le lien"
+                    >
+                      <app-icon name="external" size="sm" />
+                    </a>
+                  } @else {
+                    <button
+                      class="btn btn-icon"
+                      type="button"
+                      disabled
+                      aria-label="Ouvrir le lien dans un nouvel onglet"
+                      title="Ouvrir le lien"
+                    >
+                      <app-icon name="external" size="sm" />
+                    </button>
+                  }
+                </div>
+
+                <p
+                  class="hint"
+                  id="ref-lien-aide"
+                  role="status"
+                  [class.is-erreur]="erreurLien() !== null"
+                >
+                  @if (lienCopie()) {
+                    Lien copié.
+                  } @else if (erreurLien(); as message) {
+                    {{ message }}
+                  } @else if (!peutDeposerMedia()) {
+                    Modifier le lien demande le droit « manage_media ».
+                  } @else if (lienModifie() && enCours()) {
+                    Copie de l'image en cours…
+                  } @else if (lienModifie()) {
+                    À l'enregistrement, cette image sera copiée dans le stockage : le lien affiché
+                    deviendra celui de la copie.
+                  } @else {
+                    Pour changer d'image, collez l'adresse directe d'une autre image.
+                  }
+                </p>
+
+                @if (apercuLien(); as url) {
+                  @if (apercuLienEchoue()) {
+                    <p class="hint">Aucun aperçu : l'image ne se charge pas à cette adresse.</p>
+                  } @else {
+                    <img
+                      class="lien-apercu"
+                      alt="Aperçu de l'image à ce lien"
+                      referrerpolicy="no-referrer"
+                      [src]="url"
+                      (error)="apercuLienEchoue.set(true)"
+                    />
+                  }
+                }
+              </div>
+            }
+
             <div class="field">
               <label for="ref-description">Description (facultative)</label>
               <textarea

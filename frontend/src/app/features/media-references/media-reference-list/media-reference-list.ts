@@ -27,6 +27,14 @@ import { Topbar } from '../../../layout/topbar/topbar';
 import { Icon } from '../../../shared/icon/icon';
 
 const TAILLE_PAGE = 200;
+const LIEN_ACCEPTE = /^https:\/\/\S+$/i;
+/** Attente après la dernière frappe avant de charger l'aperçu d'un lien. */
+const DELAI_APERCU_MS = 500;
+
+/** Un stockage local sert des adresses relatives : copiées, elles ne mèneraient nulle part. */
+function lienAbsolu(url: string | undefined): string {
+  return url ? new URL(url, document.baseURI).href : '';
+}
 
 type ModeEditeur =
   | { readonly mode: 'declarer' }
@@ -96,6 +104,27 @@ export class MediaReferenceList {
   protected readonly libelleSaisi = signal('');
   protected readonly descriptionSaisie = signal('');
   protected readonly estActifSaisi = signal(true);
+
+  /** Lien de l'image dans la fenêtre de modification : saisi, et déjà enregistré. */
+  protected readonly lienSaisi = signal('');
+  private readonly lienEnregistre = signal('');
+  protected readonly lienCopie = signal(false);
+  protected readonly apercuLien = signal<string | null>(null);
+  protected readonly apercuLienEchoue = signal(false);
+
+  protected readonly lienModifie = computed(
+    () => this.lienSaisi().trim() !== this.lienEnregistre(),
+  );
+  protected readonly erreurLien = computed<string | null>(() => {
+    if (!this.lienModifie()) return null;
+    const lien = this.lienSaisi().trim();
+    if (!lien) return 'Le lien ne peut pas être vide.';
+    return LIEN_ACCEPTE.test(lien) ? null : 'L’adresse doit commencer par « https:// ».';
+  });
+  /** Adresse que le navigateur peut ouvrir : celle enregistrée, ou une saisie acceptable. */
+  protected readonly lienOuvrable = computed<string | null>(() =>
+    this.erreurLien() === null ? this.lienSaisi().trim() || null : null,
+  );
 
   protected readonly retraitId = signal<number | null>(null);
 
@@ -193,6 +222,7 @@ export class MediaReferenceList {
       if (this.modeSource() === 'bibliotheque' && this.idMediaChoisi() === null) return false;
       if (this.modeSource() === 'importer' && this.fichierImporte() === null) return false;
     }
+    if (mode.mode === 'modifier' && this.erreurLien() !== null) return false;
     return (
       this.codeNatureChoisi() !== null &&
       this.libelleSaisi().trim().length > 0 &&
@@ -206,6 +236,14 @@ export class MediaReferenceList {
     });
     effect(() => {
       this.boutonFermerDetail()?.nativeElement.focus();
+    });
+    effect((onCleanup) => {
+      const lien = this.lienOuvrable();
+      const minuterie = setTimeout(() => {
+        this.apercuLien.set(lien);
+        this.apercuLienEchoue.set(false);
+      }, DELAI_APERCU_MS);
+      onCleanup(() => clearTimeout(minuterie));
     });
     inject(DestroyRef).onDestroy(() => this.libererApercu());
     void this.charger();
@@ -318,7 +356,32 @@ export class MediaReferenceList {
     this.libelleSaisi.set(reference.label);
     this.descriptionSaisie.set(reference.description ?? '');
     this.estActifSaisi.set(reference.isActive);
+    const lien = lienAbsolu(reference.media?.url);
+    this.lienEnregistre.set(lien);
+    this.lienSaisi.set(lien);
+    this.lienCopie.set(false);
+    // Posé tout de suite : l'aperçu d'une autre référence ne doit pas rester affiché.
+    this.apercuLien.set(lien || null);
+    this.apercuLienEchoue.set(false);
     this.editeur.set({ mode: 'modifier', reference });
+  }
+
+  protected saisirLien(lien: string): void {
+    this.lienSaisi.set(lien);
+    this.lienCopie.set(false);
+    // Le refus affiché portait sur le lien précédent.
+    this.erreurModale.set(null);
+  }
+
+  protected async copierLien(champ: HTMLInputElement): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.lienSaisi().trim());
+      this.lienCopie.set(true);
+      this.erreurModale.set(null);
+    } catch {
+      champ.select();
+      this.erreurModale.set('Copie impossible : le lien est sélectionné, copiez-le avec Ctrl+C.');
+    }
   }
 
   protected fermerModale(): void {
@@ -409,19 +472,24 @@ export class MediaReferenceList {
         this.editeur.set(null);
         this.avis.set(`« ${creee.label} » a été déclaré comme média de référence.`);
       } else {
-        const modifiee = await this.api.updateReference(etat.reference.idMediaReferences, {
+        const idReference = etat.reference.idMediaReferences;
+        const imageRemplacee = this.lienModifie();
+        // L'image d'abord : c'est l'étape qui peut être refusée, et rien d'autre
+        // n'est alors enregistré.
+        if (imageRemplacee) await this.remplacerImage(idReference, this.lienSaisi().trim());
+        const modifiee = await this.api.updateReference(idReference, {
           nature_code: natureCode,
           label: libelle,
           description,
           is_active: this.estActifSaisi(),
         });
-        this.referencesBrutes.update((courantes) =>
-          courantes.map((r) =>
-            r.id_media_references === modifiee.id_media_references ? modifiee : r,
-          ),
-        );
+        this.majReference(modifiee);
         this.editeur.set(null);
-        this.avis.set(`Référence « ${modifiee.label} » mise à jour.`);
+        this.avis.set(
+          imageRemplacee
+            ? `Référence « ${modifiee.label} » mise à jour. Sa nouvelle image est enregistrée.`
+            : `Référence « ${modifiee.label} » mise à jour.`,
+        );
       }
     } catch (erreur) {
       this.erreurModale.set(traduireErreurMedia(erreur));
@@ -429,6 +497,26 @@ export class MediaReferenceList {
     } finally {
       this.enCours.set(false);
     }
+  }
+
+  private async remplacerImage(idReference: number, lien: string): Promise<void> {
+    const remplacee = await this.api.replaceReferenceImage(idReference, lien);
+    // C'est fait côté serveur : un nouvel essai ne doit pas rapatrier l'image deux fois.
+    this.lienEnregistre.set(lien);
+    const media = toMediaView(await this.api.get(remplacee.id_media));
+    this.bibliotheque.update((courants) => [media, ...courants]);
+    this.majReference(remplacee);
+    const copie = lienAbsolu(media.url);
+    this.lienEnregistre.set(copie);
+    this.lienSaisi.set(copie);
+  }
+
+  private majReference(reference: MediaReferenceDto): void {
+    this.referencesBrutes.update((courantes) =>
+      courantes.map((r) =>
+        r.id_media_references === reference.id_media_references ? reference : r,
+      ),
+    );
   }
 
   // ------------------------------------------------ retrait de la référence

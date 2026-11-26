@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
+from app.core.downloads import DownloadRefusedError, download_image
 from app.core.errors import ApiError
 from app.core.storage import Stockage
 from app.modules.media.images import compresser
@@ -53,23 +54,16 @@ def get_flyer_transport() -> httpx.AsyncBaseTransport | None:
 
 
 async def _telecharger(adresse: str, transport: httpx.AsyncBaseTransport | None) -> bytes:
-    morceaux = urlsplit(adresse)
-    if morceaux.scheme != "https" or morceaux.hostname not in FLYER_ALLOWED_HOSTS:
-        raise FlyerRefusedError("Adresse hors du site datumacademy.com.")
-    recu = bytearray()
-    async with (
-        httpx.AsyncClient(
-            transport=transport, timeout=FLYER_TIMEOUT_SECONDS, follow_redirects=False
-        ) as http,
-        http.stream("GET", adresse) as reponse,
-    ):
-        if reponse.status_code != 200:
-            raise FlyerRefusedError(f"Le site répond {reponse.status_code}.")
-        async for morceau in reponse.aiter_bytes():
-            recu.extend(morceau)
-            if len(recu) > FLYER_MAX_BYTES:
-                raise FlyerRefusedError("Image trop lourde.")
-    return bytes(recu)
+    try:
+        return await download_image(
+            adresse,
+            allowed_hosts=FLYER_ALLOWED_HOSTS,
+            max_bytes=FLYER_MAX_BYTES,
+            timeout_seconds=FLYER_TIMEOUT_SECONDS,
+            transport=transport,
+        )
+    except DownloadRefusedError as erreur:
+        raise FlyerRefusedError(str(erreur)) from erreur
 
 
 def _format_image(contenu: bytes) -> str:
