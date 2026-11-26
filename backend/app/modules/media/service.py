@@ -280,8 +280,15 @@ async def _nature_par_code(session: AsyncSession, code: str) -> MediaReferenceNa
 
 
 async def declarer_reference(
-    session: AsyncSession, donnees: MediaReferenceCreate, par: User
+    session: AsyncSession, donnees: MediaReferenceCreate, par: User | None
 ) -> MediaReference:
+    """Déclare un média comme référence. `par` est nul pour une reprise par script.
+
+    Raises:
+        NotFoundError: média inconnu.
+        ConflictError: média archivé, déjà référencé, ou qui n'est pas une image.
+        ApiError: nature inconnue (`unknown_nature`).
+    """
     media = await obtenir(session, donnees.id_media)
     if media.deleted_at is not None:
         raise ConflictError("Ce média est archivé : il ne peut pas servir de référence.")
@@ -305,7 +312,7 @@ async def declarer_reference(
         id_media_reference_natures=nature.id_media_reference_natures,
         label=donnees.label,
         description=donnees.description,
-        id_users_created_by=par.id_users,
+        id_users_created_by=par.id_users if par else None,
     )
     session.add(reference)
     await session.flush()
